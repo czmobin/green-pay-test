@@ -1,75 +1,73 @@
 # گرین‌پی · اتاق جلسات — Green Pay Meetings
 
-دموی فرانت‌اند برای یک **وب‌اپلیکیشن مدیریت جلسات سازمانی** با هویت بصری نزدیک به [greenpay360.ir](https://greenpay360.ir/).
-تک‌فایل، کاملاً **RTL فارسی**، بدون هیچ وابستگی خارجی (HTML/CSS/JS خالص) و آمادهٔ اجرا روی هر سروری.
+پنل مدیریت جلسات سازمانی گرین‌پی، ساخته‌شده با **Next.js 14 (App Router) + TypeScript + React**.
+کاملاً **RTL فارسی**، **موبایل‌فرست** و با هویت بصری سفید-سبز نزدیک به [greenpay360.ir](https://greenpay360.ir/).
 
 ## امکانات
-- **داشبورد**: کارت‌های آماری، برنامهٔ امروز، وضعیت زندهٔ اتاق‌ها، مهمانان روز
-- **تقویم هفتگی**: بلوک‌های جلسه رنگ‌بندی‌شده بر اساس نوع، خط «الان»
-- **همهٔ جلسات**: جدول با فیلتر، وضعیت، و ستون همگام‌سازی Google Calendar
-- **مهمانان خارجی**: مسیر هر مهمان بین جلسات روز
-- اتصال نمایشی به **Google Calendar**، پنل جزئیات جلسه، تم روشن/تیره، ریسپانسیو
+- **داشبورد خلوت**: جلسهٔ بعدی + آمار کلیدی + برنامهٔ امروز (جزئیات با یک کلیک داخل جلسه)
+- **تقویم هفتگی**: در موبایل به‌صورت اجندای روزانه، در دسکتاپ گرید ساعتی
+- **همهٔ جلسات**: فهرست فیلترشونده بر اساس نوع
+- **صفحهٔ جلسه + صورت‌جلسه**: حین جلسه، آیتم ثبت کنید با تایپ‌های
+  **یادداشت / تصمیم / تسک** (مسئول و مهلت) **/ یادآور** (زمان) **/ تماس تلفنی** (شخص و شماره).
+  صورت‌جلسه در مرورگر ذخیره می‌شود (localStorage).
+- **فرم ساخت جلسه** (مودال): عنوان، نوع، روز/ساعت/مدت/اتاق، شرکت‌کنندگان
+- **مهمانان خارجی**: مسیر هر مهمان بین جلسات
+- اتصال نمایشی **Google Calendar**، تم روشن/تیره
+
+## پیش‌نیاز
+- [Node.js](https://nodejs.org/) نسخهٔ ۱۸.۱۸ به بالا
+- دسترسی به اینترنت **هنگام build** (فونت Vazirmatn یک‌بار از Google Fonts گرفته و در خود پروژه میزبانی می‌شود)
 
 ---
 
 ## اجرا روی سرور ویندوز (روی یک پورت دلخواه)
 
-### روش ۱ — با Node.js (پیشنهادی، بدون نصب هیچ پکیج)
-پیش‌نیاز: نصب [Node.js](https://nodejs.org/) (نسخهٔ ۱۴ به بالا).
-
 ```powershell
-# PowerShell — اجرا روی پورت 8080 (پیش‌فرض)
-node server.js
+git clone git@github.com:czmobin/green-pay-test.git
+cd green-pay-test
 
-# اجرا روی یک پورت خاص، مثلاً 9000
-node server.js 9000
-
-# یا با متغیر محیطی
-$env:PORT=9000; node server.js
+npm install       # نصب وابستگی‌ها
+npm run build     # ساخت نسخهٔ production
+npm run start -- -p 9000    # اجرا روی پورت 9000
 ```
 
-```cmd
-:: Command Prompt (CMD)
-node server.js 9000
-```
+سپس باز کنید: `http://<IP-سرور>:9000/`
 
-سپس در مرورگر: `http://localhost:9000/` یا `http://<IP-سرور>:9000/`
-
-> `server.js` یک سرور استاتیک سبک با ماژول‌های داخلی Node است — نیازی به `npm install` نیست.
-
-### باز کردن پورت در فایروال ویندوز
-اگر می‌خواهید از دستگاه‌های دیگر شبکه هم در دسترس باشد (PowerShell با دسترسی Administrator):
-
-```powershell
-New-NetFirewallRule -DisplayName "GreenPay Meetings 9000" -Direction Inbound -LocalPort 9000 -Protocol TCP -Action Allow
-```
-
-### اجرای دائمی به‌صورت سرویس (اختیاری)
-با [PM2](https://pm2.keymetrics.io/) تا بعد از ری‌استارت هم بالا بماند:
-
+### اجرای دائمی به‌صورت سرویس (اختیاری، با PM2)
 ```powershell
 npm install -g pm2 pm2-windows-startup
-pm2 start server.js --name greenpay -- 9000
+pm2 start "npm run start -- -p 9000" --name greenpay
 pm2 save
 pm2-startup install
 ```
 
-### روش ۲ — بدون Node، فقط با IIS
-کافی است فایل `index.html` را در پوشهٔ سایت IIS (مثلاً `C:\inetpub\wwwroot\greenpay\`) کپی کنید و در IIS Manager یک Site جدید با پورت دلخواه به آن پوشه بسازید. این پروژه کاملاً استاتیک است.
-
-### روش ۳ — بدون Node، با Python (اگر نصب بود)
+### باز کردن پورت در فایروال ویندوز
 ```powershell
-python -m http.server 9000
+New-NetFirewallRule -DisplayName "GreenPay 9000" -Direction Inbound -LocalPort 9000 -Protocol TCP -Action Allow
+```
+> اگر سرور ابری (مثل Hetzner) است، پورت را در **فایروال/Security Group پنل سرویس‌دهنده** هم باز کنید.
+
+### حالت توسعه
+```powershell
+npm run dev       # http://localhost:3000
 ```
 
 ---
 
-## ساختار فایل‌ها
-| فایل | توضیح |
-|------|-------|
-| `index.html` | کل اپلیکیشن (تک‌فایل، standalone) |
-| `server.js`  | سرور استاتیک سبک Node.js (بدون وابستگی) |
-| `package.json` | اسکریپت `npm start` |
+## ساختار پروژه
+```
+app/                     صفحات (App Router)
+  page.tsx               داشبورد
+  calendar/page.tsx      تقویم هفتگی
+  meetings/page.tsx      فهرست جلسات
+  meetings/[id]/page.tsx صفحهٔ جلسه + صورت‌جلسه
+  guests/page.tsx        مهمانان خارجی
+  layout.tsx             لایهٔ ریشه (RTL، فونت، تم)
+  globals.css            توکن‌های طراحی و استایل‌ها
+components/               AppShell, Sidebar/Topbar/BottomNav, مودال ساخت، MinutesEditor، Icons، store
+lib/                      data.ts (دادهٔ نمونه) و types.ts
+legacy-static/           نسخهٔ اولیهٔ تک‌فایل (بایگانی)
+```
 
 ## نکته
-تایپوگرافی فارسی از استک فونت سیستمی استفاده می‌کند (Vazirmatn / IRANSans / Tahoma). برای بهترین نتیجه، نصب فونت **[Vazirmatn](https://github.com/rastikerdar/vazirmatn)** روی سرور/دستگاه ارائه توصیه می‌شود.
+تایپوگرافی فارسی با فونت **Vazirmatn** است که هنگام build دانلود و در پروژه میزبانی می‌شود؛ پس در زمان اجرا هیچ وابستگی به CDN وجود ندارد.

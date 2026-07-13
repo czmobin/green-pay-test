@@ -1,7 +1,25 @@
+# dependencies
 node_modules/
-npm-debug.log*
+
+# next.js
+.next/
+out/
+build/
+
+# misc
 .DS_Store
 Thumbs.db
 *.log
+npm-debug.log*
+
+# env
+.env
+.env*.local
+
+# editor
 .vscode/
 .idea/
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts.bak

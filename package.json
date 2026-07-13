@@ -1,13 +1,23 @@
 {
   "name": "greenpay-meetings",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "private": true,
-  "description": "پنل مدیریت جلسات سازمانی گرین‌پی — دموی فرانت‌اند (تک‌فایل، بدون وابستگی)",
-  "main": "server.js",
+  "description": "پنل مدیریت جلسات گرین‌پی — Next.js + TypeScript",
   "scripts": {
-    "start": "node server.js"
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
   },
-  "engines": {
-    "node": ">=14"
+  "dependencies": {
+    "next": "14.2.15",
+    "react": "18.3.1",
+    "react-dom": "18.3.1"
+  },
+  "devDependencies": {
+    "typescript": "5.6.3",
+    "@types/node": "22.7.5",
+    "@types/react": "18.3.11",
+    "@types/react-dom": "18.3.0"
   }
 }
