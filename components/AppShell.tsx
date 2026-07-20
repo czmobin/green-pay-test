@@ -4,9 +4,10 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useStore } from './store';
 import CreateMeetingModal from './CreateMeetingModal';
+import NotificationBell from './NotificationBell';
 import {
   IconDashboard, IconCalendar, IconList, IconPlus, IconReminder,
-  IconBell, IconSun, IconLeaf, IconGoogle, IconCheck, IconSettings,
+  IconSun, IconLeaf, IconGoogle, IconCheck, IconSettings,
 } from './Icons';
 import { initials } from '@/lib/data';
 
@@ -92,7 +93,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             {store.gcalConnected ? <IconCheck size={18} /> : <IconGoogle size={18} />}
           </button>
           <Link href="/settings" className="icon-btn only-mobile" aria-label="تعریف‌ها"><IconSettings size={18} /></Link>
-          <button className="icon-btn" aria-label="اعلان‌ها"><span className="badge" /><IconBell size={18} /></button>
+          <NotificationBell />
           <button className="icon-btn only-mobile" onClick={store.toggleTheme} aria-label="تغییر تم"><IconSun size={18} /></button>
         </header>
 

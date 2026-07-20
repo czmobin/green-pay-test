@@ -81,6 +81,7 @@ export const CAL_YEAR = 1404;
 export const CAL_MONTH = 4; // تیر
 export const BASE_JD = 21; // day index 0 → ۲۱ تیر (شنبه)
 export const TODAY_J = { jy: 1404, jm: 4, jd: 22 };
+export const NOW_HOUR = 14.5; // «اکنون» دمو: یکشنبه ۲۲ تیر، ۱۴:۳۰
 export function meetingJd(day: number): number { return BASE_JD + day; }
 
 export const typeLabels: Record<MeetingType, string> = {

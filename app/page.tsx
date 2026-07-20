@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useStore } from '@/components/store';
 import MeetingRow from '@/components/MeetingRow';
-import { typeLabels, TODAY, fmtTime, toFa, dayNames } from '@/lib/data';
+import { typeLabels, TODAY, NOW_HOUR, fmtTime, toFa, dayNames } from '@/lib/data';
 import {
   IconCalendar, IconClock, IconGuests, IconRoom, IconMapPin, IconChevron, IconVideo, IconCheck, IconX,
 } from '@/components/Icons';
@@ -14,7 +14,7 @@ export default function Dashboard() {
   const router = useRouter();
   const rooms = store.rooms;
   const today = store.meetings.filter((m) => m.day === TODAY).sort((a, b) => a.start - b.start);
-  const next = today[0];
+  const next = today.find((m) => m.start >= NOW_HOUR) ?? today[today.length - 1];
   const pending = store.meetings.filter((m) => m.status === 'pending').length;
   const guestCount = new Set(today.flatMap((m) => m.guests)).size;
   const roomCount = new Set(today.map((m) => m.room)).size;

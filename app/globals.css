@@ -532,6 +532,38 @@ select.field-in{appearance:none;background-image:url("data:image/svg+xml;utf8,<s
 .pp-search svg{position:absolute;inset-inline-start:10px;top:50%;transform:translateY(-50%);width:15px;height:15px;color:var(--muted)}
 .people-pick{max-height:200px;overflow-y:auto}
 
+/* ===================== Notifications ===================== */
+.notif-overlay{position:fixed;inset:0;z-index:70}
+.notif-panel{position:fixed;z-index:71;top:calc(var(--topbar-h) + 8px);inset-inline-start:12px;width:min(370px,94vw);
+  max-height:min(74vh,560px);background:var(--panel);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow-lg);
+  display:flex;flex-direction:column;overflow:hidden;opacity:0;transform:translateY(-8px) scale(.98);pointer-events:none;transition:.18s}
+.notif-panel.show{opacity:1;transform:none;pointer-events:auto}
+.notif-head{display:flex;align-items:center;justify-content:space-between;padding:13px 16px;border-bottom:1px solid var(--line)}
+.notif-head b{font-size:15px;font-weight:800;display:block}
+.notif-head small{font-size:11.5px;color:var(--muted)}
+.sms-row{display:flex;align-items:center;gap:12px;width:100%;padding:12px 16px;border-bottom:1px solid var(--line);text-align:start;background:var(--panel-2);transition:.12s}
+.sms-row b{font-size:13px;font-weight:700;display:block}
+.sms-row small{font-size:11px;color:var(--muted)}
+.sms-row .switch{margin-inline-start:auto;width:42px;height:24px;border-radius:999px;background:var(--line-strong);position:relative;transition:.18s;flex:0 0 auto}
+.sms-row .switch .knob{position:absolute;top:3px;inset-inline-start:3px;width:18px;height:18px;border-radius:50%;background:#fff;transition:.18s;box-shadow:var(--shadow-sm)}
+.sms-row.on .switch{background:var(--brand)}
+.sms-row.on .switch .knob{inset-inline-start:21px}
+.notif-list{overflow-y:auto;flex:1;padding:6px}
+.notif{display:flex;gap:11px;width:100%;text-align:start;padding:10px 11px;border-radius:12px;transition:.12s}
+.notif:hover{background:var(--panel-2)}
+.notif.urgent{background:color-mix(in srgb,var(--danger) 6%,transparent)}
+.notif .ni{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;flex:0 0 auto}
+.notif .ni svg{width:17px;height:17px}
+.notif .nc{flex:1;min-width:0}
+.notif .nt{font-size:13px;font-weight:700;line-height:1.5;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.notif .ns{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:4px;font-size:11px;color:var(--muted)}
+.notif .ns span{display:flex;align-items:center;gap:4px}
+.notif .ns svg{width:12px;height:12px}
+.ntag{font-size:10px;font-weight:800;padding:2px 7px;border-radius:6px}
+.ntag.urg{color:var(--danger);background:var(--danger-soft)}
+.ntag.sms{color:var(--brand-strong);background:var(--mint-soft)}
+.notif-foot{padding:11px 16px;border-top:1px solid var(--line);font-size:11px;color:var(--muted);background:var(--panel-2)}
+
 /* ===================== Definitions (settings) ===================== */
 .def-form{margin-bottom:16px}
 .def-form-body{padding:2px 16px 16px;display:flex;flex-direction:column;gap:12px}

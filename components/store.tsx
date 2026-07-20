@@ -30,6 +30,9 @@ interface Store {
   gcalConnected: boolean;
   connectGcal: () => void;
 
+  smsEnabled: boolean;
+  toggleSms: () => void;
+
   createOpen: boolean;
   openCreate: () => void;
   closeCreate: () => void;
@@ -55,6 +58,7 @@ export default function Providers({ children }: { children: React.ReactNode }) {
   const [rooms, setRooms] = useState<Record<string, Room>>(seedRooms);
   const [orgs, setOrgs] = useState<Record<string, Organization>>(seedOrgs);
   const [gcalConnected, setGcal] = useState(false);
+  const [smsEnabled, setSms] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [loaded, setLoaded] = useState(false);
@@ -102,6 +106,14 @@ export default function Providers({ children }: { children: React.ReactNode }) {
     setTimeout(() => { setGcal(true); toast('Google Calendar با موفقیت متصل شد', 'ok'); }, 1300);
   }, [gcalConnected, toast]);
 
+  const toggleSms = useCallback(() => {
+    setSms((v) => {
+      const next = !v;
+      toast(next ? 'پنل پیامکی متصل شد — اعلان‌ها پیامک می‌شوند' : 'ارسال پیامک غیرفعال شد', next ? 'ok' : 'info');
+      return next;
+    });
+  }, [toast]);
+
   const toggleTheme = useCallback(() => {
     const root = document.documentElement;
     const cur = root.getAttribute('data-theme');
@@ -116,9 +128,10 @@ export default function Providers({ children }: { children: React.ReactNode }) {
     minutes, addMinute, deleteMinute, toggleTask,
     people, rooms, orgs, addPerson, addRoom, addOrg,
     gcalConnected, connectGcal,
+    smsEnabled, toggleSms,
     createOpen, openCreate: () => setCreateOpen(true), closeCreate: () => setCreateOpen(false),
     toast, toggleTheme,
-  }), [meetings, minutes, people, rooms, orgs, gcalConnected, createOpen, addMeeting, getMeeting, syncMeeting, respondMeeting, addMinute, deleteMinute, toggleTask, addPerson, addRoom, addOrg, connectGcal, toast, toggleTheme]);
+  }), [meetings, minutes, people, rooms, orgs, gcalConnected, smsEnabled, createOpen, addMeeting, getMeeting, syncMeeting, respondMeeting, addMinute, deleteMinute, toggleTask, addPerson, addRoom, addOrg, connectGcal, toggleSms, toast, toggleTheme]);
 
   return (
     <Ctx.Provider value={value}>

@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useStore } from './store';
-import { typeColor, fmtTime, toFa, meetingJd, CAL_YEAR, CAL_MONTH, TODAY_J } from '@/lib/data';
+import { typeColor, fmtTime, toFa, meetingJd, CAL_YEAR, CAL_MONTH, TODAY_J, NOW_HOUR } from '@/lib/data';
 import type { Meeting } from '@/lib/types';
 import {
   jMonths, jWeekdays, jWeekdaysShort, jMonthLength, faWeekday, jToDate, dateToJ, addDays, sameJ, type JDate,
@@ -95,7 +95,7 @@ function DayView({ j, meetingsOn, open }: { j: JDate; meetingsOn: (j: JDate) => 
         </div>
         <div className="dcol">
           {Array.from({ length: END - START }, (_, i) => <div className="slot" key={i} />)}
-          {isToday && <div className="now-line" style={{ top: (13.5 - START) * HOUR }} />}
+          {isToday && <div className="now-line" style={{ top: (NOW_HOUR - START) * HOUR }} />}
           {items.map((m) => (
             <button key={m.id} className="cev" onClick={() => open(m.id)}
               style={{ top: (m.start - START) * HOUR, height: (m.end - m.start) * HOUR - 3, background: `color-mix(in srgb,${typeColor[m.type]} 15%,var(--panel))`, borderColor: typeColor[m.type], color: typeColor[m.type] }}>
@@ -139,7 +139,7 @@ function WeekView({ cur, meetingsOn, open, onDay }: { cur: JDate; meetingsOn: (j
             return (
               <div className="dcol" key={di}>
                 {Array.from({ length: END - START }, (_, i) => <div className="slot" key={i} />)}
-                {today && <div className="now-line" style={{ top: (13.5 - START) * HOUR }} />}
+                {today && <div className="now-line" style={{ top: (NOW_HOUR - START) * HOUR }} />}
                 {items.map((m) => (
                   <button key={m.id} className="cev sm" onClick={() => open(m.id)}
                     style={{ top: (m.start - START) * HOUR, height: (m.end - m.start) * HOUR - 3, background: `color-mix(in srgb,${typeColor[m.type]} 16%,var(--panel))`, borderColor: typeColor[m.type], color: typeColor[m.type] }}>
