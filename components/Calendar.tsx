@@ -20,7 +20,7 @@ export default function Calendar() {
 
   const meetingsOn = (j: JDate): Meeting[] =>
     (j.jy === CAL_YEAR && j.jm === CAL_MONTH)
-      ? store.meetings.filter((m) => meetingJd(m.day) === j.jd).sort((a, b) => a.start - b.start)
+      ? store.visibleMeetings.filter((m) => meetingJd(m.day) === j.jd).sort((a, b) => a.start - b.start)
       : [];
 
   const open = (id: string) => router.push(`/meetings/${id}`);

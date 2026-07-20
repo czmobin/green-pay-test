@@ -1,6 +1,6 @@
 'use client';
 import React, { createContext, useContext, useEffect, useMemo, useState, useCallback } from 'react';
-import type { Meeting, Minute, Person, Room, Organization } from '@/lib/types';
+import type { Meeting, Minute, Person, Room, Organization, Role } from '@/lib/types';
 import { seedMeetings, seedMinutes, people as seedPeople, rooms as seedRooms, organizations as seedOrgs } from '@/lib/data';
 import { IconCheck, IconX } from './Icons';
 
@@ -19,6 +19,12 @@ interface Store {
   toggleTask: (mid: string, id: string) => void;
 
   respondMeeting: (id: string, accept: boolean) => void;
+
+  role: Role;
+  currentUser: string;
+  setRole: (r: Role) => void;
+  setCurrentUser: (id: string) => void;
+  visibleMeetings: Meeting[];
 
   people: Record<string, Person>;
   rooms: Record<string, Room>;
@@ -54,6 +60,8 @@ const nextId = () => `x${++idc}`;
 export default function Providers({ children }: { children: React.ReactNode }) {
   const [meetings, setMeetings] = useState<Meeting[]>(seedMeetings);
   const [minutes, setMinutes] = useState<Record<string, Minute[]>>(seedMinutes);
+  const [role, setRole] = useState<Role>('ceo');
+  const [currentUser, setCurrentUser] = useState<string>('ceo');
   const [people, setPeople] = useState<Record<string, Person>>(seedPeople);
   const [rooms, setRooms] = useState<Record<string, Room>>(seedRooms);
   const [orgs, setOrgs] = useState<Record<string, Organization>>(seedOrgs);
@@ -84,6 +92,9 @@ export default function Providers({ children }: { children: React.ReactNode }) {
 
   const addMeeting = useCallback((m: Meeting) => setMeetings((ms) => [...ms, m]), []);
   const getMeeting = useCallback((id: string) => meetings.find((m) => m.id === id), [meetings]);
+  const visibleMeetings = useMemo(() =>
+    role === 'user' ? meetings.filter((m) => m.organizer === currentUser || m.parts.includes(currentUser)) : meetings,
+    [meetings, role, currentUser]);
   const syncMeeting = useCallback((id: string) =>
     setMeetings((ms) => ms.map((m) => (m.id === id ? { ...m, synced: true } : m))), []);
   const respondMeeting = useCallback((id: string, accept: boolean) =>
@@ -125,13 +136,14 @@ export default function Providers({ children }: { children: React.ReactNode }) {
 
   const value = useMemo<Store>(() => ({
     meetings, addMeeting, getMeeting, syncMeeting, respondMeeting,
+    role, currentUser, setRole, setCurrentUser, visibleMeetings,
     minutes, addMinute, deleteMinute, toggleTask,
     people, rooms, orgs, addPerson, addRoom, addOrg,
     gcalConnected, connectGcal,
     smsEnabled, toggleSms,
     createOpen, openCreate: () => setCreateOpen(true), closeCreate: () => setCreateOpen(false),
     toast, toggleTheme,
-  }), [meetings, minutes, people, rooms, orgs, gcalConnected, smsEnabled, createOpen, addMeeting, getMeeting, syncMeeting, respondMeeting, addMinute, deleteMinute, toggleTask, addPerson, addRoom, addOrg, connectGcal, toggleSms, toast, toggleTheme]);
+  }), [meetings, minutes, people, rooms, orgs, role, currentUser, visibleMeetings, gcalConnected, smsEnabled, createOpen, addMeeting, getMeeting, syncMeeting, respondMeeting, addMinute, deleteMinute, toggleTask, addPerson, addRoom, addOrg, connectGcal, toggleSms, toast, toggleTheme]);
 
   return (
     <Ctx.Provider value={value}>

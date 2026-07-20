@@ -21,7 +21,7 @@ export default function RemindersPage() {
   const [time, setTime] = useState<TimeF>('all');
 
   const items: Item[] = [];
-  store.meetings.forEach((m) => (store.minutes[m.id] ?? []).forEach((mn) => {
+  store.visibleMeetings.forEach((m) => (store.minutes[m.id] ?? []).forEach((mn) => {
     if (mn.type === 'task' || mn.type === 'reminder') items.push({ mn, m });
   }));
 

@@ -1,3 +1,5 @@
+export type Role = 'admin' | 'ceo' | 'user';
+
 export type MeetingType = 'board' | 'external' | 'internal' | 'online';
 export type MeetingStatus = 'confirmed' | 'pending' | 'cancelled' | 'done';
 

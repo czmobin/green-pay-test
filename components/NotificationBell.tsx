@@ -22,17 +22,17 @@ export default function NotificationBell() {
   const [open, setOpen] = useState(false);
 
   const notifs: N[] = [];
-  store.meetings
+  store.visibleMeetings
     .filter((m) => m.day === TODAY && m.start >= NOW_HOUR && m.status !== 'cancelled')
     .sort((a, b) => a.start - b.start)
     .forEach((m) => {
       const mins = Math.round((m.start - NOW_HOUR) * 60);
       notifs.push({ id: 'm' + m.id, kind: 'meeting', title: m.title, sub: `شروع در ${human(mins)}`, urgent: mins <= 30, mid: m.id });
     });
-  store.meetings.filter((m) => m.status === 'pending').forEach((m) => {
+  store.visibleMeetings.filter((m) => m.status === 'pending').forEach((m) => {
     notifs.push({ id: 'i' + m.id, kind: 'invite', title: `دعوت: ${short(m.title)}`, sub: `${dayNames[m.day]} · ${fmtTime(m.start)}`, mid: m.id });
   });
-  store.meetings.forEach((m) => (store.minutes[m.id] ?? []).forEach((x) => {
+  store.visibleMeetings.forEach((m) => (store.minutes[m.id] ?? []).forEach((x) => {
     if (x.type === 'reminder') notifs.push({ id: x.id, kind: 'reminder', title: x.text, sub: x.when || dayNames[m.day], mid: m.id });
     if (x.type === 'task' && !x.done) notifs.push({ id: x.id, kind: 'task', title: x.text, sub: `مهلت: ${x.due || '—'}`, mid: m.id });
   }));

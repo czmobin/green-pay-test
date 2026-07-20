@@ -26,8 +26,9 @@ function isActive(path: string, href: string) {
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const path = usePathname();
   const store = useStore();
-  const me = store.people.ceo;
-  const remCount = Object.values(store.minutes).flat().filter((x) => x.type === 'task' || x.type === 'reminder').length;
+  const me = store.people[store.currentUser] ?? store.people.ceo;
+  const roleLabel = { admin: 'ادمین', ceo: 'مدیرعامل', user: 'کاربر عادی' }[store.role];
+  const remCount = store.visibleMeetings.reduce((acc, m) => acc + (store.minutes[m.id] ?? []).filter((x) => x.type === 'task' || x.type === 'reminder').length, 0);
 
   return (
     <div className="shell">
@@ -46,7 +47,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               <Link key={n.href} href={n.href} className={isActive(path, n.href) ? 'active' : ''}>
                 <Ic size={19} />
                 {n.label}
-                {n.href === '/meetings' && <span className="cnt num">{store.meetings.length}</span>}
+                {n.href === '/meetings' && <span className="cnt num">{store.visibleMeetings.length}</span>}
                 {n.href === '/reminders' && remCount > 0 && <span className="cnt num">{remCount}</span>}
               </Link>
             );
@@ -71,7 +72,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           </div>
           <div className="side-user">
             <span className="ava" style={{ background: `linear-gradient(145deg,${me.color})` }}>{initials(me.name)}</span>
-            <div><b>{me.name}</b><small>{me.role}</small></div>
+            <div><b>{me.name}</b><small>{roleLabel} · {me.role}</small></div>
             <button className="icon-btn" style={{ marginInlineStart: 'auto', width: 32, height: 32, border: 0, background: 'transparent' }} onClick={store.toggleTheme} aria-label="تغییر تم"><IconSun size={17} /></button>
           </div>
         </div>

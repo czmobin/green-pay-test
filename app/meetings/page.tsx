@@ -16,7 +16,7 @@ export default function MeetingsPage() {
   // searchable text per meeting (title, category, location, participants, guests, agenda, minutes)
   const haystack = useMemo(() => {
     const map: Record<string, string> = {};
-    store.meetings.forEach((m) => {
+    store.visibleMeetings.forEach((m) => {
       const parts = [
         m.title,
         categoryById(m.category).name,
@@ -29,10 +29,10 @@ export default function MeetingsPage() {
       map[m.id] = normalizeFa(parts.join(' '));
     });
     return map;
-  }, [store.meetings, store.minutes]);
+  }, [store.visibleMeetings, store.minutes]);
 
   const nq = normalizeFa(q);
-  const rows = store.meetings
+  const rows = store.visibleMeetings
     .filter((m) => (cat === 'all' || m.category === cat) && (!nq || haystack[m.id].includes(nq)))
     .sort((a, b) => a.day - b.day || a.start - b.start);
 

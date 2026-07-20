@@ -2,10 +2,10 @@
 import React, { useState } from 'react';
 import { useStore } from '@/components/store';
 import { initials } from '@/lib/data';
-import type { Organization } from '@/lib/types';
+import type { Organization, Role } from '@/lib/types';
 import { IconBuilding, IconRoom, IconUsers, IconPlus } from '@/components/Icons';
 
-type Tab = 'orgs' | 'people' | 'locations';
+type Tab = 'orgs' | 'people' | 'locations' | 'access';
 const kindLabels: Record<Organization['kind'], string> = {
   internal: 'داخلی', bank: 'بانک', regulator: 'رگولاتور', partner: 'شریک',
 };
@@ -40,6 +40,12 @@ export default function Settings() {
     store.addPerson({ id: 'p' + Date.now().toString(36), name: pName.trim(), role: pRole.trim() || 'عضو', color, orgId: pOrg });
     store.toast('فرد اضافه شد', 'ok'); setPName(''); setPRole('');
   }
+  function selectRole(r: Role) {
+    store.setRole(r);
+    if (r === 'user') { if (store.currentUser === 'ceo') store.setCurrentUser('sara'); }
+    else store.setCurrentUser('ceo');
+    store.toast('سطح دسترسی تغییر کرد', 'ok');
+  }
   function addLoc(e: React.FormEvent) {
     e.preventDefault();
     if (!lName.trim()) { store.toast('نام محل را وارد کنید', 'info'); return; }
@@ -58,6 +64,7 @@ export default function Settings() {
         <button className={'chip-btn' + (tab === 'orgs' ? ' active' : '')} onClick={() => setTab('orgs')}>سازمان‌ها</button>
         <button className={'chip-btn' + (tab === 'people' ? ' active' : '')} onClick={() => setTab('people')}>افراد</button>
         <button className={'chip-btn' + (tab === 'locations' ? ' active' : '')} onClick={() => setTab('locations')}>محل‌ها</button>
+        <button className={'chip-btn' + (tab === 'access' ? ' active' : '')} onClick={() => setTab('access')}>دسترسی</button>
       </div>
 
       {/* ORGANIZATIONS */}
@@ -145,6 +152,29 @@ export default function Settings() {
             ))}
           </div>
         </>
+      )}
+
+      {tab === 'access' && (
+        <div className="card def-form">
+          <div className="card-head"><h3>سطح دسترسی (نمایش دمو)</h3></div>
+          <div className="def-form-body">
+            <div className="role-grid">
+              {([['admin', 'ادمین', 'دسترسی کامل + مشاهدهٔ جلسات همهٔ اعضا در کنار جلسات خود'], ['ceo', 'مدیرعامل', 'دسترسی کامل + مشاهدهٔ جلسات همهٔ اعضا در کنار جلسات خود'], ['user', 'کاربر عادی', 'فقط جلسات خودش را می‌بیند']] as [Role, string, string][]).map(([r, label, desc]) => (
+                <button type="button" key={r} className={'role-opt' + (store.role === r ? ' active' : '')} onClick={() => selectRole(r)}>
+                  <b>{label}</b><small>{desc}</small>
+                </button>
+              ))}
+            </div>
+            {store.role === 'user' && (
+              <div className="field">
+                <label>نمایش به‌عنوانِ</label>
+                <select className="field-in" value={store.currentUser} onChange={(e) => store.setCurrentUser(e.target.value)}>
+                  {Object.values(store.people).filter((p) => p.id !== 'ceo').map((p) => <option key={p.id} value={p.id}>{p.name} — {p.role}</option>)}
+                </select>
+              </div>
+            )}
+          </div>
+        </div>
       )}
     </>
   );
