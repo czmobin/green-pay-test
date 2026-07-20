@@ -110,6 +110,8 @@ export const minuteMeta: Record<MinuteType, { label: string; color: string; icon
   task: { label: 'تسک', color: '#2F7FE4', icon: 'task' },
   reminder: { label: 'یادآور', color: '#D9930B', icon: 'reminder' },
   call: { label: 'تماس تلفنی', color: '#7C3AED', icon: 'call' },
+  letter: { label: 'نامه', color: '#0891B2', icon: 'letter' },
+  file: { label: 'فایل', color: '#6B7B73', icon: 'file' },
 };
 
 /* normalize Persian text for search (unify ی/ي، ک/ك، nbsp) */
@@ -147,8 +149,9 @@ export function categoryById(id: string): Category {
 export const seedMinutes: Record<string, Minute[]> = {
   m1: [
     { id: 's1', type: 'decision', text: 'بودجهٔ توسعهٔ بازار ۱۴۰۴ به مبلغ مصوب تأیید شد.', createdAt: 1721540000000 },
-    { id: 's2', type: 'task', text: 'تهیهٔ گزارش تفصیلی ریسک نقدینگی برای جلسهٔ بعد', assignee: 'negar', due: '۲۸ تیر', done: false, createdAt: 1721540100000 },
+    { id: 's2', type: 'task', text: 'تهیهٔ گزارش تفصیلی ریسک نقدینگی برای جلسهٔ بعد', assignee: 'negar', due: '۲۸ تیر', done: false, participant: 'negar', createdAt: 1721540100000 },
     { id: 's3', type: 'reminder', text: 'ارسال صورت‌جلسه به اعضای هیئت مدیره', when: 'فردا ۹:۰۰', createdAt: 1721540200000 },
+    { id: 's9', type: 'letter', text: 'ابلاغ مصوبات جلسه به واحد مالی', fileName: 'مصوبات-Q2.pdf', participant: 'negar', createdAt: 1721540250000 },
   ],
   m2: [
     { id: 's4', type: 'task', text: 'ارسال مستندات API نسخهٔ ۳ به تیم شاپرک', assignee: 'reza', due: '۲۴ تیر', done: false, createdAt: 1721540300000 },

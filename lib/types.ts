@@ -57,13 +57,15 @@ export interface Meeting {
   agenda: AgendaItem[];
 }
 
-export type MinuteType = 'note' | 'decision' | 'task' | 'reminder' | 'call';
+export type MinuteType = 'note' | 'decision' | 'task' | 'reminder' | 'call' | 'letter' | 'file';
 
 export interface Minute {
   id: string;
   type: MinuteType;
   text: string;
   createdAt: number;
+  participant?: string; // person id — صورت‌جلسهٔ کدام شرکت‌کننده؛ undefined = عمومی
+  fileName?: string; // برای نامه/فایل
   // task
   assignee?: string;
   due?: string;

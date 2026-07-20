@@ -297,6 +297,25 @@ input,select,textarea{font-family:inherit}
 .count-chip{font-size:11px;font-weight:700;padding:3px 9px;border-radius:8px;display:inline-flex;align-items:center;gap:5px;background:var(--panel-2);border:1px solid var(--line)}
 .count-chip i{width:8px;height:8px;border-radius:3px;display:inline-block}
 
+/* per-participant bucket selector */
+.p-buckets{display:flex;gap:7px;overflow-x:auto;padding:11px 14px;border-bottom:1px solid var(--line)}
+.p-buckets .pb{flex:0 0 auto;display:flex;align-items:center;gap:6px;padding:5px 12px 5px 8px;border-radius:999px;
+  border:1px solid var(--line-strong);background:var(--panel);color:var(--ink-soft);font-size:12.5px;font-weight:700;white-space:nowrap;transition:.12s}
+.p-buckets .pb:hover{border-color:var(--brand)}
+.p-buckets .pb.active{border-color:var(--brand);background:var(--mint-soft);color:var(--brand-strong)}
+.p-buckets .pb .ava.sm{width:22px;height:22px;font-size:9px}
+.p-buckets .pb .pb-n{background:var(--brand);color:#fff;font-size:10px;font-weight:800;min-width:17px;height:17px;border-radius:999px;display:grid;place-items:center;padding:0 4px}
+.p-buckets .pb:not(.active) .pb-n{background:var(--line-strong);color:var(--ink-soft)}
+
+/* file attach button + chip */
+.file-btn{display:flex;align-items:center;gap:8px;padding:10px 13px;border:1px dashed var(--line-strong);border-radius:11px;
+  background:var(--panel);color:var(--ink-soft);font-size:13px;font-weight:700;cursor:pointer;transition:.12s}
+.file-btn:hover{border-color:var(--brand);color:var(--brand)}
+.file-btn .fn{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.file-chip{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:700;color:var(--info);
+  background:var(--info-soft);padding:3px 9px;border-radius:8px;max-width:100%;overflow:hidden}
+.file-chip:hover{filter:brightness(.97)}
+
 .composer{padding:13px 14px;border-bottom:1px solid var(--line);background:var(--panel-2)}
 .type-picker{display:flex;gap:7px;overflow-x:auto;padding-bottom:9px;margin-bottom:10px}
 .type-btn{flex:0 0 auto;display:flex;align-items:center;gap:6px;padding:7px 12px;border-radius:10px;font-size:12.5px;font-weight:700;

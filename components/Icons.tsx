@@ -110,6 +110,8 @@ export const minuteIcon = (name: string, p?: P) => {
     case 'task': return <IconTask {...p} />;
     case 'reminder': return <IconReminder {...p} />;
     case 'call': return <IconCall {...p} />;
+    case 'letter': return <IconLetter {...p} />;
+    case 'file': return <IconFile {...p} />;
     default: return <IconNote {...p} />;
   }
 };
