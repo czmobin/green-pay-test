@@ -15,10 +15,23 @@ export interface Guest {
   role: string;
 }
 
+export interface Organization {
+  id: string;
+  name: string;
+  kind: 'internal' | 'bank' | 'regulator' | 'partner';
+}
+
+export interface Category {
+  id: string;
+  name: string;
+  color: string;
+}
+
 export interface Room {
   id: string;
   name: string;
   cap: string;
+  orgId: string; // سازمان صاحب محل
 }
 
 export interface AgendaItem {
@@ -30,6 +43,7 @@ export interface Meeting {
   id: string;
   title: string;
   type: MeetingType;
+  category: string; // category id
   status: MeetingStatus;
   day: number; // 0..4  (شنبه..چهارشنبه)
   start: number; // hour, e.g. 9 or 13.5

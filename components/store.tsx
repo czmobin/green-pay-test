@@ -1,7 +1,7 @@
 'use client';
 import React, { createContext, useContext, useEffect, useMemo, useState, useCallback } from 'react';
 import type { Meeting, Minute } from '@/lib/types';
-import { seedMeetings } from '@/lib/data';
+import { seedMeetings, seedMinutes } from '@/lib/data';
 import { IconCheck, IconX } from './Icons';
 
 type ToastKind = 'ok' | 'info' | 'load';
@@ -17,6 +17,8 @@ interface Store {
   addMinute: (mid: string, m: Minute) => void;
   deleteMinute: (mid: string, id: string) => void;
   toggleTask: (mid: string, id: string) => void;
+
+  respondMeeting: (id: string, accept: boolean) => void;
 
   gcalConnected: boolean;
   connectGcal: () => void;
@@ -41,7 +43,7 @@ const nextId = () => `x${++idc}`;
 
 export default function Providers({ children }: { children: React.ReactNode }) {
   const [meetings, setMeetings] = useState<Meeting[]>(seedMeetings);
-  const [minutes, setMinutes] = useState<Record<string, Minute[]>>({});
+  const [minutes, setMinutes] = useState<Record<string, Minute[]>>(seedMinutes);
   const [gcalConnected, setGcal] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [toasts, setToasts] = useState<Toast[]>([]);
@@ -70,6 +72,8 @@ export default function Providers({ children }: { children: React.ReactNode }) {
   const getMeeting = useCallback((id: string) => meetings.find((m) => m.id === id), [meetings]);
   const syncMeeting = useCallback((id: string) =>
     setMeetings((ms) => ms.map((m) => (m.id === id ? { ...m, synced: true } : m))), []);
+  const respondMeeting = useCallback((id: string, accept: boolean) =>
+    setMeetings((ms) => ms.map((m) => (m.id === id ? { ...m, status: accept ? 'confirmed' : 'cancelled' } : m))), []);
 
   const addMinute = useCallback((mid: string, m: Minute) =>
     setMinutes((s) => ({ ...s, [mid]: [m, ...(s[mid] ?? [])] })), []);
@@ -94,12 +98,12 @@ export default function Providers({ children }: { children: React.ReactNode }) {
   }, []);
 
   const value = useMemo<Store>(() => ({
-    meetings, addMeeting, getMeeting, syncMeeting,
+    meetings, addMeeting, getMeeting, syncMeeting, respondMeeting,
     minutes, addMinute, deleteMinute, toggleTask,
     gcalConnected, connectGcal,
     createOpen, openCreate: () => setCreateOpen(true), closeCreate: () => setCreateOpen(false),
     toast, toggleTheme,
-  }), [meetings, minutes, gcalConnected, createOpen, addMeeting, getMeeting, syncMeeting, addMinute, deleteMinute, toggleTask, connectGcal, toast, toggleTheme]);
+  }), [meetings, minutes, gcalConnected, createOpen, addMeeting, getMeeting, syncMeeting, respondMeeting, addMinute, deleteMinute, toggleTask, connectGcal, toast, toggleTheme]);
 
   return (
     <Ctx.Provider value={value}>

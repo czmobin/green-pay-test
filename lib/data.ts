@@ -1,4 +1,4 @@
-import type { Person, Guest, Room, Meeting, MeetingType, MeetingStatus, MinuteType } from './types';
+import type { Person, Guest, Room, Meeting, MeetingType, MeetingStatus, MinuteType, Organization, Category, Minute } from './types';
 
 /* ---------- People ---------- */
 export const people: Record<string, Person> = {
@@ -25,28 +25,49 @@ export const guests: Record<string, Guest> = {
   omid: { id: 'omid', name: 'امید صالحی', org: 'فرابوم', role: 'مدیر یکپارچه‌سازی' },
 };
 
-/* ---------- Rooms ---------- */
+/* ---------- Organizations ---------- */
+export const organizations: Record<string, Organization> = {
+  gp: { id: 'gp', name: 'گرین‌پی', kind: 'internal' },
+  melat: { id: 'melat', name: 'بانک ملت', kind: 'bank' },
+  behpardakht: { id: 'behpardakht', name: 'به‌پرداخت ملت', kind: 'bank' },
+  shaparak: { id: 'shaparak', name: 'شاپرک', kind: 'regulator' },
+  cbi: { id: 'cbi', name: 'بانک مرکزی', kind: 'regulator' },
+  datin: { id: 'datin', name: 'استارتاپ داتین', kind: 'partner' },
+  faraboom: { id: 'faraboom', name: 'فرابوم', kind: 'partner' },
+};
+
+/* ---------- Meeting categories (فیلتر جلسات) ---------- */
+export const categories: Record<string, Category> = {
+  board: { id: 'board', name: 'هیئت مدیره', color: '#7C3AED' },
+  greenpay: { id: 'greenpay', name: 'داخلی گرین‌پی', color: '#0E9F6E' },
+  bank: { id: 'bank', name: 'بازاریابی و فروش بانکی', color: '#2F7FE4' },
+  regulator: { id: 'regulator', name: 'رگولاتوری (شاپرک/بانک مرکزی)', color: '#D9930B' },
+  partner: { id: 'partner', name: 'شرکا و استارتاپ‌ها', color: '#0891B2' },
+};
+
+/* ---------- Rooms / locations (محل جلسه، متصل به سازمان) ---------- */
 export const rooms: Record<string, Room> = {
-  board: { id: 'board', name: 'اتاق هیئت مدیره', cap: '۱۴ نفر' },
-  alborz: { id: 'alborz', name: 'اتاق کنفرانس البرز', cap: '۱۰ نفر' },
-  damavand: { id: 'damavand', name: 'اتاق دماوند', cap: '۶ نفر' },
-  sabalan: { id: 'sabalan', name: 'اتاق سبلان', cap: '۴ نفر' },
-  online: { id: 'online', name: 'Google Meet', cap: 'آنلاین' },
+  board: { id: 'board', name: 'اتاق هیئت مدیره', cap: '۱۴ نفر', orgId: 'gp' },
+  alborz: { id: 'alborz', name: 'اتاق کنفرانس البرز', cap: '۱۰ نفر', orgId: 'gp' },
+  damavand: { id: 'damavand', name: 'اتاق دماوند', cap: '۶ نفر', orgId: 'gp' },
+  sabalan: { id: 'sabalan', name: 'اتاق سبلان', cap: '۴ نفر', orgId: 'gp' },
+  melat_hq: { id: 'melat_hq', name: 'دفتر مرکزی بانک ملت', cap: '۸ نفر', orgId: 'melat' },
+  online: { id: 'online', name: 'Google Meet', cap: 'آنلاین', orgId: 'gp' },
 };
 
 /* ---------- Seed meetings ---------- */
 export const seedMeetings: Meeting[] = [
-  { id: 'm1', title: 'جلسهٔ هیئت مدیره — بازبینی فصلی Q۲', type: 'board', status: 'confirmed', day: 1, start: 9, end: 11, room: 'board', organizer: 'ceo', parts: ['ceo', 'sara', 'reza', 'negar', 'jafari'], guests: ['kian'], synced: true, agenda: [{ title: 'گزارش عملکرد مالی فصل بهار', dur: 25 }, { title: 'وضعیت تراکنش‌های درگاه پرداخت', dur: 20 }, { title: 'برنامهٔ توسعهٔ بازار ۱۴۰۴', dur: 30 }, { title: 'مصوبات و جمع‌بندی', dur: 20 }] },
-  { id: 'm2', title: 'هماهنگی یکپارچه‌سازی با شاپرک', type: 'external', status: 'confirmed', day: 1, start: 11, end: 12, room: 'alborz', organizer: 'reza', parts: ['reza', 'hossein', 'jafari'], guests: ['bahram', 'omid'], synced: true, agenda: [{ title: 'بازبینی مستندات API نسخهٔ ۳', dur: 20 }, { title: 'الزامات امنیتی و PCI-DSS', dur: 25 }, { title: 'زمان‌بندی استقرار', dur: 15 }] },
-  { id: 'm3', title: 'بازبینی محصول — داشبورد پذیرندگان', type: 'internal', status: 'confirmed', day: 1, start: 13, end: 14, room: 'damavand', organizer: 'sara', parts: ['sara', 'reza', 'amir', 'zahra'], guests: [], synced: false, agenda: [{ title: 'بازخورد کاربران نسخهٔ بتا', dur: 20 }, { title: 'اولویت‌بندی نقشهٔ راه', dur: 25 }, { title: 'طراحی جدید صفحهٔ تسویه', dur: 15 }] },
-  { id: 'm4', title: 'جلسهٔ فروش سازمانی با بانک ملت', type: 'external', status: 'pending', day: 1, start: 15, end: 16, room: 'alborz', organizer: 'elham', parts: ['elham', 'kaveh', 'ceo'], guests: ['leila'], synced: true, agenda: [{ title: 'معرفی راهکار پرداخت سازمانی', dur: 20 }, { title: 'مدل قیمت‌گذاری و کارمزد', dur: 20 }, { title: 'گام‌های بعدی همکاری', dur: 20 }] },
-  { id: 'm5', title: 'استندآپ تیم فنی', type: 'internal', status: 'confirmed', day: 2, start: 9, end: 9.5, room: 'damavand', organizer: 'reza', parts: ['reza', 'sara', 'zahra'], guests: [], synced: true, agenda: [{ title: 'وضعیت اسپرینت جاری', dur: 15 }, { title: 'موانع فنی', dur: 15 }] },
-  { id: 'm6', title: 'وبینار آنلاین با فرابوم', type: 'online', status: 'confirmed', day: 2, start: 11, end: 12, room: 'online', organizer: 'kaveh', parts: ['kaveh', 'reza'], guests: ['omid', 'nasrin'], synced: true, agenda: [{ title: 'نمایش سرویس تسویهٔ آنی', dur: 30 }, { title: 'پرسش و پاسخ', dur: 30 }] },
-  { id: 'm7', title: 'کمیتهٔ ریسک و تطبیق', type: 'internal', status: 'confirmed', day: 2, start: 14, end: 15.5, room: 'alborz', organizer: 'jafari', parts: ['jafari', 'negar', 'hossein', 'ceo'], guests: [], synced: false, agenda: [{ title: 'بازبینی گزارش‌های مشکوک', dur: 30 }, { title: 'به‌روزرسانی سیاست‌های KYC', dur: 30 }, { title: 'ممیزی داخلی', dur: 30 }] },
-  { id: 'm8', title: 'مذاکره با استارتاپ داتین', type: 'external', status: 'pending', day: 3, start: 10, end: 11, room: 'damavand', organizer: 'kaveh', parts: ['kaveh', 'ceo', 'elham'], guests: ['saeed'], synced: true, agenda: [{ title: 'مدل مشارکت فنی', dur: 25 }, { title: 'اشتراک درآمد', dur: 20 }, { title: 'توافق‌نامهٔ اولیه', dur: 15 }] },
-  { id: 'm9', title: 'جلسهٔ منابع انسانی — جذب نیرو', type: 'internal', status: 'confirmed', day: 3, start: 13, end: 14, room: 'sabalan', organizer: 'maryam', parts: ['maryam', 'reza', 'sara'], guests: [], synced: true, agenda: [{ title: 'بازبینی موقعیت‌های باز', dur: 20 }, { title: 'مصاحبه‌های این هفته', dur: 20 }] },
-  { id: 'm10', title: 'بازبینی امنیت با به‌پرداخت', type: 'external', status: 'confirmed', day: 4, start: 9.5, end: 11, room: 'alborz', organizer: 'jafari', parts: ['jafari', 'reza', 'hossein'], guests: ['nasrin', 'bahram'], synced: true, agenda: [{ title: 'ممیزی امنیتی مشترک', dur: 30 }, { title: 'گزارش تست نفوذ', dur: 30 }, { title: 'برنامهٔ اصلاح', dur: 30 }] },
-  { id: 'm11', title: 'جمع‌بندی هفتگی مدیران', type: 'internal', status: 'confirmed', day: 4, start: 16, end: 17, room: 'board', organizer: 'ceo', parts: ['ceo', 'sara', 'reza', 'negar', 'amir', 'maryam', 'hossein', 'elham', 'jafari', 'zahra', 'kaveh'], guests: [], synced: true, agenda: [{ title: 'گزارش هر واحد', dur: 30 }, { title: 'اهداف هفتهٔ آینده', dur: 20 }] },
+  { id: 'm1', title: 'جلسهٔ هیئت مدیره — بازبینی فصلی Q۲', category: 'board', type: 'board', status: 'confirmed', day: 1, start: 9, end: 11, room: 'board', organizer: 'ceo', parts: ['ceo', 'sara', 'reza', 'negar', 'jafari'], guests: ['kian'], synced: true, agenda: [{ title: 'گزارش عملکرد مالی فصل بهار', dur: 25 }, { title: 'وضعیت تراکنش‌های درگاه پرداخت', dur: 20 }, { title: 'برنامهٔ توسعهٔ بازار ۱۴۰۴', dur: 30 }, { title: 'مصوبات و جمع‌بندی', dur: 20 }] },
+  { id: 'm2', title: 'هماهنگی یکپارچه‌سازی با شاپرک', category: 'regulator', type: 'external', status: 'confirmed', day: 1, start: 11, end: 12, room: 'alborz', organizer: 'reza', parts: ['reza', 'hossein', 'jafari'], guests: ['bahram', 'omid'], synced: true, agenda: [{ title: 'بازبینی مستندات API نسخهٔ ۳', dur: 20 }, { title: 'الزامات امنیتی و PCI-DSS', dur: 25 }, { title: 'زمان‌بندی استقرار', dur: 15 }] },
+  { id: 'm3', title: 'بازبینی محصول — داشبورد پذیرندگان', category: 'greenpay', type: 'internal', status: 'confirmed', day: 1, start: 13, end: 14, room: 'damavand', organizer: 'sara', parts: ['sara', 'reza', 'amir', 'zahra'], guests: [], synced: false, agenda: [{ title: 'بازخورد کاربران نسخهٔ بتا', dur: 20 }, { title: 'اولویت‌بندی نقشهٔ راه', dur: 25 }, { title: 'طراحی جدید صفحهٔ تسویه', dur: 15 }] },
+  { id: 'm4', title: 'جلسهٔ فروش سازمانی با بانک ملت', category: 'bank', type: 'external', status: 'pending', day: 1, start: 15, end: 16, room: 'alborz', organizer: 'elham', parts: ['elham', 'kaveh', 'ceo'], guests: ['leila'], synced: true, agenda: [{ title: 'معرفی راهکار پرداخت سازمانی', dur: 20 }, { title: 'مدل قیمت‌گذاری و کارمزد', dur: 20 }, { title: 'گام‌های بعدی همکاری', dur: 20 }] },
+  { id: 'm5', title: 'استندآپ تیم فنی', category: 'greenpay', type: 'internal', status: 'confirmed', day: 2, start: 9, end: 9.5, room: 'damavand', organizer: 'reza', parts: ['reza', 'sara', 'zahra'], guests: [], synced: true, agenda: [{ title: 'وضعیت اسپرینت جاری', dur: 15 }, { title: 'موانع فنی', dur: 15 }] },
+  { id: 'm6', title: 'وبینار آنلاین با فرابوم', category: 'partner', type: 'online', status: 'confirmed', day: 2, start: 11, end: 12, room: 'online', organizer: 'kaveh', parts: ['kaveh', 'reza'], guests: ['omid', 'nasrin'], synced: true, agenda: [{ title: 'نمایش سرویس تسویهٔ آنی', dur: 30 }, { title: 'پرسش و پاسخ', dur: 30 }] },
+  { id: 'm7', title: 'کمیتهٔ ریسک و تطبیق', category: 'greenpay', type: 'internal', status: 'confirmed', day: 2, start: 14, end: 15.5, room: 'alborz', organizer: 'jafari', parts: ['jafari', 'negar', 'hossein', 'ceo'], guests: [], synced: false, agenda: [{ title: 'بازبینی گزارش‌های مشکوک', dur: 30 }, { title: 'به‌روزرسانی سیاست‌های KYC', dur: 30 }, { title: 'ممیزی داخلی', dur: 30 }] },
+  { id: 'm8', title: 'مذاکره با استارتاپ داتین', category: 'partner', type: 'external', status: 'pending', day: 3, start: 10, end: 11, room: 'damavand', organizer: 'kaveh', parts: ['kaveh', 'ceo', 'elham'], guests: ['saeed'], synced: true, agenda: [{ title: 'مدل مشارکت فنی', dur: 25 }, { title: 'اشتراک درآمد', dur: 20 }, { title: 'توافق‌نامهٔ اولیه', dur: 15 }] },
+  { id: 'm9', title: 'جلسهٔ منابع انسانی — جذب نیرو', category: 'greenpay', type: 'internal', status: 'confirmed', day: 3, start: 13, end: 14, room: 'sabalan', organizer: 'maryam', parts: ['maryam', 'reza', 'sara'], guests: [], synced: true, agenda: [{ title: 'بازبینی موقعیت‌های باز', dur: 20 }, { title: 'مصاحبه‌های این هفته', dur: 20 }] },
+  { id: 'm10', title: 'بازبینی امنیت با به‌پرداخت', category: 'bank', type: 'external', status: 'confirmed', day: 4, start: 9.5, end: 11, room: 'alborz', organizer: 'jafari', parts: ['jafari', 'reza', 'hossein'], guests: ['nasrin', 'bahram'], synced: true, agenda: [{ title: 'ممیزی امنیتی مشترک', dur: 30 }, { title: 'گزارش تست نفوذ', dur: 30 }, { title: 'برنامهٔ اصلاح', dur: 30 }] },
+  { id: 'm11', title: 'جمع‌بندی هفتگی مدیران', category: 'greenpay', type: 'internal', status: 'confirmed', day: 4, start: 16, end: 17, room: 'board', organizer: 'ceo', parts: ['ceo', 'sara', 'reza', 'negar', 'amir', 'maryam', 'hossein', 'elham', 'jafari', 'zahra', 'kaveh'], guests: [], synced: true, agenda: [{ title: 'گزارش هر واحد', dur: 30 }, { title: 'اهداف هفتهٔ آینده', dur: 20 }] },
 ];
 
 /* ---------- Labels / helpers ---------- */
@@ -84,6 +105,17 @@ export const minuteMeta: Record<MinuteType, { label: string; color: string; icon
   call: { label: 'تماس تلفنی', color: '#7C3AED', icon: 'call' },
 };
 
+/* normalize Persian text for search (unify ی/ي، ک/ك، nbsp) */
+export function normalizeFa(s: string): string {
+  return s
+    .replace(/ي/g, 'ی')
+    .replace(/ك/g, 'ک')
+    .replace(/‌/g, ' ')
+    .replace(/\s+/g, ' ')
+    .toLowerCase()
+    .trim();
+}
+
 /* Persian digits */
 export function toFa(input: string | number): string {
   return String(input).replace(/[0-9]/g, (d) => '۰۱۲۳۴۵۶۷۸۹'[Number(d)]);
@@ -99,3 +131,27 @@ export function initials(name: string): string {
   const p = name.trim().split(/\s+/);
   return (p[0]?.[0] ?? '') + (p[1]?.[0] ?? '');
 }
+
+export function categoryById(id: string): Category {
+  return categories[id] ?? { id, name: id, color: 'var(--muted)' };
+}
+
+/* ---------- Seed minutes (so یادآورها/tasks are populated) ---------- */
+export const seedMinutes: Record<string, Minute[]> = {
+  m1: [
+    { id: 's1', type: 'decision', text: 'بودجهٔ توسعهٔ بازار ۱۴۰۴ به مبلغ مصوب تأیید شد.', createdAt: 1721540000000 },
+    { id: 's2', type: 'task', text: 'تهیهٔ گزارش تفصیلی ریسک نقدینگی برای جلسهٔ بعد', assignee: 'negar', due: '۲۸ تیر', done: false, createdAt: 1721540100000 },
+    { id: 's3', type: 'reminder', text: 'ارسال صورت‌جلسه به اعضای هیئت مدیره', when: 'فردا ۹:۰۰', createdAt: 1721540200000 },
+  ],
+  m2: [
+    { id: 's4', type: 'task', text: 'ارسال مستندات API نسخهٔ ۳ به تیم شاپرک', assignee: 'reza', due: '۲۴ تیر', done: false, createdAt: 1721540300000 },
+    { id: 's5', type: 'call', text: 'هماهنگی زمان استقرار', who: 'دکتر تهرانی', phone: '۰۲۱۸۸۰۰۰۰۰۰', createdAt: 1721540400000 },
+  ],
+  m4: [
+    { id: 's6', type: 'task', text: 'ارسال پیش‌فاکتور راهکار پرداخت سازمانی', assignee: 'elham', due: '۲۶ تیر', done: false, createdAt: 1721540500000 },
+    { id: 's7', type: 'reminder', text: 'پیگیری پاسخ بانک ملت دربارهٔ همکاری', when: 'سه‌شنبه ۱۰:۰۰', createdAt: 1721540600000 },
+  ],
+  m7: [
+    { id: 's8', type: 'task', text: 'به‌روزرسانی سیاست‌های KYC طبق مصوبه', assignee: 'jafari', due: '۳۰ تیر', done: false, createdAt: 1721540700000 },
+  ],
+};

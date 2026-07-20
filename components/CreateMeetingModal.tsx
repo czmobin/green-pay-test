@@ -1,10 +1,10 @@
 'use client';
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useStore } from './store';
-import { people, rooms, dayNames, typeLabels } from '@/lib/data';
+import { people, rooms, categories, dayNames, typeLabels, toFa, fmtTime, normalizeFa } from '@/lib/data';
 import type { MeetingType } from '@/lib/types';
-import { IconX, IconPlus, IconDashboard, IconGuests, IconRoom, IconVideo } from './Icons';
+import { IconX, IconPlus, IconDashboard, IconGuests, IconRoom, IconVideo, IconSearch } from './Icons';
 
 const types: { id: MeetingType; icon: React.ReactNode }[] = [
   { id: 'internal', icon: <IconDashboard size={16} /> },
@@ -12,34 +12,42 @@ const types: { id: MeetingType; icon: React.ReactNode }[] = [
   { id: 'board', icon: <IconRoom size={16} /> },
   { id: 'online', icon: <IconVideo size={16} /> },
 ];
-const hours = [8, 9, 10, 11, 12, 13, 14, 15, 16, 17];
-const durations = [0.5, 1, 1.5, 2];
+const slots = [8, 8.5, 9, 9.5, 10, 10.5, 11, 11.5, 12, 12.5, 13, 13.5, 14, 14.5, 15, 15.5, 16, 16.5, 17, 17.5, 18];
 
 export default function CreateMeetingModal() {
   const store = useStore();
   const router = useRouter();
   const [title, setTitle] = useState('');
+  const [cat, setCat] = useState('greenpay');
   const [type, setType] = useState<MeetingType>('internal');
   const [day, setDay] = useState(1);
   const [start, setStart] = useState(10);
-  const [dur, setDur] = useState(1);
+  const [end, setEnd] = useState(11);
   const [room, setRoom] = useState('damavand');
   const [parts, setParts] = useState<string[]>(['ceo']);
+  const [pq, setPq] = useState('');
+
+  const filteredPeople = useMemo(() => {
+    const nq = normalizeFa(pq);
+    return Object.values(people).filter((p) => !nq || normalizeFa(p.name + ' ' + p.role).includes(nq));
+  }, [pq]);
 
   function reset() {
-    setTitle(''); setType('internal'); setDay(1); setStart(10); setDur(1); setRoom('damavand'); setParts(['ceo']);
+    setTitle(''); setCat('greenpay'); setType('internal'); setDay(1); setStart(10); setEnd(11);
+    setRoom('damavand'); setParts(['ceo']); setPq('');
   }
-  function toggle(id: string) {
-    setParts((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
-  }
+  function onStart(v: number) { setStart(v); if (end <= v) setEnd(Math.min(v + 1, 18)); }
+  function toggle(id: string) { setParts((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id])); }
+
   function submit(e: React.FormEvent) {
     e.preventDefault();
     if (!title.trim()) { store.toast('عنوان جلسه را وارد کنید', 'info'); return; }
+    if (end <= start) { store.toast('ساعت پایان باید بعد از شروع باشد', 'info'); return; }
     const id = 'x' + Date.now().toString(36);
     store.addMeeting({
-      id, title: title.trim(), type, status: 'confirmed', day, start, end: start + dur,
-      room: type === 'online' ? 'online' : room, organizer: 'ceo', parts,
-      guests: [], synced: store.gcalConnected, agenda: [],
+      id, title: title.trim(), category: cat, type, status: 'confirmed', day, start, end,
+      room: type === 'online' ? 'online' : room, organizer: 'ceo', parts, guests: [],
+      synced: store.gcalConnected, agenda: [],
     });
     store.closeCreate();
     store.toast(store.gcalConnected ? 'جلسه ساخته و با Google Calendar همگام شد' : 'جلسهٔ جدید ساخته شد', 'ok');
@@ -64,6 +72,13 @@ export default function CreateMeetingModal() {
           </div>
 
           <div className="field">
+            <label>دسته‌بندی جلسه</label>
+            <select className="field-in" value={cat} onChange={(e) => setCat(e.target.value)}>
+              {Object.values(categories).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          </div>
+
+          <div className="field">
             <label>نوع جلسه</label>
             <div className="pick-grid">
               {types.map((t) => (
@@ -82,37 +97,42 @@ export default function CreateMeetingModal() {
               </select>
             </div>
             <div className="field">
-              <label>ساعت شروع</label>
-              <select className="field-in num" value={start} onChange={(e) => setStart(Number(e.target.value))}>
-                {hours.map((h) => <option key={h} value={h}>{h}:۰۰</option>)}
-              </select>
-            </div>
-          </div>
-
-          <div className="field-row">
-            <div className="field">
-              <label>مدت</label>
-              <select className="field-in" value={dur} onChange={(e) => setDur(Number(e.target.value))}>
-                {durations.map((d) => <option key={d} value={d}>{d === 0.5 ? '۳۰ دقیقه' : d === 1 ? '۱ ساعت' : d === 1.5 ? '۱ ساعت و نیم' : '۲ ساعت'}</option>)}
-              </select>
-            </div>
-            <div className="field">
-              <label>اتاق</label>
+              <label>محل جلسه</label>
               <select className="field-in" value={type === 'online' ? 'online' : room} disabled={type === 'online'} onChange={(e) => setRoom(e.target.value)}>
                 {Object.values(rooms).map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
               </select>
             </div>
           </div>
 
+          <div className="field-row">
+            <div className="field">
+              <label>ساعت شروع</label>
+              <select className="field-in num" value={start} onChange={(e) => onStart(Number(e.target.value))}>
+                {slots.slice(0, -1).map((h) => <option key={h} value={h}>{fmtTime(h)}</option>)}
+              </select>
+            </div>
+            <div className="field">
+              <label>ساعت پایان</label>
+              <select className="field-in num" value={end} onChange={(e) => setEnd(Number(e.target.value))}>
+                {slots.filter((h) => h > start).map((h) => <option key={h} value={h}>{fmtTime(h)}</option>)}
+              </select>
+            </div>
+          </div>
+
           <div className="field">
-            <label>شرکت‌کنندگان ({parts.length})</label>
+            <label>شرکت‌کنندگان ({toFa(parts.length)})</label>
+            <div className="pp-search">
+              <IconSearch size={15} />
+              <input value={pq} onChange={(e) => setPq(e.target.value)} placeholder="جستجوی نام یا سمت…" />
+            </div>
             <div className="people-pick">
-              {Object.values(people).map((p) => (
+              {filteredPeople.map((p) => (
                 <button type="button" key={p.id} className={'ppick' + (parts.includes(p.id) ? ' active' : '')} onClick={() => toggle(p.id)}>
                   <span className="ava sm" style={{ background: `linear-gradient(145deg,${p.color})` }}>{p.name.split(' ').map((x) => x[0]).slice(0, 2).join('')}</span>
                   {p.name}
                 </button>
               ))}
+              {filteredPeople.length === 0 && <div className="empty-hint" style={{ fontSize: 12, color: 'var(--muted)', padding: 8 }}>کسی پیدا نشد.</div>}
             </div>
           </div>
         </div>

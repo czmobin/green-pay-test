@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation';
 import { useStore } from './store';
 import CreateMeetingModal from './CreateMeetingModal';
 import {
-  IconDashboard, IconCalendar, IconList, IconGuests, IconRoom, IconPlus,
+  IconDashboard, IconCalendar, IconList, IconRoom, IconPlus, IconReminder,
   IconBell, IconSun, IconLeaf, IconGoogle, IconCheck,
 } from './Icons';
 import { people } from '@/lib/data';
@@ -15,7 +15,7 @@ const nav = [
   { href: '/', label: 'داشبورد', icon: IconDashboard },
   { href: '/calendar', label: 'تقویم', icon: IconCalendar },
   { href: '/meetings', label: 'جلسات', icon: IconList },
-  { href: '/guests', label: 'مهمانان', icon: IconGuests },
+  { href: '/reminders', label: 'یادآورها', icon: IconReminder },
 ];
 
 function isActive(path: string, href: string) {
@@ -27,6 +27,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const path = usePathname();
   const store = useStore();
   const me = people.ceo;
+  const remCount = Object.values(store.minutes).flat().filter((x) => x.type === 'task' || x.type === 'reminder').length;
 
   return (
     <div className="shell">
@@ -46,7 +47,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                 <Ic size={19} />
                 {n.label}
                 {n.href === '/meetings' && <span className="cnt num">{store.meetings.length}</span>}
-                {n.href === '/guests' && <span className="cnt num">۶</span>}
+                {n.href === '/reminders' && remCount > 0 && <span className="cnt num">{remCount}</span>}
               </Link>
             );
           })}
@@ -104,7 +105,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         <Link href="/calendar" className={isActive(path, '/calendar') ? 'active' : ''}><IconCalendar size={22} /><span>تقویم</span></Link>
         <div className="fab"><button onClick={store.openCreate} aria-label="جلسهٔ جدید"><IconPlus size={24} /></button></div>
         <Link href="/meetings" className={isActive(path, '/meetings') ? 'active' : ''}><IconList size={22} /><span>جلسات</span></Link>
-        <Link href="/guests" className={isActive(path, '/guests') ? 'active' : ''}><IconGuests size={22} /><span>مهمانان</span></Link>
+        <Link href="/reminders" className={isActive(path, '/reminders') ? 'active' : ''}><IconReminder size={22} /><span>یادآورها</span></Link>
       </nav>
 
       <CreateMeetingModal />

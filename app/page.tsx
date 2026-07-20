@@ -4,9 +4,9 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useStore } from '@/components/store';
 import MeetingRow from '@/components/MeetingRow';
-import { rooms, typeLabels, TODAY, fmtTime, toFa } from '@/lib/data';
+import { rooms, typeLabels, TODAY, fmtTime, toFa, dayNames } from '@/lib/data';
 import {
-  IconCalendar, IconClock, IconGuests, IconRoom, IconMapPin, IconChevron, IconVideo,
+  IconCalendar, IconClock, IconGuests, IconRoom, IconMapPin, IconChevron, IconVideo, IconCheck, IconX,
 } from '@/components/Icons';
 
 export default function Dashboard() {
@@ -17,6 +17,7 @@ export default function Dashboard() {
   const pending = store.meetings.filter((m) => m.status === 'pending').length;
   const guestCount = new Set(today.flatMap((m) => m.guests)).size;
   const roomCount = new Set(today.map((m) => m.room)).size;
+  const invites = store.meetings.filter((m) => m.status === 'pending').sort((a, b) => a.day - b.day || a.start - b.start);
 
   return (
     <>
@@ -70,6 +71,32 @@ export default function Dashboard() {
           <div className="val num">{toFa(roomCount)} <small>اتاق</small></div>
         </div>
       </div>
+
+      {invites.length > 0 && (
+        <>
+          <div className="section-title">
+            <h2>دعوت‌نامه‌های در انتظار پاسخ</h2>
+            <span className="num" style={{ color: 'var(--muted)', fontSize: 12.5 }}>{toFa(invites.length)}</span>
+          </div>
+          <div className="mlist">
+            {invites.map((m) => (
+              <div className="invite" key={m.id}>
+                <div className="ib" onClick={() => router.push(`/meetings/${m.id}`)} style={{ cursor: 'pointer' }}>
+                  <b>{m.title}</b>
+                  <small>
+                    <span className="num"><IconClock size={12} />{dayNames[m.day]} · {fmtTime(m.start)}</span>
+                    <span>{m.type === 'online' ? <IconVideo size={12} /> : <IconMapPin size={12} />}{rooms[m.room].name}</span>
+                  </small>
+                </div>
+                <div className="iacts">
+                  <button className="yes" aria-label="پذیرش" onClick={() => { store.respondMeeting(m.id, true); store.toast('دعوت پذیرفته شد', 'ok'); }}><IconCheck size={17} /></button>
+                  <button className="no" aria-label="رد" onClick={() => { store.respondMeeting(m.id, false); store.toast('دعوت رد شد', 'info'); }}><IconX size={17} /></button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
 
       <div className="section-title">
         <h2>برنامهٔ امروز</h2>
