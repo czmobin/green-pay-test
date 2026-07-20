@@ -1,7 +1,7 @@
 'use client';
 import React, { useState } from 'react';
 import { useStore } from './store';
-import { minuteMeta, people, toFa } from '@/lib/data';
+import { minuteMeta, toFa } from '@/lib/data';
 import type { Meeting, Minute, MinuteType } from '@/lib/types';
 import { minuteIcon, IconDoc, IconPlus, IconTrash, IconCheck, IconClock, IconCall, IconUsers } from './Icons';
 
@@ -67,7 +67,7 @@ export default function MinutesEditor({ meeting }: { meeting: Meeting }) {
         {type === 'task' && (
           <div className="extra">
             <select className="field-in" value={assignee} onChange={(e) => setAssignee(e.target.value)}>
-              {meeting.parts.map((pid) => <option key={pid} value={pid}>{people[pid]?.name ?? pid}</option>)}
+              {meeting.parts.map((pid) => <option key={pid} value={pid}>{store.people[pid]?.name ?? pid}</option>)}
             </select>
             <input className="field-in" type="text" inputMode="numeric" value={due} onChange={(e) => setDue(e.target.value)} placeholder="مهلت (مثلاً ۲۵ تیر)" />
           </div>
@@ -124,7 +124,7 @@ function MinuteRow({ m, mid }: { m: Minute; mid: string }) {
         </div>
         <div className="mtext">{m.text}</div>
         <div className="mextra">
-          {m.type === 'task' && m.assignee && <span><IconUsers size={12} />{people[m.assignee]?.name ?? m.assignee}</span>}
+          {m.type === 'task' && m.assignee && <span><IconUsers size={12} />{store.people[m.assignee]?.name ?? m.assignee}</span>}
           {m.type === 'task' && m.due && <span><IconClock size={12} />مهلت: {m.due}</span>}
           {m.type === 'reminder' && m.when && <span><IconClock size={12} />{m.when}</span>}
           {m.type === 'call' && m.who && <span><IconCall size={12} />{m.who}</span>}

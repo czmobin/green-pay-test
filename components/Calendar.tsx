@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useStore } from './store';
-import { typeColor, rooms, fmtTime, toFa, meetingJd, CAL_YEAR, CAL_MONTH, TODAY_J } from '@/lib/data';
+import { typeColor, fmtTime, toFa, meetingJd, CAL_YEAR, CAL_MONTH, TODAY_J } from '@/lib/data';
 import type { Meeting } from '@/lib/types';
 import {
   jMonths, jWeekdays, jWeekdaysShort, jMonthLength, faWeekday, jToDate, dateToJ, addDays, sameJ, type JDate,
@@ -84,6 +84,7 @@ export default function Calendar() {
 
 /* ===================== Day ===================== */
 function DayView({ j, meetingsOn, open }: { j: JDate; meetingsOn: (j: JDate) => Meeting[]; open: (id: string) => void }) {
+  const { rooms } = useStore();
   const items = meetingsOn(j);
   const isToday = sameJ(j, TODAY_J);
   return (
@@ -99,7 +100,7 @@ function DayView({ j, meetingsOn, open }: { j: JDate; meetingsOn: (j: JDate) => 
             <button key={m.id} className="cev" onClick={() => open(m.id)}
               style={{ top: (m.start - START) * HOUR, height: (m.end - m.start) * HOUR - 3, background: `color-mix(in srgb,${typeColor[m.type]} 15%,var(--panel))`, borderColor: typeColor[m.type], color: typeColor[m.type] }}>
               <b>{m.title}</b>
-              <small className="num">{fmtTime(m.start)} – {fmtTime(m.end)} · {rooms[m.room].name}</small>
+              <small className="num">{fmtTime(m.start)} – {fmtTime(m.end)} · {rooms[m.room]?.name ?? ''}</small>
             </button>
           ))}
         </div>

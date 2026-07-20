@@ -2,7 +2,7 @@
 import React, { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useStore } from './store';
-import { people, rooms, categories, dayNames, typeLabels, toFa, fmtTime, normalizeFa } from '@/lib/data';
+import { categories, dayNames, typeLabels, toFa, fmtTime, normalizeFa } from '@/lib/data';
 import type { MeetingType } from '@/lib/types';
 import { IconX, IconPlus, IconDashboard, IconGuests, IconRoom, IconVideo, IconSearch } from './Icons';
 
@@ -29,8 +29,8 @@ export default function CreateMeetingModal() {
 
   const filteredPeople = useMemo(() => {
     const nq = normalizeFa(pq);
-    return Object.values(people).filter((p) => !nq || normalizeFa(p.name + ' ' + p.role).includes(nq));
-  }, [pq]);
+    return Object.values(store.people).filter((p) => !nq || normalizeFa(p.name + ' ' + p.role).includes(nq));
+  }, [pq, store.people]);
 
   function reset() {
     setTitle(''); setCat('greenpay'); setType('internal'); setDay(1); setStart(10); setEnd(11);
@@ -99,7 +99,7 @@ export default function CreateMeetingModal() {
             <div className="field">
               <label>محل جلسه</label>
               <select className="field-in" value={type === 'online' ? 'online' : room} disabled={type === 'online'} onChange={(e) => setRoom(e.target.value)}>
-                {Object.values(rooms).map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
+                {Object.values(store.rooms).map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
               </select>
             </div>
           </div>

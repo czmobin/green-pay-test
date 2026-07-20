@@ -6,6 +6,7 @@ export interface Person {
   name: string;
   role: string;
   color: string; // "start,end" gradient
+  orgId?: string; // سازمان/شرکت (پیش‌فرض گرین‌پی)
 }
 
 export interface Guest {

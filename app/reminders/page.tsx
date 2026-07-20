@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useStore } from '@/components/store';
-import { people, minuteMeta, dayNames, TODAY, toFa, normalizeFa } from '@/lib/data';
+import { minuteMeta, dayNames, TODAY, toFa, normalizeFa } from '@/lib/data';
 import type { Meeting, Minute } from '@/lib/types';
 import {
   IconReminder, IconSearch, IconX, IconCheck, IconClock, IconUsers, IconList, IconChevron,
@@ -93,7 +93,7 @@ export default function RemindersPage() {
                   <div className="rtitle">{mn.text}</div>
                   <div className="rmeta">
                     <span className="mlink"><IconList size={12} />{m.title.replace(/—.*/, '').trim()}</span>
-                    {mn.type === 'task' && mn.assignee && <span><IconUsers size={12} />{people[mn.assignee]?.name ?? mn.assignee}</span>}
+                    {mn.type === 'task' && mn.assignee && <span><IconUsers size={12} />{store.people[mn.assignee]?.name ?? mn.assignee}</span>}
                     {mn.type === 'task' && mn.due && <span><IconClock size={12} />مهلت: {mn.due}</span>}
                     {mn.type === 'reminder' && mn.when && <span><IconClock size={12} />{mn.when}</span>}
                     <span className="num">{dayNames[m.day]}</span>

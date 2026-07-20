@@ -1,7 +1,7 @@
 'use client';
 import React, { createContext, useContext, useEffect, useMemo, useState, useCallback } from 'react';
-import type { Meeting, Minute } from '@/lib/types';
-import { seedMeetings, seedMinutes } from '@/lib/data';
+import type { Meeting, Minute, Person, Room, Organization } from '@/lib/types';
+import { seedMeetings, seedMinutes, people as seedPeople, rooms as seedRooms, organizations as seedOrgs } from '@/lib/data';
 import { IconCheck, IconX } from './Icons';
 
 type ToastKind = 'ok' | 'info' | 'load';
@@ -19,6 +19,13 @@ interface Store {
   toggleTask: (mid: string, id: string) => void;
 
   respondMeeting: (id: string, accept: boolean) => void;
+
+  people: Record<string, Person>;
+  rooms: Record<string, Room>;
+  orgs: Record<string, Organization>;
+  addPerson: (p: Person) => void;
+  addRoom: (r: Room) => void;
+  addOrg: (o: Organization) => void;
 
   gcalConnected: boolean;
   connectGcal: () => void;
@@ -44,6 +51,9 @@ const nextId = () => `x${++idc}`;
 export default function Providers({ children }: { children: React.ReactNode }) {
   const [meetings, setMeetings] = useState<Meeting[]>(seedMeetings);
   const [minutes, setMinutes] = useState<Record<string, Minute[]>>(seedMinutes);
+  const [people, setPeople] = useState<Record<string, Person>>(seedPeople);
+  const [rooms, setRooms] = useState<Record<string, Room>>(seedRooms);
+  const [orgs, setOrgs] = useState<Record<string, Organization>>(seedOrgs);
   const [gcalConnected, setGcal] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [toasts, setToasts] = useState<Toast[]>([]);
@@ -82,6 +92,10 @@ export default function Providers({ children }: { children: React.ReactNode }) {
   const toggleTask = useCallback((mid: string, id: string) =>
     setMinutes((s) => ({ ...s, [mid]: (s[mid] ?? []).map((x) => (x.id === id ? { ...x, done: !x.done } : x)) })), []);
 
+  const addPerson = useCallback((p: Person) => setPeople((s) => ({ ...s, [p.id]: p })), []);
+  const addRoom = useCallback((r: Room) => setRooms((s) => ({ ...s, [r.id]: r })), []);
+  const addOrg = useCallback((o: Organization) => setOrgs((s) => ({ ...s, [o.id]: o })), []);
+
   const connectGcal = useCallback(() => {
     if (gcalConnected) { toast('تقویم Google از قبل متصل است', 'info'); return; }
     toast('در حال اتصال به حساب Google…', 'load');
@@ -100,10 +114,11 @@ export default function Providers({ children }: { children: React.ReactNode }) {
   const value = useMemo<Store>(() => ({
     meetings, addMeeting, getMeeting, syncMeeting, respondMeeting,
     minutes, addMinute, deleteMinute, toggleTask,
+    people, rooms, orgs, addPerson, addRoom, addOrg,
     gcalConnected, connectGcal,
     createOpen, openCreate: () => setCreateOpen(true), closeCreate: () => setCreateOpen(false),
     toast, toggleTheme,
-  }), [meetings, minutes, gcalConnected, createOpen, addMeeting, getMeeting, syncMeeting, respondMeeting, addMinute, deleteMinute, toggleTask, connectGcal, toast, toggleTheme]);
+  }), [meetings, minutes, people, rooms, orgs, gcalConnected, createOpen, addMeeting, getMeeting, syncMeeting, respondMeeting, addMinute, deleteMinute, toggleTask, addPerson, addRoom, addOrg, connectGcal, toast, toggleTheme]);
 
   return (
     <Ctx.Provider value={value}>

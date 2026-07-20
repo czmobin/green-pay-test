@@ -5,10 +5,9 @@ import { usePathname } from 'next/navigation';
 import { useStore } from './store';
 import CreateMeetingModal from './CreateMeetingModal';
 import {
-  IconDashboard, IconCalendar, IconList, IconRoom, IconPlus, IconReminder,
-  IconBell, IconSun, IconLeaf, IconGoogle, IconCheck,
+  IconDashboard, IconCalendar, IconList, IconPlus, IconReminder,
+  IconBell, IconSun, IconLeaf, IconGoogle, IconCheck, IconSettings,
 } from './Icons';
-import { people } from '@/lib/data';
 import { initials } from '@/lib/data';
 
 const nav = [
@@ -26,7 +25,7 @@ function isActive(path: string, href: string) {
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const path = usePathname();
   const store = useStore();
-  const me = people.ceo;
+  const me = store.people.ceo;
   const remCount = Object.values(store.minutes).flat().filter((x) => x.type === 'task' || x.type === 'reminder').length;
 
   return (
@@ -53,9 +52,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           })}
         </nav>
 
-        <div className="nav-label">منابع</div>
+        <div className="nav-label">مدیریت</div>
         <nav className="nav">
-          <Link href="/calendar"><IconRoom size={19} />اتاق‌های جلسه</Link>
+          <Link href="/settings" className={isActive(path, '/settings') ? 'active' : ''}><IconSettings size={19} />تعریف‌ها</Link>
         </nav>
 
         <div className="side-foot">
@@ -92,6 +91,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             style={store.gcalConnected ? { borderColor: 'color-mix(in srgb,var(--ok) 55%,var(--line))', color: 'var(--ok)' } : undefined}>
             {store.gcalConnected ? <IconCheck size={18} /> : <IconGoogle size={18} />}
           </button>
+          <Link href="/settings" className="icon-btn only-mobile" aria-label="تعریف‌ها"><IconSettings size={18} /></Link>
           <button className="icon-btn" aria-label="اعلان‌ها"><span className="badge" /><IconBell size={18} /></button>
           <button className="icon-btn only-mobile" onClick={store.toggleTheme} aria-label="تغییر تم"><IconSun size={18} /></button>
         </header>

@@ -4,7 +4,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useStore } from '@/components/store';
 import MinutesEditor from '@/components/MinutesEditor';
 import {
-  rooms, people, guests, typeLabels, statusLabels, dayNames, fmtTime, initials, toFa,
+  guests, typeLabels, statusLabels, dayNames, fmtTime, initials, toFa,
 } from '@/lib/data';
 import {
   IconBack, IconClock, IconMapPin, IconUsers, IconGuests, IconList, IconChevron,
@@ -15,6 +15,7 @@ export default function MeetingDetail() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const store = useStore();
+  const { people, rooms } = store;
   const m = store.getMeeting(id);
 
   if (!m) {
@@ -47,7 +48,7 @@ export default function MeetingDetail() {
           </div>
           <div className="meta-box">
             <small>{m.type === 'online' ? <IconVideo size={13} /> : <IconMapPin size={13} />}مکان</small>
-            <b>{rooms[m.room].name}</b>
+            <b>{rooms[m.room]?.name ?? '—'}</b>
           </div>
           <div className="meta-box">
             <small><IconUsers size={13} />برگزارکننده</small>

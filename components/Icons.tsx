@@ -83,6 +83,22 @@ export const IconGoogle = ({ size, className }: P) => (
   <svg {...s(size)} className={className} viewBox="0 0 24 24"><path fill="#4285F4" d="M18 3h-1V1.5h-2V3H9V1.5H7V3H6a3 3 0 0 0-3 3v1h18V6a3 3 0 0 0-3-3Z" /><path fill="#34A853" d="M3 8v10a3 3 0 0 0 3 3h5V8Z" /><path fill="#FBBC05" d="M21 8h-8v13h5a3 3 0 0 0 3-3Z" /><path fill="#EA4335" d="M14.5 11.2h-2.1v1.4h1.2c-.1.6-.7 1.1-1.2 1.1-.8 0-1.4-.7-1.4-1.5s.6-1.5 1.4-1.5c.4 0 .7.1.9.4l1-1c-.5-.5-1.1-.7-1.9-.7-1.6 0-2.8 1.3-2.8 2.9s1.2 2.9 2.8 2.9c1.6 0 2.7-1.1 2.7-2.8 0-.3 0-.5-.1-.6Z" /></svg>
 );
 
+export const IconSettings = ({ size, className }: P) => (
+  <svg {...s(size)} className={className} viewBox="0 0 24 24" {...stroke}><circle cx="12" cy="12" r="3" /><path d="M19.4 13.5a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-2.87 1.2V21a2 2 0 1 1-4 0v-.06a1.7 1.7 0 0 0-2.87-1.2l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 13.5H4.5a2 2 0 1 1 0-4h.06A1.7 1.7 0 0 0 5.8 6.63l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 2.87-1.2V2.5a2 2 0 1 1 4 0v.06a1.7 1.7 0 0 0 2.87 1.2l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0 1.2 2.87h.1a2 2 0 1 1 0 4h-.06a1.7 1.7 0 0 0-1.53 1Z" /></svg>
+);
+export const IconBuilding = ({ size, className }: P) => (
+  <svg {...s(size)} className={className} viewBox="0 0 24 24" {...stroke}><rect x="4" y="3" width="16" height="18" rx="2" /><path d="M8 7h.01M12 7h.01M16 7h.01M8 11h.01M12 11h.01M16 11h.01M8 15h.01M16 15h.01M10 21v-3.5a2 2 0 0 1 4 0V21" /></svg>
+);
+export const IconLetter = ({ size, className }: P) => (
+  <svg {...s(size)} className={className} viewBox="0 0 24 24" {...stroke}><rect x="3" y="5" width="18" height="14" rx="2.5" /><path d="m4 7 8 5 8-5" /></svg>
+);
+export const IconFile = ({ size, className }: P) => (
+  <svg {...s(size)} className={className} viewBox="0 0 24 24" {...stroke}><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" /><path d="M14 3v5h5" /></svg>
+);
+export const IconPaperclip = ({ size, className }: P) => (
+  <svg {...s(size)} className={className} viewBox="0 0 24 24" {...stroke}><path d="M21 11.5 12.5 20a5 5 0 0 1-7-7l8-8a3.3 3.3 0 0 1 4.7 4.7l-8 8a1.7 1.7 0 0 1-2.4-2.4l7.3-7.3" /></svg>
+);
+
 export const IconLeaf = ({ size, className }: P) => (
   <svg {...s(size)} className={className} viewBox="0 0 24 24"><path d="M12 3C7 3 3.5 6.5 3.5 11.5c0 4.2 3 7.6 7 8.4-.3-1.3-.2-3 .6-4.6 1-2 3-3.4 5.4-4.2-2 .3-3.7 1-5 2.1.8-3 3.1-5 6.5-5.6C16.9 4 14.7 3 12 3Z" fill="#062018" /></svg>
 );

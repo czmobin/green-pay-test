@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useStore } from '@/components/store';
 import MeetingRow from '@/components/MeetingRow';
-import { rooms, typeLabels, TODAY, fmtTime, toFa, dayNames } from '@/lib/data';
+import { typeLabels, TODAY, fmtTime, toFa, dayNames } from '@/lib/data';
 import {
   IconCalendar, IconClock, IconGuests, IconRoom, IconMapPin, IconChevron, IconVideo, IconCheck, IconX,
 } from '@/components/Icons';
@@ -12,6 +12,7 @@ import {
 export default function Dashboard() {
   const store = useStore();
   const router = useRouter();
+  const rooms = store.rooms;
   const today = store.meetings.filter((m) => m.day === TODAY).sort((a, b) => a.start - b.start);
   const next = today[0];
   const pending = store.meetings.filter((m) => m.status === 'pending').length;
@@ -33,7 +34,7 @@ export default function Dashboard() {
           <h2>{next.title}</h2>
           <div className="nm-meta">
             <span><IconClock size={14} /><span className="num">{fmtTime(next.start)} – {fmtTime(next.end)}</span></span>
-            <span>{next.type === 'online' ? <IconVideo size={14} /> : <IconMapPin size={14} />}{rooms[next.room].name}</span>
+            <span>{next.type === 'online' ? <IconVideo size={14} /> : <IconMapPin size={14} />}{rooms[next.room]?.name ?? '—'}</span>
             {next.guests.length > 0 && <span><IconGuests size={14} />{toFa(next.guests.length)} مهمان خارجی</span>}
           </div>
           <div className="nm-actions">
@@ -85,7 +86,7 @@ export default function Dashboard() {
                   <b>{m.title}</b>
                   <small>
                     <span className="num"><IconClock size={12} />{dayNames[m.day]} · {fmtTime(m.start)}</span>
-                    <span>{m.type === 'online' ? <IconVideo size={12} /> : <IconMapPin size={12} />}{rooms[m.room].name}</span>
+                    <span>{m.type === 'online' ? <IconVideo size={12} /> : <IconMapPin size={12} />}{rooms[m.room]?.name ?? '—'}</span>
                   </small>
                 </div>
                 <div className="iacts">
