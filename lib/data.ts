@@ -74,7 +74,14 @@ export const seedMeetings: Meeting[] = [
 export const CURRENT_USER = 'ceo';
 export const TODAY = 1; // یکشنبه
 export const dayNames = ['شنبه', 'یکشنبه', 'دوشنبه', 'سه‌شنبه', 'چهارشنبه'];
-export const dayNums = ['۲۰', '۲۱', '۲۲', '۲۳', '۲۴'];
+export const dayNums = ['۲۱', '۲۲', '۲۳', '۲۴', '۲۵'];
+
+/* لنگر تاریخ دمو: هفتهٔ شنبه ۲۱ تا چهارشنبه ۲۵ تیر ۱۴۰۴ (امروز = یکشنبه ۲۲) */
+export const CAL_YEAR = 1404;
+export const CAL_MONTH = 4; // تیر
+export const BASE_JD = 21; // day index 0 → ۲۱ تیر (شنبه)
+export const TODAY_J = { jy: 1404, jm: 4, jd: 22 };
+export function meetingJd(day: number): number { return BASE_JD + day; }
 
 export const typeLabels: Record<MeetingType, string> = {
   board: 'هیئت مدیره',
