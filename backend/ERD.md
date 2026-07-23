@@ -2,6 +2,10 @@
 
 نمودار موجودیت‑رابطه (ERD) برای مدل‌های Django در `meetings/models.py`.
 
+**تصاویر آماده:** [`erd.png`](./erd.png) · [`erd.svg`](./erd.svg)
+
+![ERD](./erd.png)
+
 ```mermaid
 erDiagram
     ORGANIZATION ||--o{ USER : "اعضا"
