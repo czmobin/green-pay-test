@@ -1,73 +1,38 @@
-# گرین‌پی · اتاق جلسات — Green Pay Meetings
+# گرین‌پی · مدیریت جلسات سازمانی
 
-پنل مدیریت جلسات سازمانی گرین‌پی، ساخته‌شده با **Next.js 14 (App Router) + TypeScript + React**.
-کاملاً **RTL فارسی**، **موبایل‌فرست** و با هویت بصری سفید-سبز نزدیک به [greenpay360.ir](https://greenpay360.ir/).
+مونو‌ریپوی پروژه با فولدرهای جدا برای فرانت‌اند و بک‌اند.
 
-## امکانات
-- **داشبورد خلوت**: جلسهٔ بعدی + آمار کلیدی + برنامهٔ امروز (جزئیات با یک کلیک داخل جلسه)
-- **تقویم هفتگی**: در موبایل به‌صورت اجندای روزانه، در دسکتاپ گرید ساعتی
-- **همهٔ جلسات**: فهرست فیلترشونده بر اساس نوع
-- **صفحهٔ جلسه + صورت‌جلسه**: حین جلسه، آیتم ثبت کنید با تایپ‌های
-  **یادداشت / تصمیم / تسک** (مسئول و مهلت) **/ یادآور** (زمان) **/ تماس تلفنی** (شخص و شماره).
-  صورت‌جلسه در مرورگر ذخیره می‌شود (localStorage).
-- **فرم ساخت جلسه** (مودال): عنوان، نوع، روز/ساعت/مدت/اتاق، شرکت‌کنندگان
-- **مهمانان خارجی**: مسیر هر مهمان بین جلسات
-- اتصال نمایشی **Google Calendar**، تم روشن/تیره
-
-## پیش‌نیاز
-- [Node.js](https://nodejs.org/) نسخهٔ ۱۸.۱۸ به بالا
-- دسترسی به اینترنت **هنگام build** (فونت Vazirmatn یک‌بار از Google Fonts گرفته و در خود پروژه میزبانی می‌شود)
-
----
-
-## اجرا روی سرور ویندوز (روی یک پورت دلخواه)
-
-```powershell
-git clone git@github.com:czmobin/green-pay-test.git
-cd green-pay-test
-
-npm install       # نصب وابستگی‌ها
-npm run build     # ساخت نسخهٔ production
-npm run start -- -p 9000    # اجرا روی پورت 9000
+```
+green-pay-test/
+├── frontend/     اپلیکیشن Next.js 14 + TypeScript (RTL فارسی، موبایل‌فرست)
+│   ├── app/            صفحات (داشبورد، تقویم، جلسات، یادآورها، تعریف‌ها)
+│   ├── components/     کامپوننت‌ها و store
+│   ├── lib/            داده و توابع کمکی (تقویم جلالی)
+│   └── legacy-static/  نسخهٔ اولیهٔ تک‌فایل (بایگانی)
+└── backend/      بک‌اند Django (مدل‌های دامنه + ERD)
+    ├── config/        پروژهٔ Django
+    ├── meetings/      اپ دامنه (models.py، admin.py)
+    └── ERD.md         نمودار موجودیت‑رابطه
 ```
 
-سپس باز کنید: `http://<IP-سرور>:9000/`
+## اجرا
 
-### اجرای دائمی به‌صورت سرویس (اختیاری، با PM2)
-```powershell
-npm install -g pm2 pm2-windows-startup
-pm2 start "npm run start -- -p 9000" --name greenpay
-pm2 save
-pm2-startup install
+### فرانت‌اند
+```bash
+cd frontend
+npm install
+npm run build
+npm run start -- -p 9000     # یا: npm run dev
 ```
 
-### باز کردن پورت در فایروال ویندوز
-```powershell
-New-NetFirewallRule -DisplayName "GreenPay 9000" -Direction Inbound -LocalPort 9000 -Protocol TCP -Action Allow
-```
-> اگر سرور ابری (مثل Hetzner) است، پورت را در **فایروال/Security Group پنل سرویس‌دهنده** هم باز کنید.
-
-### حالت توسعه
-```powershell
-npm run dev       # http://localhost:3000
+### بک‌اند
+```bash
+cd backend
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+python manage.py migrate
+python manage.py runserver 0.0.0.0:8000
 ```
 
----
-
-## ساختار پروژه
-```
-app/                     صفحات (App Router)
-  page.tsx               داشبورد
-  calendar/page.tsx      تقویم هفتگی
-  meetings/page.tsx      فهرست جلسات
-  meetings/[id]/page.tsx صفحهٔ جلسه + صورت‌جلسه
-  guests/page.tsx        مهمانان خارجی
-  layout.tsx             لایهٔ ریشه (RTL، فونت، تم)
-  globals.css            توکن‌های طراحی و استایل‌ها
-components/               AppShell, Sidebar/Topbar/BottomNav, مودال ساخت، MinutesEditor، Icons، store
-lib/                      data.ts (دادهٔ نمونه) و types.ts
-legacy-static/           نسخهٔ اولیهٔ تک‌فایل (بایگانی)
-```
-
-## نکته
-تایپوگرافی فارسی با فونت **Vazirmatn** است که هنگام build دانلود و در پروژه میزبانی می‌شود؛ پس در زمان اجرا هیچ وابستگی به CDN وجود ندارد.
+## اتصال فرانت به بک
+در گام بعد یک API (Django REST Framework) روی بک‌اند ساخته می‌شود و فرانت‌اند به‌جای دادهٔ درون‌حافظه‌ای (`lib/data.ts`) از آن می‌خواند. مدل‌ها و ERD در `backend/` آماده‌اند.

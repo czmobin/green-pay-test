@@ -23,3 +23,14 @@ npm-debug.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts.bak
+
+# ---- backend (Django / Python) ----
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.sqlite3
+backend/media/
+backend/staticfiles/
+.env
+
