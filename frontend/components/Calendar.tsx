@@ -1,6 +1,9 @@
 'use client';
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import gsap from 'gsap';
+import { useGSAP } from '@gsap/react';
+import { useReveal } from './useReveal';
 import { useStore } from './store';
 import { typeColor, fmtTime, toFa, meetingJd, CAL_YEAR, CAL_MONTH, TODAY_J, NOW_HOUR } from '@/lib/data';
 import type { Meeting } from '@/lib/types';
@@ -50,8 +53,16 @@ export default function Calendar() {
   else if (view === 'month') title = `${jMonths[cur.jm - 1]} ${toFa(cur.jy)}`;
   else title = `سال ${toFa(cur.jy)}`;
 
+  const scope = useReveal(['.page-head', '.cal-switch', '.cal-toolbar', '.cal-view']);
+  // جابه‌جایی نرم بین نماها و پیمایش تاریخ
+  useGSAP(() => {
+    gsap.matchMedia().add('(prefers-reduced-motion: no-preference)', () => {
+      gsap.from('.cal-view', { autoAlpha: 0, y: 14, duration: 0.35, ease: 'power3.out', clearProps: 'all' });
+    });
+  }, { scope, dependencies: [view, cur.jy, cur.jm, cur.jd] });
+
   return (
-    <>
+    <div ref={scope}>
       <div className="page-head" style={{ marginBottom: 12 }}>
         <h1>تقویم</h1>
         <p>نمای روزانه، هفتگی، ماهانه و سالانهٔ جلسات شما.</p>
@@ -74,11 +85,13 @@ export default function Calendar() {
         <h3 className="cal-title">{title}</h3>
       </div>
 
-      {view === 'day' && <DayView j={cur} meetingsOn={meetingsOn} open={open} />}
-      {view === 'week' && <WeekView cur={cur} meetingsOn={meetingsOn} open={open} onDay={(j) => { setCur(j); setView('day'); }} />}
-      {view === 'month' && <MonthView cur={cur} meetingsOn={meetingsOn} onDay={(j) => { setCur(j); setView('day'); }} />}
-      {view === 'year' && <YearView jy={cur.jy} meetingsOn={meetingsOn} onMonth={(jm) => { setCur({ jy: cur.jy, jm, jd: 1 }); setView('month'); }} />}
-    </>
+      <div className="cal-view">
+        {view === 'day' && <DayView j={cur} meetingsOn={meetingsOn} open={open} />}
+        {view === 'week' && <WeekView cur={cur} meetingsOn={meetingsOn} open={open} onDay={(j) => { setCur(j); setView('day'); }} />}
+        {view === 'month' && <MonthView cur={cur} meetingsOn={meetingsOn} onDay={(j) => { setCur(j); setView('day'); }} />}
+        {view === 'year' && <YearView jy={cur.jy} meetingsOn={meetingsOn} onMonth={(jm) => { setCur({ jy: cur.jy, jm, jd: 1 }); setView('month'); }} />}
+      </div>
+    </div>
   );
 }
 

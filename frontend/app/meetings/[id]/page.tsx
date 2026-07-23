@@ -3,6 +3,7 @@ import React from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useStore } from '@/components/store';
 import MinutesEditor from '@/components/MinutesEditor';
+import { useReveal } from '@/components/useReveal';
 import {
   guests, typeLabels, statusLabels, dayNames, fmtTime, initials, toFa,
 } from '@/lib/data';
@@ -17,6 +18,7 @@ export default function MeetingDetail() {
   const store = useStore();
   const { people, rooms } = store;
   const m = store.getMeeting(id);
+  const scope = useReveal(['.detail-top', '.detail-head', '.minutes', '.gcard', '.disclosure']);
 
   if (!m) {
     return (
@@ -32,7 +34,7 @@ export default function MeetingDetail() {
   const org = people[m.organizer];
 
   return (
-    <>
+    <div ref={scope}>
       <div className="detail-top">
         <button className="back-btn" onClick={() => router.back()} aria-label="بازگشت"><IconBack size={18} /></button>
         <span className={'tag t-' + m.type}>{typeLabels[m.type]}</span>
@@ -135,6 +137,6 @@ export default function MeetingDetail() {
           </details>
         </div>
       </div>
-    </>
+    </div>
   );
 }

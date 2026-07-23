@@ -2,6 +2,7 @@
 import React, { useMemo, useState } from 'react';
 import { useStore } from '@/components/store';
 import MeetingRow from '@/components/MeetingRow';
+import { useReveal } from '@/components/useReveal';
 import {
   categories, categoryById, rooms, people, guests, dayNames, dayNums, TODAY, toFa, normalizeFa,
 } from '@/lib/data';
@@ -44,8 +45,10 @@ export default function MeetingsPage() {
     g.items.push(m);
   });
 
+  const scope = useReveal(['.page-head', '.searchbar', '.filters', '.date-group', '.mrow']);
+
   return (
-    <>
+    <div ref={scope}>
       <div className="page-head">
         <h1>همهٔ جلسات</h1>
         <p>جستجو در عنوان، مهمان، محل، دستورجلسه و صورت‌جلسه — یا فیلتر بر اساس دسته.</p>
@@ -83,6 +86,6 @@ export default function MeetingsPage() {
           </div>
         ))
       )}
-    </>
+    </div>
   );
 }

@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useStore } from '@/components/store';
+import { useReveal } from '@/components/useReveal';
 import { minuteMeta, dayNames, TODAY, toFa, normalizeFa } from '@/lib/data';
 import type { Meeting, Minute } from '@/lib/types';
 import {
@@ -41,8 +42,10 @@ export default function RemindersPage() {
     })
     .sort((a, b) => a.m.day - b.m.day || a.m.start - b.m.start);
 
+  const scope = useReveal(['.page-head', '.rem-stat', '.searchbar', '.filters', '.rem']);
+
   return (
-    <>
+    <div ref={scope}>
       <div className="page-head">
         <h1>یادآورها و تسک‌ها</h1>
         <p>همهٔ تسک‌ها و یادآورهایی که داخل صورت‌جلسه‌ها ثبت شده — با فیلتر زمان و جستجو.</p>
@@ -105,6 +108,6 @@ export default function RemindersPage() {
           })}
         </div>
       )}
-    </>
+    </div>
   );
 }

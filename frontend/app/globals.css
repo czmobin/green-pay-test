@@ -196,6 +196,8 @@ input,select,textarea{font-family:inherit}
 .next-card .nm-actions .btn-join{background:rgba(255,255,255,.14);color:#fff;border:1px solid rgba(255,255,255,.2)}
 .next-card .glow{position:absolute;inset-inline-start:-40px;bottom:-60px;width:180px;height:180px;border-radius:50%;
   background:radial-gradient(circle,rgba(52,211,153,.35),transparent 70%)}
+.hero-canvas{position:absolute;inset:0;z-index:0;pointer-events:none}
+.next-card>.eyebrow,.next-card>h2,.next-card>.nm-meta,.next-card>.nm-actions{position:relative;z-index:1}
 
 /* ===================== Meeting rows ===================== */
 .mlist{display:flex;flex-direction:column;gap:8px}

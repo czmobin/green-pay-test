@@ -1,6 +1,7 @@
 'use client';
 import React, { useState } from 'react';
 import { useStore } from '@/components/store';
+import { useReveal } from '@/components/useReveal';
 import { initials } from '@/lib/data';
 import type { Organization, Role } from '@/lib/types';
 import { IconBuilding, IconRoom, IconUsers, IconPlus } from '@/components/Icons';
@@ -53,8 +54,10 @@ export default function Settings() {
     store.toast('محل جلسه اضافه شد', 'ok'); setLName('');
   }
 
+  const scope = useReveal(['.page-head', '.filters', '.def-form', '.def-item']);
+
   return (
-    <>
+    <div ref={scope}>
       <div className="page-head">
         <h1>تعریف‌ها</h1>
         <p>سازمان‌ها، افراد و محل‌های جلسه را مدیریت کنید — همه‌جا در فرم ساخت جلسه در دسترس‌اند.</p>
@@ -176,6 +179,6 @@ export default function Settings() {
           </div>
         </div>
       )}
-    </>
+    </div>
   );
 }

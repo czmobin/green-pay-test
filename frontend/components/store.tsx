@@ -54,9 +54,6 @@ export const useStore = () => {
   return c;
 };
 
-let idc = 1000;
-const nextId = () => `x${++idc}`;
-
 export default function Providers({ children }: { children: React.ReactNode }) {
   const [meetings, setMeetings] = useState<Meeting[]>(seedMeetings);
   const [minutes, setMinutes] = useState<Record<string, Minute[]>>(seedMinutes);
