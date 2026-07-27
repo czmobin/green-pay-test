@@ -1,51 +1,64 @@
-"""ورود با شمارهٔ موبایل و کد یک‌بارمصرف (OTP)."""
+"""
+ورود و ثبت‌نام با شمارهٔ موبایل و کد یک‌بارمصرف (OTP) + توکن JWT.
+
+جریان:
+  ۱) request-otp  → کد پیامک می‌شود
+  ۲) verify-otp   → کد بررسی و توکن access/refresh صادر می‌شود.
+                    اگر شماره تازه باشد کاربر ساخته می‌شود و `isNew` برمی‌گردد.
+  ۳) profile      → کاربر تازه نام و نام خانوادگی‌اش را ثبت می‌کند.
+"""
 import secrets
 from datetime import timedelta
 
 from django.conf import settings
 from django.utils import timezone
 from rest_framework import status
-from rest_framework.authtoken.models import Token
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
+from rest_framework_simplejwt.tokens import RefreshToken
 
-from .models import OtpCode, User
+from .models import OtpCode, Organization, User
 from .serializers import PersonSerializer
 from .sms import is_valid_phone, normalize_phone, send_otp
+
+AVATAR_COLORS = [
+    '#0E9F6E,#0B5B3E', '#2F7FE4,#153E7E', '#7C3AED,#4C1D95', '#D9930B,#7A4E00',
+    '#DB2777,#831843', '#0891B2,#0E4A5A', '#B45309,#78350F', '#059669,#064E3B',
+]
 
 
 def _generate_code() -> str:
     return f'{secrets.randbelow(100000):05d}'
 
 
-def _resolve_user(phone: str) -> User:
-    """
-    کاربر متناظر با شماره را برمی‌گرداند.
+def _issue_tokens(user: User) -> dict:
+    refresh = RefreshToken.for_user(user)
+    return {'access': str(refresh.access_token), 'refresh': str(refresh)}
 
-    اگر شماره ثبت نشده باشد: نخستین ورود به حساب مدیرعاملِ دمو وصل می‌شود
-    (تا ارائه‌دهنده کل اپ را ببیند) و ورودهای بعدی کاربر عادی می‌سازند.
-    """
+
+def _profile_complete(user: User) -> bool:
+    return bool(user.first_name.strip() or user.last_name.strip())
+
+
+def _get_or_create_user(phone: str):
+    """کاربر متناظر با شماره را برمی‌گرداند؛ اگر نبود می‌سازد (ثبت‌نام)."""
     user = User.objects.filter(phone=phone).first()
     if user:
-        return user
+        return user, False
 
-    ceo = User.objects.filter(role=User.Role.CEO).first()
-    if ceo and not ceo.phone:
-        ceo.phone = phone
-        ceo.save(update_fields=['phone'])
-        return ceo
-
-    return User.objects.create(
+    color = AVATAR_COLORS[User.objects.count() % len(AVATAR_COLORS)]
+    user = User.objects.create(
         username=f'u{phone}',
-        first_name='کاربر',
-        last_name=phone[-4:],
         phone=phone,
-        title='عضو',
+        first_name='',
+        last_name='',
+        title='',
         role=User.Role.MEMBER,
-        organization=(ceo.organization if ceo else None),
-        color='#0891B2,#0E4A5A',
+        organization=Organization.objects.filter(kind=Organization.Kind.INTERNAL).first(),
+        color=color,
     )
+    return user, True
 
 
 @api_view(['POST'])
@@ -55,7 +68,6 @@ def request_otp(request):
     if not is_valid_phone(phone):
         return Response({'detail': 'شمارهٔ موبایل معتبر نیست.'}, status=status.HTTP_400_BAD_REQUEST)
 
-    # جلوگیری از ارسال پشت‌سرهم
     last = OtpCode.objects.filter(phone=phone).first()
     if last and not last.is_used:
         elapsed = (timezone.now() - last.created_at).total_seconds()
@@ -79,10 +91,10 @@ def request_otp(request):
         'expiresIn': settings.OTP_TTL_SECONDS,
         'resendAfter': settings.OTP_RESEND_SECONDS,
         'smsSent': result.sent,
+        'isKnown': User.objects.filter(phone=phone).exists(),
     }
     if not result.sent:
         if settings.KAVENEGAR_API_KEY:
-            # کلید هست ولی ارسال نشد → خطای واقعی سرویس پیامک
             return Response({'detail': f'ارسال پیامک ناموفق بود: {result.detail}'},
                             status=status.HTTP_502_BAD_GATEWAY)
         if settings.OTP_ECHO_WHEN_SMS_OFF:
@@ -116,19 +128,38 @@ def verify_otp(request):
     otp.is_used = True
     otp.save(update_fields=['attempts', 'is_used'])
 
-    user = _resolve_user(phone)
-    token, _ = Token.objects.get_or_create(user=user)
-    return Response({'token': token.key, 'user': PersonSerializer(user).data})
+    user, created = _get_or_create_user(phone)
+    return Response({
+        **_issue_tokens(user),
+        'user': PersonSerializer(user).data,
+        'isNew': created or not _profile_complete(user),
+    })
 
 
-@api_view(['GET'])
+@api_view(['GET', 'PATCH'])
 @permission_classes([IsAuthenticated])
-def me(request):
-    return Response(PersonSerializer(request.user).data)
+def profile(request):
+    """خواندن کاربر جاری و تکمیل نام و نام خانوادگی هنگام ثبت‌نام."""
+    user = request.user
+    if request.method == 'PATCH':
+        first = str(request.data.get('firstName', '')).strip()
+        last = str(request.data.get('lastName', '')).strip()
+        if not first:
+            return Response({'detail': 'نام را وارد کنید.'}, status=status.HTTP_400_BAD_REQUEST)
+        user.first_name = first[:150]
+        user.last_name = last[:150]
+        title = str(request.data.get('title', '')).strip()
+        if title:
+            user.title = title[:120]
+        user.save(update_fields=['first_name', 'last_name', 'title'])
+    data = PersonSerializer(user).data
+    data['isNew'] = not _profile_complete(user)
+    data['phone'] = user.phone
+    return Response(data)
 
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def logout(request):
-    Token.objects.filter(user=request.user).delete()
+    """با JWT بدون blacklist، خروج سمت کلاینت انجام می‌شود؛ این فقط تأیید است."""
     return Response({'ok': True})

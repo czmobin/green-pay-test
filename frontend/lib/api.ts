@@ -5,24 +5,63 @@
 import type { Category, Guest, Meeting, Minute, MinuteType, Organization, Person, Room } from './types';
 
 const BASE = (process.env.NEXT_PUBLIC_API_URL || '/api').replace(/\/$/, '');
-const TOKEN_KEY = 'gp-token';
+const ACCESS_KEY = 'gp-access';
+const REFRESH_KEY = 'gp-refresh';
 
-/* ---------- توکن ورود ---------- */
-let token: string | null = null;
+/* ---------- توکن‌های JWT ---------- */
+let access: string | null = null;
+let refresh: string | null = null;
+let hydrated = false;
 
-export function loadToken(): string | null {
-  if (token === null && typeof window !== 'undefined') {
-    try { token = localStorage.getItem(TOKEN_KEY); } catch { /* حالت خصوصی */ }
-  }
-  return token;
+function hydrate() {
+  if (hydrated || typeof window === 'undefined') return;
+  try {
+    access = localStorage.getItem(ACCESS_KEY);
+    refresh = localStorage.getItem(REFRESH_KEY);
+  } catch { /* حالت خصوصی مرورگر */ }
+  hydrated = true;
 }
 
-export function setToken(value: string | null) {
-  token = value;
+export function loadToken(): string | null {
+  hydrate();
+  return access;
+}
+
+export function setTokens(a: string | null, r?: string | null) {
+  hydrate();
+  access = a;
+  if (r !== undefined) refresh = r;
   try {
-    if (value) localStorage.setItem(TOKEN_KEY, value);
-    else localStorage.removeItem(TOKEN_KEY);
-  } catch { /* حالت خصوصی */ }
+    if (a) localStorage.setItem(ACCESS_KEY, a); else localStorage.removeItem(ACCESS_KEY);
+    if (r !== undefined) {
+      if (r) localStorage.setItem(REFRESH_KEY, r); else localStorage.removeItem(REFRESH_KEY);
+    }
+  } catch { /* حالت خصوصی مرورگر */ }
+}
+
+/** پاک کردن نشست (خروج یا انقضای توکن) */
+export function setToken(value: string | null) {
+  setTokens(value, value ? undefined : null);
+}
+
+/** تلاش برای گرفتن access تازه با refresh؛ در صورت شکست نشست پاک می‌شود. */
+async function tryRefresh(): Promise<boolean> {
+  hydrate();
+  if (!refresh) return false;
+  try {
+    const res = await fetch(`${BASE}/auth/refresh/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refresh }),
+    });
+    if (!res.ok) throw new Error('refresh failed');
+    const data = await res.json();
+    setTokens(data.access, data.refresh ?? refresh);
+    return true;
+  } catch {
+    setTokens(null, null);
+    return false;
+  }
 }
 
 /** وقتی سرور توکن را نپذیرد، همین خطا پرتاب می‌شود تا اپ به صفحهٔ ورود برگردد. */
@@ -43,19 +82,23 @@ export interface Bootstrap {
   smsEnabled: boolean;
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+async function request<T>(path: string, init?: RequestInit, retry = true): Promise<T> {
   const auth = loadToken();
   const res = await fetch(`${BASE}${path}`, {
     ...init,
     headers: {
       'Content-Type': 'application/json',
-      ...(auth ? { Authorization: `Token ${auth}` } : {}),
+      ...(auth ? { Authorization: `Bearer ${auth}` } : {}),
       ...(init?.headers ?? {}),
     },
     cache: 'no-store',
   });
+  if (res.status === 401 && retry && !path.startsWith('/auth/')) {
+    // توکن منقضی شده — یک‌بار با refresh تازه‌اش می‌کنیم
+    if (await tryRefresh()) return request<T>(path, init, false);
+  }
   if (res.status === 401 || res.status === 403) {
-    setToken(null);
+    setTokens(null, null);
     throw new UnauthorizedError();
   }
   if (!res.ok) {
@@ -123,14 +166,18 @@ export interface OtpRequestResult {
   expiresIn: number;
   resendAfter: number;
   smsSent: boolean;
+  isKnown: boolean;   // شماره از قبل ثبت شده؟ (ورود در برابر ثبت‌نام)
   devCode?: string;   // فقط وقتی سرویس پیامک خاموش است (محیط توسعه)
 }
 
 export const api = {
   requestOtp: (phone: string) => post<OtpRequestResult>('/auth/request-otp/', { phone }),
   verifyOtp: (phone: string, code: string) =>
-    post<{ token: string; user: Person }>('/auth/verify-otp/', { phone, code }),
-  me: () => request<Person>('/auth/me/'),
+    post<{ access: string; refresh: string; user: Person; isNew: boolean }>(
+      '/auth/verify-otp/', { phone, code }),
+  me: () => request<Person & { isNew?: boolean; phone?: string }>('/auth/me/'),
+  updateProfile: (p: { firstName: string; lastName: string; title?: string }) =>
+    request<Person & { isNew?: boolean }>('/auth/me/', { method: 'PATCH', body: JSON.stringify(p) }),
   logout: () => post<{ ok: boolean }>('/auth/logout/'),
 
   bootstrap: () => request<Bootstrap>('/bootstrap/'),

@@ -6,9 +6,10 @@ import { useStore } from './store';
 import CreateMeetingModal from './CreateMeetingModal';
 import NotificationBell from './NotificationBell';
 import ConflictAlert from './ConflictAlert';
+import UserMenu from './UserMenu';
 import {
   IconDashboard, IconCalendar, IconList, IconPlus, IconReminder,
-  IconSun, IconLeaf, IconGoogle, IconCheck, IconSettings, IconLogout,
+  IconLeaf, IconGoogle, IconCheck, IconSettings, IconLogout,
 } from './Icons';
 import { initials } from '@/lib/data';
 
@@ -92,8 +93,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                 ? `${roleLabel[store.role]} · ${me.role}`
                 : roleLabel[store.role]}
             </small></div>
-            <button className="icon-btn" style={{ marginInlineStart: 'auto', width: 32, height: 32, border: 0, background: 'transparent' }} onClick={store.toggleTheme} aria-label="تغییر تم"><IconSun size={17} /></button>
-            <button className="icon-btn" style={{ width: 32, height: 32, border: 0, background: 'transparent' }} onClick={() => store.signOut()} aria-label="خروج" title="خروج از حساب"><IconLogout size={17} /></button>
+            <button className="icon-btn um-side" onClick={() => store.signOut()}
+              aria-label="خروج" title="خروج از حساب"><IconLogout size={17} /></button>
           </div>
         </div>
       </aside>
@@ -115,7 +116,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           </button>
           <Link href="/settings" className="icon-btn only-mobile" aria-label="تعریف‌ها"><IconSettings size={18} /></Link>
           <NotificationBell />
-          <button className="icon-btn only-mobile" onClick={store.toggleTheme} aria-label="تغییر تم"><IconSun size={18} /></button>
+          <UserMenu />
         </header>
 
         <main className="content">

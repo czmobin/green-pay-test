@@ -4,7 +4,7 @@ import type {
   Category, Guest, Meeting, Minute, Organization, Person, Role, Room,
 } from '@/lib/types';
 import {
-  api, loadToken, setToken, UnauthorizedError,
+  api, loadToken, setTokens, UnauthorizedError,
   type Conflict, type NewMeeting, type NewMinute,
 } from '@/lib/api';
 import { IconCheck, IconX } from './Icons';
@@ -16,8 +16,10 @@ interface Store {
   /* احراز هویت */
   authed: boolean;
   authChecked: boolean;
+  needsProfile: boolean;
   me: Person | null;
-  signIn: (token: string, user: Person) => void;
+  signIn: (tokens: { access: string; refresh: string }, user: Person, isNew: boolean) => void;
+  completeProfile: (p: { firstName: string; lastName: string; title?: string }) => Promise<boolean>;
   signOut: () => Promise<void>;
 
   /* وضعیت بارگذاری از API */
@@ -80,6 +82,7 @@ export const useStore = () => {
 export default function Providers({ children }: { children: React.ReactNode }) {
   const [authed, setAuthed] = useState(false);
   const [authChecked, setAuthChecked] = useState(false);
+  const [needsProfile, setNeedsProfile] = useState(false);
   const [me, setMe] = useState<Person | null>(null);
   const [ready, setReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -108,19 +111,34 @@ export default function Providers({ children }: { children: React.ReactNode }) {
   }, []);
 
   /* ---------- احراز هویت ---------- */
-  const signIn = useCallback((tok: string, user: Person) => {
-    setToken(tok);
+  const signIn = useCallback((tokens: { access: string; refresh: string }, user: Person, isNew: boolean) => {
+    setTokens(tokens.access, tokens.refresh);
     setMe(user);
     setAuthed(true);
+    setNeedsProfile(isNew);
     setCurrentUser(user.id);
     setRole(user.accessRole === 'ceo' ? 'ceo' : user.accessRole === 'admin' ? 'admin' : 'user');
     setReady(false);            // داده‌ها با توکن جدید دوباره خوانده می‌شوند
   }, []);
 
+  const completeProfile = useCallback(async (p: { firstName: string; lastName: string; title?: string }) => {
+    try {
+      const user = await api.updateProfile(p);
+      setMe(user);
+      setNeedsProfile(false);
+      setPeople((s) => ({ ...s, [user.id]: user }));
+      return true;
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'ثبت اطلاعات ناموفق بود', 'info');
+      return false;
+    }
+  }, [toast]);
+
   const signOut = useCallback(async () => {
     try { await api.logout(); } catch { /* توکن در هر حال پاک می‌شود */ }
-    setToken(null);
+    setTokens(null, null);
     setAuthed(false);
+    setNeedsProfile(false);
     setMe(null);
     setReady(true);
     setMeetings([]); setMinutes({}); setPeople({}); setGuests({});
@@ -159,8 +177,14 @@ export default function Providers({ children }: { children: React.ReactNode }) {
     const tok = loadToken();
     if (!tok) { setAuthChecked(true); setReady(true); return; }
     api.me()
-      .then((user) => { setMe(user); setAuthed(true); setCurrentUser((c) => c || user.id); })
-      .catch(() => { setToken(null); setAuthed(false); })
+      .then((user) => {
+        setMe(user);
+        setAuthed(true);
+        setNeedsProfile(Boolean(user.isNew));
+        setCurrentUser((c) => c || user.id);
+        setRole(user.accessRole === 'ceo' ? 'ceo' : user.accessRole === 'admin' ? 'admin' : 'user');
+      })
+      .catch(() => { setTokens(null, null); setAuthed(false); })
       .finally(() => setAuthChecked(true));
   }, []);
 
@@ -284,7 +308,7 @@ export default function Providers({ children }: { children: React.ReactNode }) {
   }, []);
 
   const value = useMemo<Store>(() => ({
-    authed, authChecked, me, signIn, signOut,
+    authed, authChecked, needsProfile, me, signIn, completeProfile, signOut,
     ready, error, reload,
     meetings, visibleMeetings, minutes, people, guests, rooms, orgs, categories,
     getMeeting, createMeeting, respondMeeting, syncMeeting,
@@ -295,7 +319,7 @@ export default function Providers({ children }: { children: React.ReactNode }) {
     conflicts, dismissConflicts: () => setConflicts([]),
     createOpen, openCreate: () => setCreateOpen(true), closeCreate: () => setCreateOpen(false),
     toast, toggleTheme,
-  }), [conflicts, authed, authChecked, me, signIn, signOut,
+  }), [conflicts, authed, authChecked, needsProfile, me, signIn, completeProfile, signOut,
     ready, error, reload, meetings, visibleMeetings, minutes, people, guests, rooms, orgs, categories,
     getMeeting, createMeeting, respondMeeting, syncMeeting, addMinute, deleteMinute, toggleTask,
     addPerson, addRoom, addOrg, role, currentUser, gcalConnected, connectGcal, smsEnabled, toggleSms,

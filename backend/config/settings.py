@@ -1,4 +1,5 @@
 """تنظیمات پروژهٔ گرین‌پی (بک‌اند مدیریت جلسات)."""
+from datetime import timedelta
 from pathlib import Path
 import os
 
@@ -17,7 +18,6 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     # کتابخانه‌ها
     'rest_framework',
-    'rest_framework.authtoken',
     'corsheaders',
     # اپ دامنه
     'meetings',
@@ -93,11 +93,24 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # --- API ---
 REST_FRAMEWORK = {
+    # هیچ endpointی بدون ورود در دسترس نیست (به‌جز آن‌هایی که صراحتاً AllowAny دارند).
     'DEFAULT_PERMISSION_CLASSES': ['rest_framework.permissions.IsAuthenticated'],
     'DEFAULT_RENDERER_CLASSES': ['rest_framework.renderers.JSONRenderer'],
-    # فقط توکن: اگر SessionAuthentication فعال بماند، کاربری که هم‌زمان در /admin
+    # فقط JWT: اگر SessionAuthentication فعال بماند، کاربری که هم‌زمان در /admin
     # لاگین است کوکی نشست می‌فرستد و درخواست‌های POST به CSRF می‌خورند.
-    'DEFAULT_AUTHENTICATION_CLASSES': ['rest_framework.authentication.TokenAuthentication'],
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    ],
+}
+
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(hours=12),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=30),
+    'ROTATE_REFRESH_TOKENS': True,
+    'BLACKLIST_AFTER_ROTATION': False,
+    'AUTH_HEADER_TYPES': ('Bearer',),
+    'USER_ID_FIELD': 'id',
+    'USER_ID_CLAIM': 'user_id',
 }
 
 # --- ورود با کد یک‌بارمصرف (کاوه‌نگار) ---

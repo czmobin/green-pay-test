@@ -8,7 +8,7 @@ import React, { useEffect, useRef } from 'react';
  * three به‌صورت dynamic import می‌آید تا وارد باندل اولیه نشود؛ در
  * prefers-reduced-motion ساخته نمی‌شود و در تب مخفی رندر متوقف می‌شود.
  */
-export default function LoginScene() {
+export default function LoginScene({ dark = true }: { dark?: boolean }) {
   const hostRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -47,7 +47,10 @@ export default function LoginScene() {
       const sphereGeo = new THREE.IcosahedronGeometry(2.1, 3);
       const wire = new THREE.LineSegments(
         new THREE.WireframeGeometry(sphereGeo),
-        new THREE.LineBasicMaterial({ color: 0x2fbe89, transparent: true, opacity: 0.16, depthWrite: false }),
+        new THREE.LineBasicMaterial({
+          color: dark ? 0x2fbe89 : 0x0e9f6e,
+          transparent: true, opacity: dark ? 0.16 : 0.3, depthWrite: false,
+        }),
       );
       group.add(wire);
 
@@ -67,8 +70,10 @@ export default function LoginScene() {
       const nodeGeo = new THREE.BufferGeometry();
       nodeGeo.setAttribute('position', new THREE.BufferAttribute(nodePos, 3));
       const nodeMat = new THREE.PointsMaterial({
-        color: 0x6ee7b7, size: 0.075, transparent: true, opacity: 0.9,
-        depthWrite: false, blending: THREE.AdditiveBlending,
+        color: dark ? 0x6ee7b7 : 0x0b8a5f, size: 0.075, transparent: true,
+        opacity: dark ? 0.9 : 0.85, depthWrite: false,
+        // در تم روشن جمع‌شدن نور روی پس‌زمینهٔ سفید محو می‌شود، پس ترکیب عادی
+        blending: dark ? THREE.AdditiveBlending : THREE.NormalBlending,
       });
       group.add(new THREE.Points(nodeGeo, nodeMat));
 
@@ -83,8 +88,9 @@ export default function LoginScene() {
       const dustGeo = new THREE.BufferGeometry();
       dustGeo.setAttribute('position', new THREE.BufferAttribute(dustPos, 3));
       const dustMat = new THREE.PointsMaterial({
-        color: 0x34d399, size: 0.045, transparent: true, opacity: 0.5,
-        depthWrite: false, blending: THREE.AdditiveBlending,
+        color: dark ? 0x34d399 : 0x34d399, size: 0.045, transparent: true,
+        opacity: dark ? 0.5 : 0.55, depthWrite: false,
+        blending: dark ? THREE.AdditiveBlending : THREE.NormalBlending,
       });
       const dust = new THREE.Points(dustGeo, dustMat);
       scene.add(dust);
@@ -134,7 +140,7 @@ export default function LoginScene() {
     })();
 
     return () => { disposed = true; cleanup?.(); };
-  }, []);
+  }, [dark]);   // با تغییر تم صحنه با رنگ‌های جدید ساخته می‌شود
 
   return <div ref={hostRef} aria-hidden className="login-scene" />;
 }

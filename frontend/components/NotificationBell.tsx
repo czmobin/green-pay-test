@@ -47,8 +47,8 @@ export default function NotificationBell() {
   const go = (mid: string) => { setOpen(false); router.push(`/meetings/${mid}`); };
 
   return (
-    <>
-      <button className="icon-btn" aria-label="اعلان‌ها" onClick={() => setOpen((v) => !v)}>
+    <div className="notif-wrap">
+      <button className="icon-btn" aria-label="اعلان‌ها" onClick={() => setOpen((v) => !v)} aria-expanded={open}>
         {notifs.length > 0 && <span className="badge" />}
         <IconBell size={18} />
       </button>
@@ -91,6 +91,6 @@ export default function NotificationBell() {
 
         <div className="notif-foot">یادآور خودکار ۳۰ دقیقه قبل از هر جلسه، تسک و یادآور ارسال می‌شود.</div>
       </div>
-    </>
+    </div>
   );
 }

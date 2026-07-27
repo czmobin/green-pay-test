@@ -557,8 +557,8 @@ select.field-in{appearance:none;background-image:url("data:image/svg+xml;utf8,<s
 
 /* ===================== Conflict popup (کنار زنگوله) ===================== */
 .cf-overlay{position:fixed;inset:0;z-index:74}
-.cf-panel{position:fixed;z-index:75;top:calc(var(--topbar-h) + 8px);inset-inline-start:12px;
-  width:min(380px,94vw);max-height:min(70vh,520px);display:flex;flex-direction:column;overflow:hidden;
+.cf-panel{position:fixed;z-index:75;top:calc(var(--topbar-h) + 10px);inset-inline-end:14px;
+  width:min(380px,calc(100vw - 28px));max-height:min(70vh,520px);display:flex;flex-direction:column;overflow:hidden;
   background:var(--panel);border:1px solid color-mix(in srgb,var(--warn) 45%,var(--line));
   border-radius:16px;box-shadow:var(--shadow-lg)}
 .cf-head{display:flex;align-items:flex-start;gap:10px;padding:13px 15px;border-bottom:1px solid var(--line);
@@ -581,6 +581,33 @@ select.field-in{appearance:none;background-image:url("data:image/svg+xml;utf8,<s
 .cf-meta span{display:flex;align-items:center;gap:4px}
 .cf-foot{padding:10px 15px;border-top:1px solid var(--line);background:var(--panel-2);
   font-size:11px;color:var(--muted);line-height:1.7}
+
+/* ===================== User menu ===================== */
+.um-wrap{position:relative;display:inline-flex}
+.um-btn{width:38px;height:38px;border-radius:11px;border:1px solid var(--line-strong);
+  background:var(--panel);display:grid;place-items:center;transition:.15s;flex:0 0 auto}
+.um-btn:hover{border-color:var(--brand)}
+.um-btn .ava.sm{width:26px;height:26px;font-size:10px}
+.um-panel{position:absolute;z-index:72;top:calc(100% + 10px);inset-inline-end:0;width:250px;
+  background:var(--panel);border:1px solid var(--line);border-radius:15px;
+  box-shadow:var(--shadow-lg);overflow:hidden;animation:umIn .16s ease}
+@keyframes umIn{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
+.um-head{display:flex;align-items:center;gap:11px;padding:13px 14px;border-bottom:1px solid var(--line)}
+.um-head b{font-size:13.5px;font-weight:800;display:block}
+.um-head small{font-size:11px;color:var(--muted)}
+.um-section{padding:10px 14px 6px;font-size:10.5px;font-weight:800;color:var(--muted);letter-spacing:.4px}
+.um-theme{display:flex;gap:6px;padding:0 10px 10px}
+.um-theme button{flex:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:9px 6px;
+  border-radius:10px;border:1px solid var(--line-strong);background:var(--panel);
+  color:var(--ink-soft);font-size:12.5px;font-weight:700;transition:.12s}
+.um-theme button:hover{border-color:var(--brand)}
+.um-theme button.active{border-color:var(--brand);background:var(--mint-soft);color:var(--brand-strong)}
+.um-item{display:flex;align-items:center;gap:9px;width:100%;padding:12px 14px;
+  font-size:13px;font-weight:700;color:var(--ink-soft);border-top:1px solid var(--line);transition:.12s}
+.um-item:hover{background:var(--panel-2)}
+.um-item.danger{color:var(--danger)}
+.um-item.danger:hover{background:var(--danger-soft)}
+.um-side{margin-inline-start:auto;width:32px;height:32px;border:0;background:transparent}
 
 /* ===================== Login ===================== */
 .login{position:relative;min-height:100vh;min-height:100dvh;overflow:hidden;
@@ -634,11 +661,53 @@ select.field-in{appearance:none;background-image:url("data:image/svg+xml;utf8,<s
 .lg-resend button{color:#34D399;font-weight:700}
 .lg-resend button:hover{text-decoration:underline}
 
+.login-theme{position:absolute;z-index:3;top:18px;inset-inline-end:18px;display:flex;align-items:center;gap:7px;
+  padding:8px 13px;border-radius:999px;font-size:12.5px;font-weight:700;transition:.15s;
+  background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.16);color:#DCEDE4;backdrop-filter:blur(8px)}
+.login-theme:hover{background:rgba(255,255,255,.14)}
+.login-light .login-theme{background:rgba(8,40,30,.05);border-color:rgba(8,40,30,.12);color:#0C2E22}
+.login-light .login-theme:hover{background:rgba(8,40,30,.09)}
+
+.lg-paste{display:flex;align-items:center;justify-content:center;gap:7px;width:100%;margin-top:12px;
+  padding:9px 12px;border-radius:11px;font-size:12.5px;font-weight:700;transition:.15s;
+  border:1px dashed rgba(255,255,255,.22);color:#A9C6B8;background:rgba(255,255,255,.04)}
+.lg-paste:hover{border-color:#34D399;color:#34D399}
+.lg-paste.hint{border-style:solid;border-color:rgba(52,211,153,.5);
+  background:rgba(52,211,153,.12);color:#9BE6C4}
+.login-light .lg-paste{border-color:rgba(8,40,30,.2);color:#3C4B44;background:rgba(8,40,30,.03)}
+.login-light .lg-paste:hover{border-color:#0E9F6E;color:#0B8A5F}
+.login-light .lg-paste.hint{background:rgba(14,159,110,.1);border-color:rgba(14,159,110,.45);color:#0B8A5F}
+
 .login-aside{display:flex;flex-direction:column;gap:12px;max-width:290px}
 .lg-badge{color:#CFE5DA;font-size:13.5px;font-weight:600;line-height:1.7;
   background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);
   border-radius:14px;padding:14px 16px;backdrop-filter:blur(8px)}
 @media (max-width:899px){.login-aside{display:none}.login-inner{gap:0}}
+
+/* --- تم روشن صفحهٔ ورود: سفید و سبز، هماهنگ با بقیهٔ اپ --- */
+.login-light{background:radial-gradient(1100px 680px at 80% -10%,#E4F5EC 0%,#F3F8F5 55%,#FFFFFF 100%)}
+.login-light .login-veil{background:radial-gradient(760px 520px at 50% 50%,transparent 0%,rgba(255,255,255,.5) 100%)}
+.login-light .login-card{background:rgba(255,255,255,.78);border-color:#DDE9E3;color:#0E1B16;
+  box-shadow:0 30px 70px -34px rgba(8,40,30,.3)}
+.login-light .lg-brand b{color:#0C2E22}
+.login-light .lg-brand small,
+.login-light .lg-sub,
+.login-light .login-card .field label{color:#5F6F68}
+.login-light .lg-sub b{color:#0E1B16}
+.login-light .login-card .field-in{background:#fff;border-color:#D6DEDA;color:#0E1B16}
+.login-light .login-card .field-in::placeholder{color:#9BAAA2}
+.login-light .login-card .field-in:focus{border-color:#0E9F6E;box-shadow:0 0 0 4px rgba(14,159,110,.14)}
+.login-light .lg-digit{background:#fff;border-color:#D6DEDA;color:#0E1B16}
+.login-light .lg-digit:focus{border-color:#0E9F6E;box-shadow:0 0 0 4px rgba(14,159,110,.14)}
+.login-light .lg-digit.filled{border-color:rgba(14,159,110,.55)}
+.login-light .lg-back{color:#5F6F68}
+.login-light .lg-back:hover{color:#0B8A5F}
+.login-light .lg-note{color:#7E8D85}
+.login-light .lg-resend{color:#5F6F68}
+.login-light .lg-resend button{color:#0B8A5F}
+.login-light .lg-dev{color:#0B8A5F;background:rgba(14,159,110,.1);border-color:rgba(14,159,110,.4)}
+.login-light .lg-msg{color:#B23B3B;background:rgba(220,75,75,.1);border-color:rgba(220,75,75,.28)}
+.login-light .lg-badge{color:#33463E;background:rgba(255,255,255,.72);border-color:#DDE9E3}
 
 /* ===================== Boot / error state ===================== */
 .boot{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;
@@ -650,8 +719,10 @@ select.field-in{appearance:none;background-image:url("data:image/svg+xml;utf8,<s
 @media (prefers-reduced-motion:reduce){.boot-spin{animation-duration:2.4s}}
 
 /* ===================== Notifications ===================== */
+.notif-wrap{position:relative;display:inline-flex}
 .notif-overlay{position:fixed;inset:0;z-index:70}
-.notif-panel{position:fixed;z-index:71;top:calc(var(--topbar-h) + 8px);inset-inline-start:12px;width:min(370px,94vw);
+/* پنل دقیقاً زیر آیکون زنگوله باز می‌شود، نه در گوشهٔ صفحه */
+.notif-panel{position:absolute;z-index:71;top:calc(100% + 10px);inset-inline-end:0;width:min(370px,calc(100vw - 24px));
   max-height:min(74vh,560px);background:var(--panel);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow-lg);
   display:flex;flex-direction:column;overflow:hidden;opacity:0;transform:translateY(-8px) scale(.98);pointer-events:none;transition:.18s}
 .notif-panel.show{opacity:1;transform:none;pointer-events:auto}

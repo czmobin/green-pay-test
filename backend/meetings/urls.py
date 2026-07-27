@@ -1,5 +1,6 @@
 from django.urls import include, path
 from rest_framework.routers import DefaultRouter
+from rest_framework_simplejwt.views import TokenRefreshView
 
 from . import auth_views, views
 
@@ -14,7 +15,8 @@ urlpatterns = [
     # ورود با کد یک‌بارمصرف
     path('auth/request-otp/', auth_views.request_otp, name='request-otp'),
     path('auth/verify-otp/', auth_views.verify_otp, name='verify-otp'),
-    path('auth/me/', auth_views.me, name='me'),
+    path('auth/refresh/', TokenRefreshView.as_view(), name='token-refresh'),
+    path('auth/me/', auth_views.profile, name='me'),          # GET و PATCH
     path('auth/logout/', auth_views.logout, name='logout'),
 
     path('bootstrap/', views.bootstrap, name='bootstrap'),
