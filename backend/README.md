@@ -27,6 +27,16 @@ AgendaItem · Minutes (صورت‌جلسه) · MinuteEntry · Attachment · Noti
 - دیتابیس پیش‌فرض SQLite است؛ برای production نمونهٔ PostgreSQL در `config/settings.py` کامنت شده.
 - فایل‌های پیوست در `MEDIA_ROOT` (`backend/media/`) ذخیره می‌شوند.
 
+## ورود با کد یک‌بارمصرف
+
+ورود با شمارهٔ موبایل است و کد از طریق **کاوه‌نگار** (سرویس Lookup، قالب `contractOtpLogin`)
+پیامک می‌شود. کلید API فقط از متغیر محیطی خوانده می‌شود — به `.env.example` نگاه کنید و
+**هرگز مقدار واقعی را در مخزن کامیت نکنید**.
+
+اگر `KAVENEGAR_API_KEY` خالی باشد پیامکی ارسال نمی‌شود و کد در پاسخ API برمی‌گردد
+تا توسعهٔ محلی ممکن باشد. نخستین ورود با شماره‌ای که ثبت نشده، به حساب مدیرعامل دمو
+وصل می‌شود؛ ورودهای بعدی کاربر عادی می‌سازند.
+
 ## دادهٔ نمونه
 ```bash
 python manage.py seed_demo          # فقط اگر دیتابیس خالی باشد
@@ -35,13 +45,16 @@ python manage.py seed_demo --reset  # پاک کردن و ساخت دوباره (
 
 ## API
 
-فرانت‌اند از این endpointها استفاده می‌کند (بدون نیاز به ورود — برای production
-`DEFAULT_PERMISSION_CLASSES` را به `IsAuthenticated` تغییر دهید):
+همهٔ endpointها به‌جز `auth/*` نیازمند هدر `Authorization: Token <کلید>` هستند.
 
 | متد | مسیر | کار |
 |---|---|---|
+| POST | `/api/auth/request-otp/` | ارسال کد یک‌بارمصرف به شمارهٔ موبایل (کاوه‌نگار) |
+| POST | `/api/auth/verify-otp/` | بررسی کد و دریافت توکن ورود |
+| GET | `/api/auth/me/` · POST `/api/auth/logout/` | کاربر جاری / خروج |
 | GET | `/api/bootstrap/` | همهٔ دادهٔ اپ در یک درخواست (سازمان‌ها، دسته‌ها، محل‌ها، افراد، مهمانان، جلسات، صورت‌جلسه‌ها) |
 | POST | `/api/meetings/` | ساخت جلسه |
+| POST | `/api/meetings/check-conflicts/` | بررسی تداخل زمانی شرکت‌کنندگان (فقط هشدار) |
 | POST | `/api/meetings/<id>/respond/` | پاسخ به دعوت‌نامه `{accept: bool}` |
 | POST | `/api/meetings/<id>/sync/` | همگام‌سازی با Google Calendar |
 | POST | `/api/entries/` | افزودن آیتم صورت‌جلسه (یادداشت/تصمیم/تسک/یادآور/تماس/نامه/فایل) |
