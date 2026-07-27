@@ -35,4 +35,6 @@ python manage.py runserver 0.0.0.0:8000
 ```
 
 ## اتصال فرانت به بک
-در گام بعد یک API (Django REST Framework) روی بک‌اند ساخته می‌شود و فرانت‌اند به‌جای دادهٔ درون‌حافظه‌ای (`lib/data.ts`) از آن می‌خواند. مدل‌ها و ERD در `backend/` آماده‌اند.
+فرانت‌اند دادهٔ خود را از API جنگو می‌گیرد و همهٔ تغییرات (ساخت جلسه، صورت‌جلسه، تعریف‌ها، پاسخ دعوت‌نامه‌ها) را روی سرور ذخیره می‌کند — `frontend/lib/api.ts` و `frontend/components/store.tsx`. فهرست endpointها در [`backend/README.md`](./backend/README.md).
+
+در production هر دو پشت یک دامنه‌اند: nginx مسیر `/api` و `/admin` را به Django و بقیه را به Next.js می‌دهد. جزئیات استقرار در [`DEPLOY.md`](./DEPLOY.md).
