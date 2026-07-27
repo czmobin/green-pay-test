@@ -229,10 +229,12 @@ class MinuteEntry(models.Model):
         related_name='assigned_entries', verbose_name='مسئول',
     )
     due_date = models.DateField('مهلت', null=True, blank=True)
+    due_text = models.CharField('مهلت (متن واردشده)', max_length=60, blank=True)
     is_done = models.BooleanField('انجام شد', default=False)
 
     # یادآور
     remind_at = models.DateTimeField('زمان یادآوری', null=True, blank=True)
+    remind_text = models.CharField('زمان یادآوری (متن واردشده)', max_length=60, blank=True)
 
     # تماس تلفنی
     call_with = models.CharField('با چه کسی', max_length=120, blank=True)
@@ -258,7 +260,8 @@ class Attachment(models.Model):
         MinuteEntry, null=True, blank=True, on_delete=models.CASCADE, related_name='attachments',
     )
     kind = models.CharField('نوع', max_length=10, choices=Kind.choices, default=Kind.FILE)
-    file = models.FileField('فایل', upload_to='attachments/%Y/%m/')
+    # تا پیش از آپلود واقعی، رکورد فقط نام فایل انتخاب‌شده را نگه می‌دارد
+    file = models.FileField('فایل', upload_to='attachments/%Y/%m/', blank=True)
     name = models.CharField('نام نمایشی', max_length=255, blank=True)
     uploaded_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL, related_name='uploaded_attachments',

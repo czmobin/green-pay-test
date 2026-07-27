@@ -15,12 +15,16 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    # کتابخانه‌ها
+    'rest_framework',
+    'corsheaders',
     # اپ دامنه
     'meetings',
 ]
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'corsheaders.middleware.CorsMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -85,3 +89,21 @@ MEDIA_URL = 'media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# --- API ---
+REST_FRAMEWORK = {
+    # دمو بدون ورود کار می‌کند؛ برای production به IsAuthenticated تغییر دهید.
+    'DEFAULT_PERMISSION_CLASSES': ['rest_framework.permissions.AllowAny'],
+    'DEFAULT_RENDERER_CLASSES': ['rest_framework.renderers.JSONRenderer'],
+    # API بدون نشست کار می‌کند؛ اگر SessionAuthentication فعال بماند، کاربری که
+    # هم‌زمان در /admin لاگین است کوکی نشست می‌فرستد و درخواست‌های POST به CSRF می‌خورند.
+    'DEFAULT_AUTHENTICATION_CLASSES': [],
+    'UNAUTHENTICATED_USER': None,
+}
+
+# در production فرانت و بک هم‌دامنه‌اند (nginx مسیر /api را پروکسی می‌کند)؛
+# این تنظیم فقط برای توسعهٔ محلی روی پورت‌های جدا لازم است.
+CORS_ALLOW_ALL_ORIGINS = DEBUG
+CORS_ALLOWED_ORIGINS = [
+    o for o in os.environ.get('CORS_ALLOWED_ORIGINS', '').split(',') if o
+]

@@ -2,55 +2,68 @@
 import React, { useState } from 'react';
 import { useStore } from '@/components/store';
 import { useReveal } from '@/components/useReveal';
-import { initials } from '@/lib/data';
+import { initials, orgKindLabels as kindLabels, avatarPalette, toFa } from '@/lib/data';
 import type { Organization, Role } from '@/lib/types';
 import { IconBuilding, IconRoom, IconUsers, IconPlus } from '@/components/Icons';
 
 type Tab = 'orgs' | 'people' | 'locations' | 'access';
-const kindLabels: Record<Organization['kind'], string> = {
-  internal: 'داخلی', bank: 'بانک', regulator: 'رگولاتور', partner: 'شریک',
-};
-const palette = ['#0E9F6E,#0B5B3E', '#2F7FE4,#153E7E', '#7C3AED,#4C1D95', '#D9930B,#7A4E00', '#DB2777,#831843', '#0891B2,#0E4A5A', '#B45309,#78350F', '#059669,#064E3B'];
 
 export default function Settings() {
   const store = useStore();
   const [tab, setTab] = useState<Tab>('orgs');
+  const [busy, setBusy] = useState(false);
 
   const [oName, setOName] = useState('');
   const [oKind, setOKind] = useState<Organization['kind']>('partner');
   const [pName, setPName] = useState('');
   const [pRole, setPRole] = useState('');
-  const [pOrg, setPOrg] = useState('gp');
+  const [pOrg, setPOrg] = useState('');
   const [lName, setLName] = useState('');
   const [lCap, setLCap] = useState('۶ نفر');
-  const [lOrg, setLOrg] = useState('gp');
+  const [lOrg, setLOrg] = useState('');
 
   const orgList = Object.values(store.orgs);
-  const orgName = (id?: string) => store.orgs[id ?? 'gp']?.name ?? '—';
+  const defaultOrg = orgList[0]?.id ?? '';
+  const orgName = (id?: string | null) => (id ? store.orgs[id]?.name ?? '—' : '—');
+  // مدیرعامل و سایر اعضا برای سوییچر نقش
+  const ceoId = Object.values(store.people).find((p) => p.accessRole === 'ceo')?.id ?? store.currentUser;
+  const others = Object.values(store.people).filter((p) => p.id !== ceoId);
+  const orgMemberCount = (orgId: string) =>
+    toFa(Object.values(store.people).filter((p) => p.orgId === orgId).length
+      + Object.values(store.guests).filter((g) => store.orgs[orgId]?.name === g.org).length);
 
-  function addOrg(e: React.FormEvent) {
+  async function addOrg(e: React.FormEvent) {
     e.preventDefault();
     if (!oName.trim()) { store.toast('نام سازمان را وارد کنید', 'info'); return; }
-    store.addOrg({ id: 'o' + Date.now().toString(36), name: oName.trim(), kind: oKind });
+    setBusy(true);
+    await store.addOrg({ name: oName.trim(), kind: oKind });
+    setBusy(false);
     store.toast('سازمان اضافه شد', 'ok'); setOName('');
   }
-  function addPerson(e: React.FormEvent) {
+  async function addPerson(e: React.FormEvent) {
     e.preventDefault();
     if (!pName.trim()) { store.toast('نام فرد را وارد کنید', 'info'); return; }
-    const color = palette[Object.keys(store.people).length % palette.length];
-    store.addPerson({ id: 'p' + Date.now().toString(36), name: pName.trim(), role: pRole.trim() || 'عضو', color, orgId: pOrg });
+    const color = avatarPalette[Object.keys(store.people).length % avatarPalette.length];
+    setBusy(true);
+    await store.addPerson({ name: pName.trim(), role: pRole.trim() || 'عضو', color, orgId: pOrg || defaultOrg });
+    setBusy(false);
     store.toast('فرد اضافه شد', 'ok'); setPName(''); setPRole('');
   }
   function selectRole(r: Role) {
     store.setRole(r);
-    if (r === 'user') { if (store.currentUser === 'ceo') store.setCurrentUser('sara'); }
-    else store.setCurrentUser('ceo');
+    if (r === 'user') {
+      if (store.currentUser === ceoId && others[0]) store.setCurrentUser(others[0].id);
+    } else if (ceoId) {
+      store.setCurrentUser(ceoId);
+    }
     store.toast('سطح دسترسی تغییر کرد', 'ok');
   }
-  function addLoc(e: React.FormEvent) {
+  async function addLoc(e: React.FormEvent) {
     e.preventDefault();
     if (!lName.trim()) { store.toast('نام محل را وارد کنید', 'info'); return; }
-    store.addRoom({ id: 'r' + Date.now().toString(36), name: lName.trim(), cap: lCap.trim() || '—', orgId: lOrg });
+    setBusy(true);
+    await store.addRoom({ name: lName.trim(), cap: lCap.trim() || '—', orgId: lOrg || defaultOrg });
+    setBusy(false);
     store.toast('محل جلسه اضافه شد', 'ok'); setLName('');
   }
 
@@ -82,14 +95,14 @@ export default function Settings() {
                   {Object.entries(kindLabels).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
                 </select>
               </div>
-              <button className="btn btn-primary" type="submit"><IconPlus size={16} />افزودن</button>
+              <button className="btn btn-primary" type="submit" disabled={busy}><IconPlus size={16} />{busy ? 'در حال ذخیره…' : 'افزودن'}</button>
             </div>
           </form>
           <div className="def-list">
             {orgList.map((o) => (
               <div className="def-item" key={o.id}>
                 <span className="di-ic" style={{ background: 'var(--mint-soft)', color: 'var(--brand-strong)' }}><IconBuilding size={18} /></span>
-                <div><b>{o.name}</b><small>{Object.values(store.people).filter((p) => (p.orgId ?? 'gp') === o.id).length ? `${Object.values(store.people).filter((p) => (p.orgId ?? 'gp') === o.id).length} نفر` : 'بدون عضو'}</small></div>
+                <div><b>{o.name}</b><small>{orgMemberCount(o.id)} عضو</small></div>
                 <span className="def-badge">{kindLabels[o.kind]}</span>
               </div>
             ))}
@@ -107,12 +120,12 @@ export default function Settings() {
               <div className="field-row" style={{ width: '100%' }}>
                 <div className="field"><label>سمت</label><input className="field-in" value={pRole} onChange={(e) => setPRole(e.target.value)} placeholder="مثلاً: کارشناس فروش" /></div>
                 <div className="field"><label>سازمان</label>
-                  <select className="field-in" value={pOrg} onChange={(e) => setPOrg(e.target.value)}>
+                  <select className="field-in" value={pOrg || defaultOrg} onChange={(e) => setPOrg(e.target.value)}>
                     {orgList.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
                   </select>
                 </div>
               </div>
-              <button className="btn btn-primary" type="submit"><IconPlus size={16} />افزودن</button>
+              <button className="btn btn-primary" type="submit" disabled={busy}><IconPlus size={16} />{busy ? 'در حال ذخیره…' : 'افزودن'}</button>
             </div>
           </form>
           <div className="def-list">
@@ -137,12 +150,12 @@ export default function Settings() {
               <div className="field-row" style={{ width: '100%' }}>
                 <div className="field"><label>ظرفیت</label><input className="field-in" value={lCap} onChange={(e) => setLCap(e.target.value)} placeholder="مثلاً: ۸ نفر" /></div>
                 <div className="field"><label>سازمان</label>
-                  <select className="field-in" value={lOrg} onChange={(e) => setLOrg(e.target.value)}>
+                  <select className="field-in" value={lOrg || defaultOrg} onChange={(e) => setLOrg(e.target.value)}>
                     {orgList.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
                   </select>
                 </div>
               </div>
-              <button className="btn btn-primary" type="submit"><IconPlus size={16} />افزودن</button>
+              <button className="btn btn-primary" type="submit" disabled={busy}><IconPlus size={16} />{busy ? 'در حال ذخیره…' : 'افزودن'}</button>
             </div>
           </form>
           <div className="def-list">
@@ -172,7 +185,7 @@ export default function Settings() {
               <div className="field">
                 <label>نمایش به‌عنوانِ</label>
                 <select className="field-in" value={store.currentUser} onChange={(e) => store.setCurrentUser(e.target.value)}>
-                  {Object.values(store.people).filter((p) => p.id !== 'ceo').map((p) => <option key={p.id} value={p.id}>{p.name} — {p.role}</option>)}
+                  {others.map((p) => <option key={p.id} value={p.id}>{p.name} — {p.role}</option>)}
                 </select>
               </div>
             )}

@@ -26,8 +26,8 @@ function isActive(path: string, href: string) {
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const path = usePathname();
   const store = useStore();
-  const me = store.people[store.currentUser] ?? store.people.ceo;
-  const roleLabel = { admin: 'ادمین', ceo: 'مدیرعامل', user: 'کاربر عادی' }[store.role];
+  const me = store.people[store.currentUser];
+  const roleLabel: Record<string, string> = { admin: 'ادمین', ceo: 'مدیرعامل', user: 'کاربر عادی', member: 'کاربر عادی' };
   const remCount = store.visibleMeetings.reduce((acc, m) => acc + (store.minutes[m.id] ?? []).filter((x) => x.type === 'task' || x.type === 'reminder').length, 0);
 
   return (
@@ -71,8 +71,10 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             </button>
           </div>
           <div className="side-user">
-            <span className="ava" style={{ background: `linear-gradient(145deg,${me.color})` }}>{initials(me.name)}</span>
-            <div><b>{me.name}</b><small>{roleLabel} · {me.role}</small></div>
+            <span className="ava" style={{ background: `linear-gradient(145deg,${me?.color ?? 'var(--brand),var(--brand-deep)'})` }}>
+              {me ? initials(me.name) : '—'}
+            </span>
+            <div><b>{me?.name ?? '…'}</b><small>{roleLabel[store.role]}{me ? ` · ${me.role}` : ''}</small></div>
             <button className="icon-btn" style={{ marginInlineStart: 'auto', width: 32, height: 32, border: 0, background: 'transparent' }} onClick={store.toggleTheme} aria-label="تغییر تم"><IconSun size={17} /></button>
           </div>
         </div>
@@ -98,7 +100,17 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           <button className="icon-btn only-mobile" onClick={store.toggleTheme} aria-label="تغییر تم"><IconSun size={18} /></button>
         </header>
 
-        <main className="content">{children}</main>
+        <main className="content">
+          {!store.ready ? (
+            <div className="boot"><span className="boot-spin" />در حال بارگذاری داده‌ها…</div>
+          ) : store.error ? (
+            <div className="boot boot-err">
+              <b>ارتباط با سرور برقرار نشد</b>
+              <span>{store.error}</span>
+              <button className="btn btn-primary" onClick={() => store.reload()}>تلاش دوباره</button>
+            </div>
+          ) : children}
+        </main>
       </div>
 
       {/* ---------- Bottom nav (mobile) ---------- */}

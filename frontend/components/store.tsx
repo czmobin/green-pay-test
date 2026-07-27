@@ -1,48 +1,57 @@
 'use client';
-import React, { createContext, useContext, useEffect, useMemo, useState, useCallback } from 'react';
-import type { Meeting, Minute, Person, Room, Organization, Role } from '@/lib/types';
-import { seedMeetings, seedMinutes, people as seedPeople, rooms as seedRooms, organizations as seedOrgs } from '@/lib/data';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import type {
+  Category, Guest, Meeting, Minute, Organization, Person, Role, Room,
+} from '@/lib/types';
+import { api, type NewMeeting, type NewMinute } from '@/lib/api';
 import { IconCheck, IconX } from './Icons';
 
 type ToastKind = 'ok' | 'info' | 'load';
 interface Toast { id: number; msg: string; kind: ToastKind }
 
 interface Store {
+  /* وضعیت بارگذاری از API */
+  ready: boolean;
+  error: string | null;
+  reload: () => Promise<void>;
+
+  /* دادهٔ دامنه */
   meetings: Meeting[];
-  addMeeting: (m: Meeting) => void;
-  getMeeting: (id: string) => Meeting | undefined;
-  syncMeeting: (id: string) => void;
-
+  visibleMeetings: Meeting[];
   minutes: Record<string, Minute[]>;
-  addMinute: (mid: string, m: Minute) => void;
-  deleteMinute: (mid: string, id: string) => void;
-  toggleTask: (mid: string, id: string) => void;
+  people: Record<string, Person>;
+  guests: Record<string, Guest>;
+  rooms: Record<string, Room>;
+  orgs: Record<string, Organization>;
+  categories: Record<string, Category>;
 
-  respondMeeting: (id: string, accept: boolean) => void;
+  getMeeting: (id: string) => Meeting | undefined;
+  createMeeting: (m: NewMeeting) => Promise<Meeting | null>;
+  respondMeeting: (id: string, accept: boolean) => Promise<void>;
+  syncMeeting: (id: string) => Promise<void>;
 
+  addMinute: (m: NewMinute) => Promise<void>;
+  deleteMinute: (meetingId: string, id: string) => Promise<void>;
+  toggleTask: (meetingId: string, id: string) => Promise<void>;
+
+  addPerson: (p: { name: string; role: string; orgId: string; color?: string }) => Promise<void>;
+  addRoom: (r: { name: string; cap: string; orgId: string }) => Promise<void>;
+  addOrg: (o: { name: string; kind: Organization['kind'] }) => Promise<void>;
+
+  /* دسترسی و تنظیمات */
   role: Role;
   currentUser: string;
   setRole: (r: Role) => void;
   setCurrentUser: (id: string) => void;
-  visibleMeetings: Meeting[];
-
-  people: Record<string, Person>;
-  rooms: Record<string, Room>;
-  orgs: Record<string, Organization>;
-  addPerson: (p: Person) => void;
-  addRoom: (r: Room) => void;
-  addOrg: (o: Organization) => void;
-
   gcalConnected: boolean;
-  connectGcal: () => void;
-
+  connectGcal: () => Promise<void>;
   smsEnabled: boolean;
-  toggleSms: () => void;
+  toggleSms: () => Promise<void>;
 
+  /* رابط کاربری */
   createOpen: boolean;
   openCreate: () => void;
   closeCreate: () => void;
-
   toast: (msg: string, kind?: ToastKind) => void;
   toggleTheme: () => void;
 }
@@ -55,31 +64,24 @@ export const useStore = () => {
 };
 
 export default function Providers({ children }: { children: React.ReactNode }) {
-  const [meetings, setMeetings] = useState<Meeting[]>(seedMeetings);
-  const [minutes, setMinutes] = useState<Record<string, Minute[]>>(seedMinutes);
+  const [ready, setReady] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const [meetings, setMeetings] = useState<Meeting[]>([]);
+  const [minutes, setMinutes] = useState<Record<string, Minute[]>>({});
+  const [people, setPeople] = useState<Record<string, Person>>({});
+  const [guests, setGuests] = useState<Record<string, Guest>>({});
+  const [rooms, setRooms] = useState<Record<string, Room>>({});
+  const [orgs, setOrgs] = useState<Record<string, Organization>>({});
+  const [categories, setCategories] = useState<Record<string, Category>>({});
+
   const [role, setRole] = useState<Role>('ceo');
-  const [currentUser, setCurrentUser] = useState<string>('ceo');
-  const [people, setPeople] = useState<Record<string, Person>>(seedPeople);
-  const [rooms, setRooms] = useState<Record<string, Room>>(seedRooms);
-  const [orgs, setOrgs] = useState<Record<string, Organization>>(seedOrgs);
+  const [currentUser, setCurrentUser] = useState<string>('');
   const [gcalConnected, setGcal] = useState(false);
   const [smsEnabled, setSms] = useState(false);
+
   const [createOpen, setCreateOpen] = useState(false);
   const [toasts, setToasts] = useState<Toast[]>([]);
-  const [loaded, setLoaded] = useState(false);
-
-  // hydrate minutes from localStorage
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem('gp-minutes');
-      if (raw) setMinutes(JSON.parse(raw));
-    } catch {}
-    setLoaded(true);
-  }, []);
-  useEffect(() => {
-    if (!loaded) return;
-    try { localStorage.setItem('gp-minutes', JSON.stringify(minutes)); } catch {}
-  }, [minutes, loaded]);
 
   const toast = useCallback((msg: string, kind: ToastKind = 'info') => {
     const id = Date.now() + Math.random();
@@ -87,40 +89,132 @@ export default function Providers({ children }: { children: React.ReactNode }) {
     setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 3600);
   }, []);
 
-  const addMeeting = useCallback((m: Meeting) => setMeetings((ms) => [...ms, m]), []);
+  /* ---------- بارگذاری اولیه ---------- */
+  const reload = useCallback(async () => {
+    try {
+      const d = await api.bootstrap();
+      setMeetings(d.meetings);
+      setMinutes(d.minutes);
+      setPeople(d.people);
+      setGuests(d.guests);
+      setRooms(d.rooms);
+      setOrgs(d.organizations);
+      setCategories(d.categories);
+      setGcal(d.gcalConnected);
+      setSms(d.smsEnabled);
+      setCurrentUser((cur) => cur || d.currentUser || '');
+      setError(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'ارتباط با سرور برقرار نشد');
+    } finally {
+      setReady(true);
+    }
+  }, []);
+
+  useEffect(() => { void reload(); }, [reload]);
+
+  /* ---------- کمکی: اجرای امن یک عملیات نوشتن ---------- */
+  const guarded = useCallback(async <T,>(fn: () => Promise<T>): Promise<T | null> => {
+    try {
+      return await fn();
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'عملیات ناموفق بود', 'info');
+      return null;
+    }
+  }, [toast]);
+
+  /* ---------- جلسات ---------- */
   const getMeeting = useCallback((id: string) => meetings.find((m) => m.id === id), [meetings]);
-  const visibleMeetings = useMemo(() =>
-    role === 'user' ? meetings.filter((m) => m.organizer === currentUser || m.parts.includes(currentUser)) : meetings,
-    [meetings, role, currentUser]);
-  const syncMeeting = useCallback((id: string) =>
-    setMeetings((ms) => ms.map((m) => (m.id === id ? { ...m, synced: true } : m))), []);
-  const respondMeeting = useCallback((id: string, accept: boolean) =>
-    setMeetings((ms) => ms.map((m) => (m.id === id ? { ...m, status: accept ? 'confirmed' : 'cancelled' } : m))), []);
 
-  const addMinute = useCallback((mid: string, m: Minute) =>
-    setMinutes((s) => ({ ...s, [mid]: [m, ...(s[mid] ?? [])] })), []);
-  const deleteMinute = useCallback((mid: string, id: string) =>
-    setMinutes((s) => ({ ...s, [mid]: (s[mid] ?? []).filter((x) => x.id !== id) })), []);
-  const toggleTask = useCallback((mid: string, id: string) =>
-    setMinutes((s) => ({ ...s, [mid]: (s[mid] ?? []).map((x) => (x.id === id ? { ...x, done: !x.done } : x)) })), []);
+  const upsertMeeting = (m: Meeting) =>
+    setMeetings((ms) => (ms.some((x) => x.id === m.id) ? ms.map((x) => (x.id === m.id ? m : x)) : [...ms, m]));
 
-  const addPerson = useCallback((p: Person) => setPeople((s) => ({ ...s, [p.id]: p })), []);
-  const addRoom = useCallback((r: Room) => setRooms((s) => ({ ...s, [r.id]: r })), []);
-  const addOrg = useCallback((o: Organization) => setOrgs((s) => ({ ...s, [o.id]: o })), []);
+  const createMeeting = useCallback(async (payload: NewMeeting) =>
+    guarded(async () => {
+      const created = await api.createMeeting(payload);
+      upsertMeeting(created);
+      return created;
+    }), [guarded]);
 
-  const connectGcal = useCallback(() => {
+  const respondMeeting = useCallback(async (id: string, accept: boolean) => {
+    await guarded(async () => upsertMeeting(await api.respondMeeting(id, accept)));
+  }, [guarded]);
+
+  const syncMeeting = useCallback(async (id: string) => {
+    await guarded(async () => upsertMeeting(await api.syncMeeting(id)));
+  }, [guarded]);
+
+  /* ---------- صورت‌جلسه ---------- */
+  const addMinute = useCallback(async (payload: NewMinute) => {
+    await guarded(async () => {
+      const entry = await api.createMinute(payload);
+      setMinutes((s) => ({ ...s, [payload.meeting]: [entry, ...(s[payload.meeting] ?? [])] }));
+    });
+  }, [guarded]);
+
+  const deleteMinute = useCallback(async (meetingId: string, id: string) => {
+    await guarded(async () => {
+      await api.deleteMinute(id);
+      setMinutes((s) => ({ ...s, [meetingId]: (s[meetingId] ?? []).filter((x) => x.id !== id) }));
+    });
+  }, [guarded]);
+
+  const toggleTask = useCallback(async (meetingId: string, id: string) => {
+    await guarded(async () => {
+      const updated = await api.toggleMinute(id);
+      setMinutes((s) => ({ ...s, [meetingId]: (s[meetingId] ?? []).map((x) => (x.id === id ? updated : x)) }));
+    });
+  }, [guarded]);
+
+  /* ---------- تعریف‌ها ---------- */
+  const addPerson = useCallback(async (p: { name: string; role: string; orgId: string; color?: string }) => {
+    await guarded(async () => {
+      const created = await api.createPerson(p);
+      setPeople((s) => ({ ...s, [created.id]: created }));
+    });
+  }, [guarded]);
+
+  const addRoom = useCallback(async (r: { name: string; cap: string; orgId: string }) => {
+    await guarded(async () => {
+      const created = await api.createRoom(r);
+      setRooms((s) => ({ ...s, [created.id]: created }));
+    });
+  }, [guarded]);
+
+  const addOrg = useCallback(async (o: { name: string; kind: Organization['kind'] }) => {
+    await guarded(async () => {
+      const created = await api.createOrg(o);
+      setOrgs((s) => ({ ...s, [created.id]: created }));
+    });
+  }, [guarded]);
+
+  /* ---------- تنظیمات ---------- */
+  const connectGcal = useCallback(async () => {
     if (gcalConnected) { toast('تقویم Google از قبل متصل است', 'info'); return; }
     toast('در حال اتصال به حساب Google…', 'load');
-    setTimeout(() => { setGcal(true); toast('Google Calendar با موفقیت متصل شد', 'ok'); }, 1300);
-  }, [gcalConnected, toast]);
-
-  const toggleSms = useCallback(() => {
-    setSms((v) => {
-      const next = !v;
-      toast(next ? 'پنل پیامکی متصل شد — اعلان‌ها پیامک می‌شوند' : 'ارسال پیامک غیرفعال شد', next ? 'ok' : 'info');
-      return next;
+    await guarded(async () => {
+      await api.setGcal(true);
+      setGcal(true);
+      await reload();               // جلسات همگام‌شده را دوباره می‌خوانیم
+      toast('Google Calendar با موفقیت متصل شد', 'ok');
     });
-  }, [toast]);
+  }, [gcalConnected, guarded, reload, toast]);
+
+  const toggleSms = useCallback(async () => {
+    const next = !smsEnabled;
+    await guarded(async () => {
+      await api.setSms(next);
+      setSms(next);
+      toast(next ? 'پنل پیامکی متصل شد — اعلان‌ها پیامک می‌شوند' : 'ارسال پیامک غیرفعال شد', next ? 'ok' : 'info');
+    });
+  }, [smsEnabled, guarded, toast]);
+
+  /* ---------- دسترسی ---------- */
+  const visibleMeetings = useMemo(() =>
+    role === 'user'
+      ? meetings.filter((m) => m.organizer === currentUser || m.parts.includes(currentUser))
+      : meetings,
+    [meetings, role, currentUser]);
 
   const toggleTheme = useCallback(() => {
     const root = document.documentElement;
@@ -128,19 +222,23 @@ export default function Providers({ children }: { children: React.ReactNode }) {
     const isDark = cur ? cur === 'dark' : window.matchMedia('(prefers-color-scheme:dark)').matches;
     const next = isDark ? 'light' : 'dark';
     root.setAttribute('data-theme', next);
-    try { localStorage.setItem('gp-theme', next); } catch {}
+    try { localStorage.setItem('gp-theme', next); } catch { /* حالت خصوصی مرورگر */ }
   }, []);
 
   const value = useMemo<Store>(() => ({
-    meetings, addMeeting, getMeeting, syncMeeting, respondMeeting,
-    role, currentUser, setRole, setCurrentUser, visibleMeetings,
-    minutes, addMinute, deleteMinute, toggleTask,
-    people, rooms, orgs, addPerson, addRoom, addOrg,
-    gcalConnected, connectGcal,
-    smsEnabled, toggleSms,
+    ready, error, reload,
+    meetings, visibleMeetings, minutes, people, guests, rooms, orgs, categories,
+    getMeeting, createMeeting, respondMeeting, syncMeeting,
+    addMinute, deleteMinute, toggleTask,
+    addPerson, addRoom, addOrg,
+    role, currentUser, setRole, setCurrentUser,
+    gcalConnected, connectGcal, smsEnabled, toggleSms,
     createOpen, openCreate: () => setCreateOpen(true), closeCreate: () => setCreateOpen(false),
     toast, toggleTheme,
-  }), [meetings, minutes, people, rooms, orgs, role, currentUser, visibleMeetings, gcalConnected, smsEnabled, createOpen, addMeeting, getMeeting, syncMeeting, respondMeeting, addMinute, deleteMinute, toggleTask, addPerson, addRoom, addOrg, connectGcal, toggleSms, toast, toggleTheme]);
+  }), [ready, error, reload, meetings, visibleMeetings, minutes, people, guests, rooms, orgs, categories,
+    getMeeting, createMeeting, respondMeeting, syncMeeting, addMinute, deleteMinute, toggleTask,
+    addPerson, addRoom, addOrg, role, currentUser, gcalConnected, connectGcal, smsEnabled, toggleSms,
+    createOpen, toast, toggleTheme]);
 
   return (
     <Ctx.Provider value={value}>
@@ -150,7 +248,7 @@ export default function Providers({ children }: { children: React.ReactNode }) {
           <div className="toast" key={t.id}>
             {t.kind === 'load'
               ? <svg width={19} height={19} viewBox="0 0 24 24" fill="none" stroke="var(--mint)" strokeWidth={2.4} strokeLinecap="round" style={{ animation: 'spin 1s linear infinite' }}><path d="M12 3a9 9 0 1 0 9 9" /></svg>
-              : <IconCheck size={19} className="" />}
+              : <IconCheck size={19} />}
             <span>{t.msg}</span>
             <button className="tclose" aria-label="بستن" onClick={() => setToasts((x) => x.filter((y) => y.id !== t.id))}><IconX size={15} /></button>
           </div>

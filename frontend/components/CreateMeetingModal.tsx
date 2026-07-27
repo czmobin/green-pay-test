@@ -2,7 +2,7 @@
 import React, { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useStore } from './store';
-import { categories, dayNames, typeLabels, toFa, fmtTime, normalizeFa } from '@/lib/data';
+import { dayNames, typeLabels, toFa, fmtTime, normalizeFa } from '@/lib/data';
 import type { MeetingType } from '@/lib/types';
 import { IconX, IconPlus, IconDashboard, IconGuests, IconRoom, IconVideo, IconSearch } from './Icons';
 
@@ -18,14 +18,25 @@ export default function CreateMeetingModal() {
   const store = useStore();
   const router = useRouter();
   const [title, setTitle] = useState('');
-  const [cat, setCat] = useState('greenpay');
+  const [cat, setCat] = useState('');
   const [type, setType] = useState<MeetingType>('internal');
   const [day, setDay] = useState(1);
   const [start, setStart] = useState(10);
   const [end, setEnd] = useState(11);
-  const [room, setRoom] = useState('damavand');
-  const [parts, setParts] = useState<string[]>(['ceo']);
+  const [room, setRoom] = useState('');
+  const [parts, setParts] = useState<string[]>([]);
   const [pq, setPq] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  // مقادیر پیش‌فرض پس از رسیدن داده از API
+  const categoryIds = Object.keys(store.categories);
+  const roomIds = Object.keys(store.rooms);
+  const defaultCat = categoryIds[0] ?? '';
+  const defaultRoom = roomIds[0] ?? '';
+  const onlineRoom = Object.values(store.rooms).find((r) => r.is_online)?.id ?? defaultRoom;
+  const selectedCat = cat || defaultCat;
+  const selectedRoom = type === 'online' ? onlineRoom : (room || defaultRoom);
+  const selectedParts = parts.length ? parts : (store.currentUser ? [store.currentUser] : []);
 
   const filteredPeople = useMemo(() => {
     const nq = normalizeFa(pq);
@@ -33,26 +44,36 @@ export default function CreateMeetingModal() {
   }, [pq, store.people]);
 
   function reset() {
-    setTitle(''); setCat('greenpay'); setType('internal'); setDay(1); setStart(10); setEnd(11);
-    setRoom('damavand'); setParts(['ceo']); setPq('');
+    setTitle(''); setCat(''); setType('internal'); setDay(1); setStart(10); setEnd(11);
+    setRoom(''); setParts([]); setPq('');
   }
   function onStart(v: number) { setStart(v); if (end <= v) setEnd(Math.min(v + 1, 18)); }
-  function toggle(id: string) { setParts((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id])); }
+  function toggle(id: string) {
+    setParts(() => {
+      const cur = selectedParts;
+      return cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id];
+    });
+  }
 
-  function submit(e: React.FormEvent) {
+  async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (!title.trim()) { store.toast('عنوان جلسه را وارد کنید', 'info'); return; }
     if (end <= start) { store.toast('ساعت پایان باید بعد از شروع باشد', 'info'); return; }
-    const id = 'x' + Date.now().toString(36);
-    store.addMeeting({
-      id, title: title.trim(), category: cat, type, status: 'confirmed', day, start, end,
-      room: type === 'online' ? 'online' : room, organizer: 'ceo', parts, guests: [],
-      synced: store.gcalConnected, agenda: [],
+    if (!selectedCat || !selectedRoom || !store.currentUser) { store.toast('داده‌ها هنوز آماده نیست', 'info'); return; }
+
+    setSaving(true);
+    const created = await store.createMeeting({
+      title: title.trim(), category: selectedCat, type, day, start, end,
+      room: selectedRoom, organizer: store.currentUser, parts: selectedParts,
+      guests: [], synced: store.gcalConnected,
     });
+    setSaving(false);
+    if (!created) return;
+
     store.closeCreate();
     store.toast(store.gcalConnected ? 'جلسه ساخته و با Google Calendar همگام شد' : 'جلسهٔ جدید ساخته شد', 'ok');
     reset();
-    router.push(`/meetings/${id}`);
+    router.push(`/meetings/${created.id}`);
   }
 
   return (
@@ -73,8 +94,8 @@ export default function CreateMeetingModal() {
 
           <div className="field">
             <label>دسته‌بندی جلسه</label>
-            <select className="field-in" value={cat} onChange={(e) => setCat(e.target.value)}>
-              {Object.values(categories).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            <select className="field-in" value={selectedCat} onChange={(e) => setCat(e.target.value)}>
+              {Object.values(store.categories).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
           </div>
 
@@ -98,7 +119,7 @@ export default function CreateMeetingModal() {
             </div>
             <div className="field">
               <label>محل جلسه</label>
-              <select className="field-in" value={type === 'online' ? 'online' : room} disabled={type === 'online'} onChange={(e) => setRoom(e.target.value)}>
+              <select className="field-in" value={selectedRoom} disabled={type === 'online'} onChange={(e) => setRoom(e.target.value)}>
                 {Object.values(store.rooms).map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
               </select>
             </div>
@@ -120,14 +141,14 @@ export default function CreateMeetingModal() {
           </div>
 
           <div className="field">
-            <label>شرکت‌کنندگان ({toFa(parts.length)})</label>
+            <label>شرکت‌کنندگان ({toFa(selectedParts.length)})</label>
             <div className="pp-search">
               <IconSearch size={15} />
               <input value={pq} onChange={(e) => setPq(e.target.value)} placeholder="جستجوی نام یا سمت…" />
             </div>
             <div className="people-pick">
               {filteredPeople.map((p) => (
-                <button type="button" key={p.id} className={'ppick' + (parts.includes(p.id) ? ' active' : '')} onClick={() => toggle(p.id)}>
+                <button type="button" key={p.id} className={'ppick' + (selectedParts.includes(p.id) ? ' active' : '')} onClick={() => toggle(p.id)}>
                   <span className="ava sm" style={{ background: `linear-gradient(145deg,${p.color})` }}>{p.name.split(' ').map((x) => x[0]).slice(0, 2).join('')}</span>
                   {p.name}
                 </button>
@@ -139,7 +160,9 @@ export default function CreateMeetingModal() {
 
         <div className="modal-foot">
           <button type="button" className="btn btn-ghost" onClick={store.closeCreate}>انصراف</button>
-          <button type="submit" className="btn btn-primary"><IconPlus size={16} />ساخت جلسه</button>
+          <button type="submit" className="btn btn-primary" disabled={saving}>
+            <IconPlus size={16} />{saving ? 'در حال ذخیره…' : 'ساخت جلسه'}
+          </button>
         </div>
       </form>
     </div>

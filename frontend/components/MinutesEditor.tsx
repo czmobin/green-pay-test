@@ -20,22 +20,30 @@ export default function MinutesEditor({ meeting }: { meeting: Meeting }) {
   const [phone, setPhone] = useState('');
   const [fileName, setFileName] = useState('');
 
+  const [saving, setSaving] = useState(false);
   const isFile = type === 'letter' || type === 'file';
   const bucketList = list.filter((m) => (activeP === 'general' ? !m.participant : m.participant === activeP));
   const bucketOf = (pid: string) => list.filter((m) => (pid === 'general' ? !m.participant : m.participant === pid)).length;
 
-  function add() {
+  async function add() {
     if (!text.trim() && !(isFile && fileName)) {
       store.toast(isFile ? 'فایل را انتخاب یا توضیح بنویسید' : 'متن صورت‌جلسه را بنویسید', 'info');
       return;
     }
-    const m: Minute = { id: 'n' + Date.now().toString(36), type, text: text.trim() || fileName, createdAt: Date.now() };
-    if (activeP !== 'general') m.participant = activeP;
-    if (type === 'task') { m.assignee = assignee; if (due) m.due = due; m.done = false; }
-    if (type === 'reminder' && when) m.when = when;
-    if (type === 'call') { if (who) m.who = who; if (phone) m.phone = phone; }
-    if (isFile && fileName) m.fileName = fileName;
-    store.addMinute(meeting.id, m);
+    setSaving(true);
+    await store.addMinute({
+      meeting: meeting.id,
+      participant: activeP === 'general' ? null : activeP,
+      type,
+      text: text.trim() || fileName,
+      assignee: type === 'task' ? assignee : null,
+      due: type === 'task' ? due : '',
+      when: type === 'reminder' ? when : '',
+      who: type === 'call' ? who : '',
+      phone: type === 'call' ? phone : '',
+      fileName: isFile ? fileName : '',
+    });
+    setSaving(false);
     setText(''); setDue(''); setWhen(''); setWho(''); setPhone(''); setFileName('');
     store.toast(`${minuteMeta[type].label} ثبت شد`, 'ok');
   }
@@ -120,7 +128,9 @@ export default function MinutesEditor({ meeting }: { meeting: Meeting }) {
         )}
 
         <div className="cta">
-          <button className="btn btn-primary" onClick={add} type="button"><IconPlus size={16} />افزودن به صورت‌جلسه</button>
+          <button className="btn btn-primary" onClick={add} type="button" disabled={saving}>
+            <IconPlus size={16} />{saving ? 'در حال ذخیره…' : 'افزودن به صورت‌جلسه'}
+          </button>
         </div>
       </div>
 

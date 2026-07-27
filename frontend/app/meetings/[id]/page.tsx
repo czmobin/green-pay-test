@@ -4,9 +4,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useStore } from '@/components/store';
 import MinutesEditor from '@/components/MinutesEditor';
 import { useReveal } from '@/components/useReveal';
-import {
-  guests, typeLabels, statusLabels, dayNames, fmtTime, initials, toFa,
-} from '@/lib/data';
+import { typeLabels, statusLabels, dayNames, fmtTime, initials, toFa } from '@/lib/data';
 import {
   IconBack, IconClock, IconMapPin, IconUsers, IconGuests, IconList, IconChevron,
   IconGoogle, IconCheck, IconVideo, IconDashboard,
@@ -16,7 +14,7 @@ export default function MeetingDetail() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const store = useStore();
-  const { people, rooms } = store;
+  const { people, rooms, guests } = store;
   const m = store.getMeeting(id);
   const scope = useReveal(['.detail-top', '.detail-head', '.minutes', '.gcard', '.disclosure']);
 
@@ -114,6 +112,7 @@ export default function MeetingDetail() {
               <div className="parts">
                 {m.parts.map((pid) => {
                   const p = people[pid];
+                  if (!p) return null;
                   return (
                     <div className="part" key={pid}>
                       <span className="ava sm" style={{ background: `linear-gradient(145deg,${p.color})` }}>{initials(p.name)}</span>
@@ -124,6 +123,7 @@ export default function MeetingDetail() {
                 })}
                 {m.guests.map((gid) => {
                   const g = guests[gid];
+                  if (!g) return null;
                   return (
                     <div className="part ext" key={gid}>
                       <span className="ava sm" style={{ background: 'linear-gradient(145deg,var(--info),#153E7E)' }}>{initials(g.name)}</span>

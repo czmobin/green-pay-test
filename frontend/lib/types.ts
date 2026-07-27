@@ -1,4 +1,4 @@
-export type Role = 'admin' | 'ceo' | 'user';
+export type Role = 'admin' | 'ceo' | 'user' | 'member';
 
 export type MeetingType = 'board' | 'external' | 'internal' | 'online';
 export type MeetingStatus = 'confirmed' | 'pending' | 'cancelled' | 'done';
@@ -6,9 +6,10 @@ export type MeetingStatus = 'confirmed' | 'pending' | 'cancelled' | 'done';
 export interface Person {
   id: string;
   name: string;
-  role: string;
+  role: string; // سمت شغلی
   color: string; // "start,end" gradient
-  orgId?: string; // سازمان/شرکت (پیش‌فرض گرین‌پی)
+  orgId?: string | null; // سازمان/شرکت
+  accessRole?: Role; // سطح دسترسی (admin/ceo/member)
 }
 
 export interface Guest {
@@ -35,6 +36,7 @@ export interface Room {
   name: string;
   cap: string;
   orgId: string; // سازمان صاحب محل
+  is_online?: boolean;
 }
 
 export interface AgendaItem {

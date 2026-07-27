@@ -3,9 +3,7 @@ import React, { useMemo, useState } from 'react';
 import { useStore } from '@/components/store';
 import MeetingRow from '@/components/MeetingRow';
 import { useReveal } from '@/components/useReveal';
-import {
-  categories, categoryById, rooms, people, guests, dayNames, dayNums, TODAY, toFa, normalizeFa,
-} from '@/lib/data';
+import { categoryOf, dayNames, dayNums, TODAY, toFa, normalizeFa } from '@/lib/data';
 import type { Meeting } from '@/lib/types';
 import { IconSearch, IconX, IconList } from '@/components/Icons';
 
@@ -20,17 +18,17 @@ export default function MeetingsPage() {
     store.visibleMeetings.forEach((m) => {
       const parts = [
         m.title,
-        categoryById(m.category).name,
-        rooms[m.room]?.name ?? '',
-        ...m.parts.map((p) => people[p]?.name ?? ''),
-        ...m.guests.map((g) => `${guests[g]?.name ?? ''} ${guests[g]?.org ?? ''}`),
+        categoryOf(store.categories, m.category).name,
+        store.rooms[m.room]?.name ?? '',
+        ...m.parts.map((p) => store.people[p]?.name ?? ''),
+        ...m.guests.map((g) => `${store.guests[g]?.name ?? ''} ${store.guests[g]?.org ?? ''}`),
         ...m.agenda.map((a) => a.title),
         ...(store.minutes[m.id] ?? []).map((x) => x.text),
       ];
       map[m.id] = normalizeFa(parts.join(' '));
     });
     return map;
-  }, [store.visibleMeetings, store.minutes]);
+  }, [store.visibleMeetings, store.minutes, store.categories, store.rooms, store.people, store.guests]);
 
   const nq = normalizeFa(q);
   const rows = store.visibleMeetings
@@ -62,7 +60,7 @@ export default function MeetingsPage() {
 
       <div className="filters">
         <button className={'chip-btn' + (cat === 'all' ? ' active' : '')} onClick={() => setCat('all')}>همه</button>
-        {Object.values(categories).map((c) => (
+        {Object.values(store.categories).map((c) => (
           <button key={c.id} className={'chip-btn' + (cat === c.id ? ' active' : '')} onClick={() => setCat(c.id)}>
             <span className="cdot" style={{ background: c.color }} />{c.name}
           </button>
