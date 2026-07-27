@@ -30,4 +30,4 @@ sleep 2
 systemctl is-active --quiet greenpay-web && echo "  ✓ greenpay-web" || { echo "  ✗ greenpay-web"; journalctl -u greenpay-web -n 20 --no-pager; exit 1; }
 systemctl is-active --quiet greenpay-api && echo "  ✓ greenpay-api" || { echo "  ✗ greenpay-api"; journalctl -u greenpay-api -n 20 --no-pager; exit 1; }
 
-echo "✅ استقرار کامل شد — http://$(curl -s --max-time 5 ifconfig.me || echo 109.122.252.99)/"
+echo "✅ استقرار کامل شد — http://${DEPLOY_HOST:-109.122.252.99}/"
