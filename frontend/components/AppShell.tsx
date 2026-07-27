@@ -1,13 +1,13 @@
 'use client';
-import React from 'react';
+import React, { useEffect } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useStore } from './store';
 import CreateMeetingModal from './CreateMeetingModal';
 import NotificationBell from './NotificationBell';
 import {
   IconDashboard, IconCalendar, IconList, IconPlus, IconReminder,
-  IconSun, IconLeaf, IconGoogle, IconCheck, IconSettings,
+  IconSun, IconLeaf, IconGoogle, IconCheck, IconSettings, IconLogout,
 } from './Icons';
 import { initials } from '@/lib/data';
 
@@ -25,7 +25,19 @@ function isActive(path: string, href: string) {
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const path = usePathname();
+  const router = useRouter();
   const store = useStore();
+  const isLogin = path === '/login';
+
+  // مسیرهای اپ فقط برای کاربر واردشده
+  useEffect(() => {
+    if (!isLogin && store.authChecked && !store.authed) router.replace('/login');
+  }, [isLogin, store.authChecked, store.authed, router]);
+
+  if (isLogin) return <>{children}</>;
+  if (!store.authChecked || !store.authed) {
+    return <div className="boot" style={{ minHeight: '100vh' }}><span className="boot-spin" />در حال بررسی نشست…</div>;
+  }
   const me = store.people[store.currentUser];
   const roleLabel: Record<string, string> = { admin: 'ادمین', ceo: 'مدیرعامل', user: 'کاربر عادی', member: 'کاربر عادی' };
   const remCount = store.visibleMeetings.reduce((acc, m) => acc + (store.minutes[m.id] ?? []).filter((x) => x.type === 'task' || x.type === 'reminder').length, 0);
@@ -76,6 +88,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             </span>
             <div><b>{me?.name ?? '…'}</b><small>{roleLabel[store.role]}{me ? ` · ${me.role}` : ''}</small></div>
             <button className="icon-btn" style={{ marginInlineStart: 'auto', width: 32, height: 32, border: 0, background: 'transparent' }} onClick={store.toggleTheme} aria-label="تغییر تم"><IconSun size={17} /></button>
+            <button className="icon-btn" style={{ width: 32, height: 32, border: 0, background: 'transparent' }} onClick={() => store.signOut()} aria-label="خروج" title="خروج از حساب"><IconLogout size={17} /></button>
           </div>
         </div>
       </aside>

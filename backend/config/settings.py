@@ -17,6 +17,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     # کتابخانه‌ها
     'rest_framework',
+    'rest_framework.authtoken',
     'corsheaders',
     # اپ دامنه
     'meetings',
@@ -92,14 +93,21 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # --- API ---
 REST_FRAMEWORK = {
-    # دمو بدون ورود کار می‌کند؛ برای production به IsAuthenticated تغییر دهید.
-    'DEFAULT_PERMISSION_CLASSES': ['rest_framework.permissions.AllowAny'],
+    'DEFAULT_PERMISSION_CLASSES': ['rest_framework.permissions.IsAuthenticated'],
     'DEFAULT_RENDERER_CLASSES': ['rest_framework.renderers.JSONRenderer'],
-    # API بدون نشست کار می‌کند؛ اگر SessionAuthentication فعال بماند، کاربری که
-    # هم‌زمان در /admin لاگین است کوکی نشست می‌فرستد و درخواست‌های POST به CSRF می‌خورند.
-    'DEFAULT_AUTHENTICATION_CLASSES': [],
-    'UNAUTHENTICATED_USER': None,
+    # فقط توکن: اگر SessionAuthentication فعال بماند، کاربری که هم‌زمان در /admin
+    # لاگین است کوکی نشست می‌فرستد و درخواست‌های POST به CSRF می‌خورند.
+    'DEFAULT_AUTHENTICATION_CLASSES': ['rest_framework.authentication.TokenAuthentication'],
 }
+
+# --- ورود با کد یک‌بارمصرف (کاوه‌نگار) ---
+KAVENEGAR_API_KEY = os.environ.get('KAVENEGAR_API_KEY', '')
+KAVENEGAR_OTP_TEMPLATE = os.environ.get('KAVENEGAR_OTP_TEMPLATE', 'contractOtpLogin')
+OTP_TTL_SECONDS = int(os.environ.get('OTP_TTL_SECONDS', '120'))
+OTP_RESEND_SECONDS = int(os.environ.get('OTP_RESEND_SECONDS', '60'))
+# وقتی پیامک ارسال نشود (کلید تنظیم نشده)، کد در پاسخ برگردانده می‌شود تا
+# جریان ورود در محیط توسعه قابل تست باشد. در production خاموش بماند.
+OTP_ECHO_WHEN_SMS_OFF = os.environ.get('OTP_ECHO_WHEN_SMS_OFF', '1') == '1'
 
 # در production فرانت و بک هم‌دامنه‌اند (nginx مسیر /api را پروکسی می‌کند)؛
 # این تنظیم فقط برای توسعهٔ محلی روی پورت‌های جدا لازم است.

@@ -534,6 +534,64 @@ select.field-in{appearance:none;background-image:url("data:image/svg+xml;utf8,<s
 .pp-search svg{position:absolute;inset-inline-start:10px;top:50%;transform:translateY(-50%);width:15px;height:15px;color:var(--muted)}
 .people-pick{max-height:200px;overflow-y:auto}
 
+/* ===================== Login ===================== */
+.login{position:relative;min-height:100vh;min-height:100dvh;overflow:hidden;
+  background:radial-gradient(1200px 700px at 80% -10%,#0d3527 0%,#071913 55%,#050f0c 100%)}
+.login-scene{position:absolute;inset:0;z-index:0}
+.login-veil{position:absolute;inset:0;z-index:1;pointer-events:none;
+  background:radial-gradient(760px 520px at 50% 50%,transparent 0%,rgba(4,14,11,.55) 100%)}
+.login-inner{position:relative;z-index:2;min-height:100vh;min-height:100dvh;display:flex;
+  align-items:center;justify-content:center;gap:60px;padding:26px 18px}
+
+.login-card{width:100%;max-width:400px;background:rgba(255,255,255,.055);
+  border:1px solid rgba(255,255,255,.12);border-radius:22px;padding:28px 26px 24px;
+  backdrop-filter:blur(16px);box-shadow:0 30px 70px -30px rgba(0,0,0,.75);color:#EAF3EE}
+.lg-brand{display:flex;align-items:center;gap:12px;margin-bottom:26px}
+.lg-logo{width:46px;height:46px;border-radius:13px;flex:0 0 auto;display:grid;place-items:center;
+  background:linear-gradient(145deg,#34D399,#0E9F6E);box-shadow:0 12px 26px -10px rgba(52,211,153,.75)}
+.lg-brand b{font-size:17px;font-weight:800;display:block;letter-spacing:-.3px}
+.lg-brand small{font-size:11.5px;color:#9BBBAC}
+
+.lg-title{margin:0;font-size:23px;font-weight:800;letter-spacing:-.5px}
+.lg-sub{margin:7px 0 20px;font-size:13.5px;color:#A9C6B8;line-height:1.8}
+.lg-sub b{color:#EAF3EE}
+
+.login-card .field label{color:#A9C6B8;font-size:12px;font-weight:700;margin-bottom:7px;display:block}
+.login-card .field-in{background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.16);
+  color:#EAF3EE;border-radius:12px;padding:13px 14px;font-size:15px;width:100%;outline:none;transition:.15s}
+.login-card .field-in::placeholder{color:#6E8B7D}
+.login-card .field-in:focus{border-color:#34D399;background:rgba(255,255,255,.1);
+  box-shadow:0 0 0 4px rgba(52,211,153,.16)}
+.login-card .btn-primary{margin-top:6px}
+.login-card .btn-primary:disabled{opacity:.65;cursor:not-allowed;transform:none}
+
+.lg-msg{margin-top:12px;font-size:12.5px;font-weight:600;color:#FFC9C9;
+  background:rgba(220,75,75,.14);border:1px solid rgba(220,75,75,.3);
+  padding:9px 12px;border-radius:10px;line-height:1.7}
+.lg-note{margin:14px 0 0;font-size:11.5px;color:#7E9C8D;text-align:center}
+.lg-back{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:700;
+  color:#9BBBAC;margin-bottom:14px;transition:.15s}
+.lg-back:hover{color:#34D399}
+
+.lg-code{display:flex;gap:9px;justify-content:center;margin:4px 0 4px}
+.lg-digit{width:54px;height:62px;text-align:center;font-size:24px;font-weight:800;
+  font-variant-numeric:tabular-nums;border-radius:14px;color:#EAF3EE;
+  background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.16);outline:none;transition:.15s}
+.lg-digit:focus{border-color:#34D399;background:rgba(255,255,255,.11);box-shadow:0 0 0 4px rgba(52,211,153,.16)}
+.lg-digit.filled{border-color:rgba(52,211,153,.55)}
+
+.lg-dev{margin-top:14px;display:flex;align-items:center;gap:7px;font-size:12px;color:#9BE6C4;
+  background:rgba(52,211,153,.12);border:1px dashed rgba(52,211,153,.4);padding:9px 12px;border-radius:10px}
+.lg-resend{margin-top:14px;text-align:center;font-size:12.5px;color:#8FAE9F}
+.lg-resend button{color:#34D399;font-weight:700}
+.lg-resend button:hover{text-decoration:underline}
+
+.login-aside{display:flex;flex-direction:column;gap:12px;max-width:290px}
+.lg-badge{color:#CFE5DA;font-size:13.5px;font-weight:600;line-height:1.7;
+  background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);
+  border-radius:14px;padding:14px 16px;backdrop-filter:blur(8px)}
+@media (max-width:899px){.login-aside{display:none}.login-inner{gap:0}}
+
 /* ===================== Boot / error state ===================== */
 .boot{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;
   min-height:60vh;color:var(--muted);font-size:14px;font-weight:600;text-align:center}

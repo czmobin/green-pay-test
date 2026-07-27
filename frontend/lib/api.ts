@@ -5,6 +5,30 @@
 import type { Category, Guest, Meeting, Minute, MinuteType, Organization, Person, Room } from './types';
 
 const BASE = (process.env.NEXT_PUBLIC_API_URL || '/api').replace(/\/$/, '');
+const TOKEN_KEY = 'gp-token';
+
+/* ---------- توکن ورود ---------- */
+let token: string | null = null;
+
+export function loadToken(): string | null {
+  if (token === null && typeof window !== 'undefined') {
+    try { token = localStorage.getItem(TOKEN_KEY); } catch { /* حالت خصوصی */ }
+  }
+  return token;
+}
+
+export function setToken(value: string | null) {
+  token = value;
+  try {
+    if (value) localStorage.setItem(TOKEN_KEY, value);
+    else localStorage.removeItem(TOKEN_KEY);
+  } catch { /* حالت خصوصی */ }
+}
+
+/** وقتی سرور توکن را نپذیرد، همین خطا پرتاب می‌شود تا اپ به صفحهٔ ورود برگردد. */
+export class UnauthorizedError extends Error {
+  constructor() { super('نشست شما منقضی شده است.'); }
+}
 
 export interface Bootstrap {
   organizations: Record<string, Organization>;
@@ -20,15 +44,29 @@ export interface Bootstrap {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const auth = loadToken();
   const res = await fetch(`${BASE}${path}`, {
     ...init,
-    headers: { 'Content-Type': 'application/json', ...(init?.headers ?? {}) },
+    headers: {
+      'Content-Type': 'application/json',
+      ...(auth ? { Authorization: `Token ${auth}` } : {}),
+      ...(init?.headers ?? {}),
+    },
     cache: 'no-store',
   });
+  if (res.status === 401 || res.status === 403) {
+    setToken(null);
+    throw new UnauthorizedError();
+  }
   if (!res.ok) {
-    let detail = `${res.status}`;
-    try { detail = JSON.stringify(await res.json()); } catch { /* پاسخ بدون JSON */ }
-    throw new Error(`خطای سرور (${res.status}): ${detail}`);
+    let detail = '';
+    try {
+      const body = await res.json();
+      detail = typeof body?.detail === 'string' ? body.detail : JSON.stringify(body);
+    } catch { detail = `کد ${res.status}`; }
+    const err = new Error(detail) as Error & { status?: number; payload?: unknown };
+    err.status = res.status;
+    throw err;
   }
   return res.status === 204 ? (undefined as T) : res.json();
 }
@@ -63,7 +101,22 @@ export interface NewMinute {
   fileName?: string;
 }
 
+export interface OtpRequestResult {
+  ok: boolean;
+  phone: string;
+  expiresIn: number;
+  resendAfter: number;
+  smsSent: boolean;
+  devCode?: string;   // فقط وقتی سرویس پیامک خاموش است (محیط توسعه)
+}
+
 export const api = {
+  requestOtp: (phone: string) => post<OtpRequestResult>('/auth/request-otp/', { phone }),
+  verifyOtp: (phone: string, code: string) =>
+    post<{ token: string; user: Person }>('/auth/verify-otp/', { phone, code }),
+  me: () => request<Person>('/auth/me/'),
+  logout: () => post<{ ok: boolean }>('/auth/logout/'),
+
   bootstrap: () => request<Bootstrap>('/bootstrap/'),
 
   createMeeting: (m: NewMeeting) => post<Meeting>('/meetings/', m),
