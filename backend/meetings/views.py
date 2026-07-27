@@ -15,6 +15,48 @@ from .serializers import (
 )
 
 
+def find_conflicts(start, end, user_ids, exclude_meeting_id=None):
+    """
+    جلسه‌های هم‌زمانِ افرادِ داده‌شده را برمی‌گرداند.
+
+    این فقط یک هشدار است و هیچ‌جا مانع افزودن فرد یا ساخت جلسه نمی‌شود.
+    بازه‌ها وقتی تداخل دارند که start < other_end و end > other_start باشد.
+    """
+    from .serializers import to_day_index, to_float_hour
+
+    user_ids = [str(u) for u in user_ids if u]
+    if not user_ids:
+        return []
+
+    qs = (Meeting.objects
+          .filter(meeting_participants__user_id__in=user_ids, start__lt=end, end__gt=start)
+          .exclude(status=Meeting.Status.CANCELLED)
+          .select_related('location')
+          .prefetch_related('meeting_participants__user')
+          .distinct())
+    if exclude_meeting_id:
+        qs = qs.exclude(pk=exclude_meeting_id)
+
+    wanted = set(user_ids)
+    conflicts = []
+    for meeting in qs:
+        for mp in meeting.meeting_participants.all():
+            if str(mp.user_id) not in wanted:
+                continue
+            person = mp.user
+            conflicts.append({
+                'user': str(mp.user_id),
+                'userName': person.get_full_name() or person.username,
+                'meeting': str(meeting.pk),
+                'meetingTitle': meeting.title,
+                'day': to_day_index(meeting.start),
+                'start': to_float_hour(meeting.start),
+                'end': to_float_hour(meeting.end),
+                'room': meeting.location.name if meeting.location_id else '',
+            })
+    return conflicts
+
+
 def _by_id(serializer_data):
     """لیست سریالایزشده → دیکشنری کلیددار با id (شکل موردنیاز فرانت)."""
     return {row['id']: row for row in serializer_data}
@@ -69,7 +111,28 @@ class MeetingViewSet(viewsets.ModelViewSet):
         write = MeetingCreateSerializer(data=request.data)
         write.is_valid(raise_exception=True)
         meeting = write.save()
-        return Response(MeetingSerializer(meeting).data, status=status.HTTP_201_CREATED)
+
+        # هشدار تداخل: جلسه ساخته شده و افراد اضافه شده‌اند؛ این فقط اطلاع‌رسانی است.
+        attendees = [str(p.user_id) for p in meeting.meeting_participants.all()]
+        data = MeetingSerializer(meeting).data
+        data['conflicts'] = find_conflicts(
+            meeting.start, meeting.end, attendees, exclude_meeting_id=meeting.pk)
+        return Response(data, status=status.HTTP_201_CREATED)
+
+    @action(detail=False, methods=['post'], url_path='check-conflicts')
+    def check_conflicts(self, request):
+        """بررسی زنده هنگام پر کردن فرم — بدون ساخت جلسه."""
+        from .serializers import from_day_hour
+        try:
+            day = int(request.data.get('day', 0))
+            start = float(request.data.get('start', 0))
+            end = float(request.data.get('end', 0))
+        except (TypeError, ValueError):
+            return Response({'detail': 'زمان نامعتبر است.'}, status=status.HTTP_400_BAD_REQUEST)
+        users = list(request.data.get('parts', [])) + list(request.data.get('guests', []))
+        conflicts = find_conflicts(from_day_hour(day, start), from_day_hour(day, end), users,
+                                   exclude_meeting_id=request.data.get('exclude'))
+        return Response({'conflicts': conflicts})
 
     @action(detail=True, methods=['post'])
     def respond(self, request, pk=None):

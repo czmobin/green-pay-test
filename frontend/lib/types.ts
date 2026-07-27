@@ -2,6 +2,7 @@ export type Role = 'admin' | 'ceo' | 'user' | 'member';
 
 export type MeetingType = 'board' | 'external' | 'internal' | 'online';
 export type MeetingStatus = 'confirmed' | 'pending' | 'cancelled' | 'done';
+export type Priority = 'low' | 'normal' | 'high' | 'critical';
 
 export interface Person {
   id: string;
@@ -50,6 +51,8 @@ export interface Meeting {
   type: MeetingType;
   category: string; // category id
   status: MeetingStatus;
+  priority: Priority;
+  meetLink?: string;
   day: number; // 0..4  (شنبه..چهارشنبه)
   start: number; // hour, e.g. 9 or 13.5
   end: number;

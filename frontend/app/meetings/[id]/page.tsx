@@ -4,7 +4,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useStore } from '@/components/store';
 import MinutesEditor from '@/components/MinutesEditor';
 import { useReveal } from '@/components/useReveal';
-import { typeLabels, statusLabels, dayNames, fmtTime, initials, toFa } from '@/lib/data';
+import { typeLabels, statusLabels, dayNames, fmtTime, initials, toFa, priorityLabels, priorityColor } from '@/lib/data';
 import {
   IconBack, IconClock, IconMapPin, IconUsers, IconGuests, IconList, IconChevron,
   IconGoogle, IconCheck, IconVideo, IconDashboard,
@@ -37,6 +37,11 @@ export default function MeetingDetail() {
         <button className="back-btn" onClick={() => router.back()} aria-label="بازگشت"><IconBack size={18} /></button>
         <span className={'tag t-' + m.type}>{typeLabels[m.type]}</span>
         <span className={'pill p-' + m.status}>{statusLabels[m.status]}</span>
+        {m.priority && (
+          <span className="prio-chip" style={{ color: priorityColor[m.priority], background: `color-mix(in srgb,${priorityColor[m.priority]} 14%,transparent)` }}>
+            اولویت {priorityLabels[m.priority]}
+          </span>
+        )}
       </div>
 
       <div className="detail-head">
@@ -55,11 +60,17 @@ export default function MeetingDetail() {
             <b>{org?.name}</b>
           </div>
         </div>
-        {m.type === 'online' && (
-          <button className="btn btn-primary btn-block" style={{ marginTop: 12 }} onClick={() => store.toast('در حال باز کردن Google Meet…', 'ok')}>
+        {m.meetLink ? (
+          <a className="btn btn-primary btn-block" style={{ marginTop: 12 }}
+            href={m.meetLink} target="_blank" rel="noopener noreferrer">
+            <IconVideo size={16} />پیوستن با Google Meet
+          </a>
+        ) : m.type === 'online' && (
+          <button className="btn btn-primary btn-block" style={{ marginTop: 12 }} onClick={() => store.toast('لینک Google Meet برای این جلسه ثبت نشده است', 'info')}>
             <IconVideo size={16} />پیوستن به جلسه
           </button>
         )}
+        {m.meetLink && <div className="meet-link" dir="ltr">{m.meetLink}</div>}
       </div>
 
       <div className="detail-layout">

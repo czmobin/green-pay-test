@@ -2,7 +2,7 @@
  * ثابت‌های نمایشی و توابع کمکی.
  * دادهٔ دامنه (افراد، جلسات، صورت‌جلسه‌ها…) از API می‌آید — به `lib/api.ts` و store نگاه کنید.
  */
-import type { Category, MeetingStatus, MeetingType, MinuteType, Organization } from './types';
+import type { Category, MeetingStatus, MeetingType, MinuteType, Organization, Priority } from './types';
 
 /* ---------- لنگر تقویم دمو ----------
    هفتهٔ شنبه ۲۱ تا چهارشنبه ۲۵ تیر ۱۴۰۴ (امروز = یکشنبه ۲۲، ساعت ۱۴:۳۰).
@@ -37,6 +37,14 @@ export const typeColor: Record<MeetingType, string> = {
   external: '#2F7FE4',
   internal: '#0E9F6E',
   online: '#D9930B',
+};
+
+export const priorityLabels: Record<Priority, string> = {
+  low: 'کم', normal: 'عادی', high: 'زیاد', critical: 'خیلی زیاد',
+};
+
+export const priorityColor: Record<Priority, string> = {
+  low: '#6B7B73', normal: '#0891B2', high: '#D9930B', critical: '#DC4B4B',
 };
 
 export const orgKindLabels: Record<Organization['kind'], string> = {

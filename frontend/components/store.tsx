@@ -3,7 +3,10 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useS
 import type {
   Category, Guest, Meeting, Minute, Organization, Person, Role, Room,
 } from '@/lib/types';
-import { api, loadToken, setToken, UnauthorizedError, type NewMeeting, type NewMinute } from '@/lib/api';
+import {
+  api, loadToken, setToken, UnauthorizedError,
+  type Conflict, type NewMeeting, type NewMinute,
+} from '@/lib/api';
 import { IconCheck, IconX } from './Icons';
 
 type ToastKind = 'ok' | 'info' | 'load';
@@ -55,6 +58,10 @@ interface Store {
   smsEnabled: boolean;
   toggleSms: () => Promise<void>;
 
+  /* هشدار تداخل زمانی شرکت‌کنندگان (فقط اطلاع‌رسانی) */
+  conflicts: Conflict[];
+  dismissConflicts: () => void;
+
   /* رابط کاربری */
   createOpen: boolean;
   openCreate: () => void;
@@ -91,6 +98,7 @@ export default function Providers({ children }: { children: React.ReactNode }) {
   const [smsEnabled, setSms] = useState(false);
 
   const [createOpen, setCreateOpen] = useState(false);
+  const [conflicts, setConflicts] = useState<Conflict[]>([]);
   const [toasts, setToasts] = useState<Toast[]>([]);
 
   const toast = useCallback((msg: string, kind: ToastKind = 'info') => {
@@ -181,6 +189,8 @@ export default function Providers({ children }: { children: React.ReactNode }) {
     guarded(async () => {
       const created = await api.createMeeting(payload);
       upsertMeeting(created);
+      // تداخل‌ها فقط نمایش داده می‌شوند و جلوی ساخت جلسه یا افزودن فرد را نمی‌گیرند
+      setConflicts(created.conflicts ?? []);
       return created;
     }), [guarded]);
 
@@ -282,9 +292,10 @@ export default function Providers({ children }: { children: React.ReactNode }) {
     addPerson, addRoom, addOrg,
     role, currentUser, setRole, setCurrentUser,
     gcalConnected, connectGcal, smsEnabled, toggleSms,
+    conflicts, dismissConflicts: () => setConflicts([]),
     createOpen, openCreate: () => setCreateOpen(true), closeCreate: () => setCreateOpen(false),
     toast, toggleTheme,
-  }), [authed, authChecked, me, signIn, signOut,
+  }), [conflicts, authed, authChecked, me, signIn, signOut,
     ready, error, reload, meetings, visibleMeetings, minutes, people, guests, rooms, orgs, categories,
     getMeeting, createMeeting, respondMeeting, syncMeeting, addMinute, deleteMinute, toggleTask,
     addPerson, addRoom, addOrg, role, currentUser, gcalConnected, connectGcal, smsEnabled, toggleSms,

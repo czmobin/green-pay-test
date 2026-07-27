@@ -2,7 +2,7 @@
 import React from 'react';
 import { useRouter } from 'next/navigation';
 import type { Meeting } from '@/lib/types';
-import { typeLabels, typeColor, statusLabels, fmtTime, initials, toFa, dayNames } from '@/lib/data';
+import { typeLabels, typeColor, statusLabels, fmtTime, initials, toFa, dayNames, priorityLabels, priorityColor } from '@/lib/data';
 import { useStore } from './store';
 import { IconMapPin, IconGuests, IconChevron } from './Icons';
 
@@ -25,6 +25,11 @@ export default function MeetingRow({ m, showDay = false }: { m: Meeting; showDay
           <span><IconMapPin size={12} />{rooms[m.room]?.name ?? '—'}</span>
           {m.guests.length > 0 && <span style={{ color: 'var(--info)' }}><IconGuests size={12} />{toFa(m.guests.length)} مهمان</span>}
           <span className={'tag t-' + m.type}>{typeLabels[m.type]}</span>
+          {m.priority && m.priority !== 'normal' && (
+            <span className="prio-chip" style={{ color: priorityColor[m.priority], background: `color-mix(in srgb,${priorityColor[m.priority]} 14%,transparent)` }}>
+              اولویت {priorityLabels[m.priority]}
+            </span>
+          )}
         </span>
       </span>
       <span className="side">

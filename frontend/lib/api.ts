@@ -86,7 +86,23 @@ export interface NewMeeting {
   parts: string[];
   guests?: string[];
   synced?: boolean;
+  priority?: Meeting['priority'];
+  meetLink?: string;
 }
+
+/** تداخل زمانی یک شرکت‌کننده با جلسه‌ای دیگر — فقط هشدار است. */
+export interface Conflict {
+  user: string;
+  userName: string;
+  meeting: string;
+  meetingTitle: string;
+  day: number;
+  start: number;
+  end: number;
+  room: string;
+}
+
+export type CreatedMeeting = Meeting & { conflicts?: Conflict[] };
 
 export interface NewMinute {
   meeting: string;
@@ -119,7 +135,9 @@ export const api = {
 
   bootstrap: () => request<Bootstrap>('/bootstrap/'),
 
-  createMeeting: (m: NewMeeting) => post<Meeting>('/meetings/', m),
+  createMeeting: (m: NewMeeting) => post<CreatedMeeting>('/meetings/', m),
+  checkConflicts: (q: { day: number; start: number; end: number; parts: string[]; guests?: string[] }) =>
+    post<{ conflicts: Conflict[] }>('/meetings/check-conflicts/', q),
   respondMeeting: (id: string, accept: boolean) => post<Meeting>(`/meetings/${id}/respond/`, { accept }),
   syncMeeting: (id: string) => post<Meeting>(`/meetings/${id}/sync/`),
 

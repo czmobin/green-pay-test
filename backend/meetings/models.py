@@ -109,7 +109,15 @@ class Meeting(models.Model):
         CANCELLED = 'cancelled', 'لغوشده'
         DONE = 'done', 'برگزارشده'
 
+    class Priority(models.TextChoices):
+        LOW = 'low', 'کم'
+        NORMAL = 'normal', 'عادی'
+        HIGH = 'high', 'زیاد'
+        CRITICAL = 'critical', 'خیلی زیاد'
+
     title = models.CharField('عنوان', max_length=255)
+    priority = models.CharField('اولویت', max_length=10, choices=Priority.choices, default=Priority.NORMAL)
+    meet_link = models.CharField('لینک/شناسهٔ Google Meet', max_length=255, blank=True)
     category = models.ForeignKey(
         Category, null=True, blank=True, on_delete=models.SET_NULL, related_name='meetings',
         verbose_name='دسته‌بندی',
@@ -143,6 +151,17 @@ class Meeting(models.Model):
 
     def __str__(self):
         return self.title
+
+    @staticmethod
+    def normalize_meet(value: str) -> str:
+        """«abc-defg-hij» یا نشانی کامل → نشانی کامل Google Meet."""
+        value = (value or '').strip()
+        if not value:
+            return ''
+        if value.startswith('http://') or value.startswith('https://'):
+            return value
+        code = value.split('/')[-1]
+        return f'https://meet.google.com/{code}'
 
 
 class MeetingParticipant(models.Model):

@@ -119,10 +119,12 @@ class MeetingSerializer(serializers.ModelSerializer):
     guests = serializers.SerializerMethodField()
     agenda = AgendaItemSerializer(many=True, read_only=True)
 
+    meetLink = serializers.CharField(source='meet_link', required=False, allow_blank=True)
+
     class Meta:
         model = Meeting
-        fields = ['id', 'title', 'category', 'type', 'status', 'day', 'start', 'end',
-                  'room', 'organizer', 'parts', 'guests', 'synced', 'agenda']
+        fields = ['id', 'title', 'category', 'type', 'status', 'priority', 'day', 'start', 'end',
+                  'room', 'organizer', 'parts', 'guests', 'synced', 'meetLink', 'agenda']
 
     def get_day(self, obj) -> int:
         return to_day_index(obj.start)
@@ -193,6 +195,9 @@ class MeetingCreateSerializer(serializers.Serializer):
     parts = serializers.ListField(child=serializers.CharField(), required=False, default=list)
     guests = serializers.ListField(child=serializers.CharField(), required=False, default=list)
     synced = serializers.BooleanField(required=False, default=False)
+    priority = serializers.ChoiceField(choices=Meeting.Priority.choices,
+                                       required=False, default=Meeting.Priority.NORMAL)
+    meetLink = serializers.CharField(required=False, allow_blank=True, default='')
 
     def validate(self, attrs):
         if attrs['end'] <= attrs['start']:
@@ -205,6 +210,8 @@ class MeetingCreateSerializer(serializers.Serializer):
             category=validated['category'],
             meeting_type=validated['type'],
             status=Meeting.Status.CONFIRMED,
+            priority=validated.get('priority', Meeting.Priority.NORMAL),
+            meet_link=Meeting.normalize_meet(validated.get('meetLink', '')),
             location=validated['room'],
             organizer=validated['organizer'],
             start=from_day_hour(validated['day'], validated['start']),

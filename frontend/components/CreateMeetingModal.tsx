@@ -1,10 +1,13 @@
 'use client';
-import React, { useState, useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useStore } from './store';
-import { dayNames, typeLabels, toFa, fmtTime, normalizeFa } from '@/lib/data';
-import type { MeetingType } from '@/lib/types';
+import { dayNames, typeLabels, toFa, fmtTime, normalizeFa, priorityLabels, priorityColor } from '@/lib/data';
+import type { MeetingType, Priority } from '@/lib/types';
+import { api, type Conflict } from '@/lib/api';
 import { IconX, IconPlus, IconDashboard, IconGuests, IconRoom, IconVideo, IconSearch } from './Icons';
+
+const PRIORITIES: Priority[] = ['low', 'normal', 'high', 'critical'];
 
 const types: { id: MeetingType; icon: React.ReactNode }[] = [
   { id: 'internal', icon: <IconDashboard size={16} /> },
@@ -27,6 +30,9 @@ export default function CreateMeetingModal() {
   const [parts, setParts] = useState<string[]>([]);
   const [pq, setPq] = useState('');
   const [saving, setSaving] = useState(false);
+  const [priority, setPriority] = useState<Priority>('normal');
+  const [meetLink, setMeetLink] = useState('');
+  const [liveConflicts, setLiveConflicts] = useState<Conflict[]>([]);
 
   // مقادیر پیش‌فرض پس از رسیدن داده از API
   const categoryIds = Object.keys(store.categories);
@@ -43,9 +49,24 @@ export default function CreateMeetingModal() {
     return Object.values(store.people).filter((p) => !nq || normalizeFa(p.name + ' ' + p.role).includes(nq));
   }, [pq, store.people]);
 
+  /* هشدار زندهٔ تداخل: با تغییر زمان یا شرکت‌کنندگان بررسی می‌شود.
+     صرفاً نمایشی است و هیچ‌وقت مانع انتخاب فرد یا ثبت جلسه نمی‌شود. */
+  const partsKey = selectedParts.join(',');
+  useEffect(() => {
+    if (!store.createOpen || !partsKey) { setLiveConflicts([]); return; }
+    let alive = true;
+    const t = setTimeout(() => {
+      api.checkConflicts({ day, start, end, parts: partsKey.split(',') })
+        .then((r) => { if (alive) setLiveConflicts(r.conflicts); })
+        .catch(() => { if (alive) setLiveConflicts([]); });
+    }, 350);
+    return () => { alive = false; clearTimeout(t); };
+  }, [store.createOpen, partsKey, day, start, end]);
+
   function reset() {
     setTitle(''); setCat(''); setType('internal'); setDay(1); setStart(10); setEnd(11);
-    setRoom(''); setParts([]); setPq('');
+    setRoom(''); setParts([]); setPq(''); setPriority('normal'); setMeetLink('');
+    setLiveConflicts([]);
   }
   function onStart(v: number) { setStart(v); if (end <= v) setEnd(Math.min(v + 1, 18)); }
   function toggle(id: string) {
@@ -65,7 +86,7 @@ export default function CreateMeetingModal() {
     const created = await store.createMeeting({
       title: title.trim(), category: selectedCat, type, day, start, end,
       room: selectedRoom, organizer: store.currentUser, parts: selectedParts,
-      guests: [], synced: store.gcalConnected,
+      guests: [], synced: store.gcalConnected, priority, meetLink: meetLink.trim(),
     });
     setSaving(false);
     if (!created) return;
@@ -125,6 +146,25 @@ export default function CreateMeetingModal() {
             </div>
           </div>
 
+          <div className="field">
+            <label>اولویت جلسه</label>
+            <div className="prio-pick">
+              {PRIORITIES.map((pr) => (
+                <button type="button" key={pr} className={'prio' + (priority === pr ? ' active' : '')}
+                  style={priority === pr ? { borderColor: priorityColor[pr], background: `color-mix(in srgb,${priorityColor[pr]} 14%,transparent)`, color: priorityColor[pr] } : undefined}
+                  onClick={() => setPriority(pr)}>
+                  <i style={{ background: priorityColor[pr] }} />{priorityLabels[pr]}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="field">
+            <label>لینک یا شناسهٔ Google Meet <span className="opt">(اختیاری)</span></label>
+            <input className="field-in" dir="ltr" value={meetLink} onChange={(e) => setMeetLink(e.target.value)}
+              placeholder="abc-defg-hij یا https://meet.google.com/…" />
+          </div>
+
           <div className="field-row">
             <div className="field">
               <label>ساعت شروع</label>
@@ -151,10 +191,23 @@ export default function CreateMeetingModal() {
                 <button type="button" key={p.id} className={'ppick' + (selectedParts.includes(p.id) ? ' active' : '')} onClick={() => toggle(p.id)}>
                   <span className="ava sm" style={{ background: `linear-gradient(145deg,${p.color})` }}>{p.name.split(' ').map((x) => x[0]).slice(0, 2).join('')}</span>
                   {p.name}
+                  {liveConflicts.some((c) => c.user === p.id) && (
+                    <span className="ppick-warn" title="در این بازه جلسهٔ دیگری دارد">!</span>
+                  )}
                 </button>
               ))}
               {filteredPeople.length === 0 && <div className="empty-hint" style={{ fontSize: 12, color: 'var(--muted)', padding: 8 }}>کسی پیدا نشد.</div>}
             </div>
+
+            {liveConflicts.length > 0 && (
+              <div className="conflict-hint">
+                <span className="ch-ic">!</span>
+                <span>
+                  {Array.from(new Set(liveConflicts.map((c) => c.userName))).join('، ')} در این بازه
+                  جلسهٔ دیگری {liveConflicts.length > 1 ? 'دارند' : 'دارد'} — می‌توانید همچنان اضافه‌شان کنید.
+                </span>
+              </div>
+            )}
           </div>
         </div>
 

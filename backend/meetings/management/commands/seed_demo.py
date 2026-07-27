@@ -102,6 +102,22 @@ MEETINGS = [
      [], True, [('گزارش هر واحد', 30), ('اهداف هفتهٔ آینده', 20)]),
 ]
 
+# اولویت جلسات نمونه (بقیه «عادی»)
+PRIORITIES = {
+    'm1': Meeting.Priority.CRITICAL,
+    'm4': Meeting.Priority.HIGH,
+    'm8': Meeting.Priority.HIGH,
+    'm10': Meeting.Priority.HIGH,
+    'm5': Meeting.Priority.LOW,
+    'm9': Meeting.Priority.LOW,
+}
+
+# جلسه‌های آنلاین لینک Google Meet دارند
+MEET_LINKS = {
+    'm6': 'gpy-mtng-001',
+    'm2': 'gpy-shpk-204',
+}
+
 # جلسه, شرکت‌کنندهٔ سطل (یا None=عمومی), نوع, متن, extra
 ENTRIES = [
     ('m1', None, 'decision', 'بودجهٔ توسعهٔ بازار ۱۴۰۴ به مبلغ مصوب تأیید شد.', {}),
@@ -170,6 +186,8 @@ class Command(BaseCommand):
                 location=rooms[room], organizer=users[organizer],
                 start=from_day_hour(day, start), end=from_day_hour(day, end),
                 google_synced=synced,
+                priority=PRIORITIES.get(key, Meeting.Priority.NORMAL),
+                meet_link=Meeting.normalize_meet(MEET_LINKS.get(key, '')),
             )
             meetings[key] = meeting
             for order, (a_title, dur) in enumerate(agenda, start=1):

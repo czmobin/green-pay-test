@@ -5,6 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useStore } from './store';
 import CreateMeetingModal from './CreateMeetingModal';
 import NotificationBell from './NotificationBell';
+import ConflictAlert from './ConflictAlert';
 import {
   IconDashboard, IconCalendar, IconList, IconPlus, IconReminder,
   IconSun, IconLeaf, IconGoogle, IconCheck, IconSettings, IconLogout,
@@ -86,7 +87,11 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             <span className="ava" style={{ background: `linear-gradient(145deg,${me?.color ?? 'var(--brand),var(--brand-deep)'})` }}>
               {me ? initials(me.name) : '—'}
             </span>
-            <div><b>{me?.name ?? '…'}</b><small>{roleLabel[store.role]}{me ? ` · ${me.role}` : ''}</small></div>
+            <div><b>{me?.name ?? '…'}</b><small>
+              {me && me.role && me.role !== roleLabel[store.role]
+                ? `${roleLabel[store.role]} · ${me.role}`
+                : roleLabel[store.role]}
+            </small></div>
             <button className="icon-btn" style={{ marginInlineStart: 'auto', width: 32, height: 32, border: 0, background: 'transparent' }} onClick={store.toggleTheme} aria-label="تغییر تم"><IconSun size={17} /></button>
             <button className="icon-btn" style={{ width: 32, height: 32, border: 0, background: 'transparent' }} onClick={() => store.signOut()} aria-label="خروج" title="خروج از حساب"><IconLogout size={17} /></button>
           </div>
@@ -136,6 +141,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       </nav>
 
       <CreateMeetingModal />
+      <ConflictAlert />
     </div>
   );
 }
