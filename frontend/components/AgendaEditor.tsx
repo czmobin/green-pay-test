@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { useStore } from './store';
 import { toFa } from '@/lib/data';
 import type { Meeting } from '@/lib/types';
-import { IconPlus, IconTrash, IconCheck, IconX } from './Icons';
+import { IconPlus, IconTrash, IconCheck, IconX, IconEdit } from './Icons';
 
 /**
  * دستور جلسه — فهرست موضوعات ذیل جلسه.
@@ -74,7 +74,7 @@ export default function AgendaEditor({ meeting }: { meeting: Meeting }) {
                   <span className="dur num">{toFa(a.dur)} دقیقه</span>
                   {editable && (
                     <span className="ag-tools">
-                      <button className="ag-act" onClick={() => startEdit(a.id, a.title, a.dur)} aria-label="ویرایش">✎</button>
+                      <button className="ag-act" onClick={() => startEdit(a.id, a.title, a.dur)} aria-label="ویرایش"><IconEdit size={14} /></button>
                       <button className="ag-act del" onClick={() => store.deleteAgenda(meeting.id, a.id)} aria-label="حذف">
                         <IconTrash size={14} />
                       </button>
@@ -94,7 +94,7 @@ export default function AgendaEditor({ meeting }: { meeting: Meeting }) {
       {editable && (
         <form className="ag-add" onSubmit={add}>
           <input className="field-in" value={title} onChange={(e) => setTitle(e.target.value)}
-            placeholder="موضوع جدید دستور جلسه…" />
+            placeholder="موضوع جدید…" />
           <input className="field-in ag-dur num" type="number" min={5} max={240} step={5}
             value={dur} onChange={(e) => setDur(Number(e.target.value))} aria-label="مدت به دقیقه" />
           <button className="btn btn-primary" type="submit" disabled={busy}>
