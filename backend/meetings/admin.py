@@ -2,7 +2,7 @@ from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 
 from .models import (
-    Organization, User, Location, Category, Meeting, MeetingParticipant,
+    Organization, OrganizationKind, User, Location, Category, Meeting, MeetingParticipant,
     AgendaItem, Minutes, MinuteEntry, Attachment, Notification, GoogleCalendarConnection,
 )
 
@@ -28,8 +28,8 @@ class AgendaItemInline(admin.TabularInline):
 
 @admin.register(Meeting)
 class MeetingAdmin(admin.ModelAdmin):
-    list_display = ('title', 'category', 'meeting_type', 'status', 'start', 'organizer', 'google_synced')
-    list_filter = ('meeting_type', 'status', 'category')
+    list_display = ('title', 'category', 'meeting_type', 'priority', 'status', 'start', 'organizer')
+    list_filter = ('meeting_type', 'status', 'priority', 'category')
     search_fields = ('title',)
     inlines = [AgendaItemInline, MeetingParticipantInline]
     date_hierarchy = 'start'
@@ -46,7 +46,25 @@ class MinutesAdmin(admin.ModelAdmin):
     inlines = [MinuteEntryInline]
 
 
-admin.site.register(Organization)
+@admin.register(OrganizationKind)
+class OrganizationKindAdmin(admin.ModelAdmin):
+    list_display = ('name', 'slug', 'order')
+    list_editable = ('slug', 'order')
+    ordering = ('order', 'name')
+
+
+@admin.register(Organization)
+class OrganizationAdmin(admin.ModelAdmin):
+    list_display = ('name', 'kind')
+    list_filter = ('kind',)
+    search_fields = ('name',)
+
+
+@admin.register(MinuteEntry)
+class MinuteEntryAdmin(admin.ModelAdmin):
+    list_display = ('entry_type', 'text', 'assignee', 'is_done', 'done_at')
+    list_filter = ('entry_type', 'is_done')
+
 admin.site.register(Location)
 admin.site.register(Category)
 admin.site.register(Attachment)

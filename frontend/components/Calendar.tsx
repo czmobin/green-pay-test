@@ -5,26 +5,33 @@ import gsap from 'gsap';
 import { useGSAP } from '@gsap/react';
 import { useReveal } from './useReveal';
 import { useStore } from './store';
-import { typeColor, fmtTime, toFa, meetingJd, CAL_YEAR, CAL_MONTH, TODAY_J, NOW_HOUR } from '@/lib/data';
+import { typeColor, fmtTime, toFa, todayISO, nowHour, isoToJ } from '@/lib/data';
 import type { Meeting } from '@/lib/types';
 import {
-  jMonths, jWeekdays, jWeekdaysShort, jMonthLength, faWeekday, jToDate, dateToJ, addDays, sameJ, type JDate,
+  jMonths, jWeekdays, jWeekdaysShort, jMonthLength, faWeekday, jToDate, dateToJ, addDays, sameJ,
+  toGregorian, type JDate,
 } from '@/lib/jalali';
 import { IconChevron, IconBack } from './Icons';
 
 type View = 'day' | 'week' | 'month' | 'year';
 const START = 8, END = 19, HOUR = 48;
 
+/** امروز به تاریخ شمسی و ساعت جاری — واقعی، نه لنگر ثابت */
+const todayJ = (): JDate => isoToJ(todayISO());
+const isoOf = (j: JDate): string => {
+  const g = toGregorian(j.jy, j.jm, j.jd);
+  return `${g.gy}-${String(g.gm).padStart(2, '0')}-${String(g.gd).padStart(2, '0')}`;
+};
+
 export default function Calendar() {
   const store = useStore();
   const router = useRouter();
   const [view, setView] = useState<View>('month');
-  const [cur, setCur] = useState<JDate>(TODAY_J);
+  const [cur, setCur] = useState<JDate>(todayJ);
 
+  /** جلسات یک روز — مقایسه بر اساس تاریخ میلادی ISO که از API می‌آید */
   const meetingsOn = (j: JDate): Meeting[] =>
-    (j.jy === CAL_YEAR && j.jm === CAL_MONTH)
-      ? store.visibleMeetings.filter((m) => meetingJd(m.day) === j.jd).sort((a, b) => a.start - b.start)
-      : [];
+    store.visibleMeetings.filter((m) => m.date === isoOf(j)).sort((a, b) => a.start - b.start);
 
   const open = (id: string) => router.push(`/meetings/${id}`);
 
@@ -79,7 +86,7 @@ export default function Calendar() {
       <div className="cal-toolbar">
         <div className="cal-nav">
           <button className="arw" onClick={() => nav(-1)} aria-label="قبلی"><IconBack size={18} /></button>
-          <button className="today-btn" onClick={() => setCur(TODAY_J)}>امروز</button>
+          <button className="today-btn" onClick={() => setCur(todayJ())}>امروز</button>
           <button className="arw" onClick={() => nav(1)} aria-label="بعدی"><IconChevron size={18} /></button>
         </div>
         <h3 className="cal-title">{title}</h3>
@@ -99,7 +106,7 @@ export default function Calendar() {
 function DayView({ j, meetingsOn, open }: { j: JDate; meetingsOn: (j: JDate) => Meeting[]; open: (id: string) => void }) {
   const { rooms } = useStore();
   const items = meetingsOn(j);
-  const isToday = sameJ(j, TODAY_J);
+  const isToday = sameJ(j, todayJ());
   return (
     <div className="cal-time">
       <div className="tgrid" style={{ gridTemplateColumns: '52px 1fr' }}>
@@ -108,7 +115,7 @@ function DayView({ j, meetingsOn, open }: { j: JDate; meetingsOn: (j: JDate) => 
         </div>
         <div className="dcol">
           {Array.from({ length: END - START }, (_, i) => <div className="slot" key={i} />)}
-          {isToday && <div className="now-line" style={{ top: (NOW_HOUR - START) * HOUR }} />}
+          {isToday && <div className="now-line" style={{ top: (nowHour() - START) * HOUR }} />}
           {items.map((m) => (
             <button key={m.id} className="cev" onClick={() => open(m.id)}
               style={{ top: (m.start - START) * HOUR, height: (m.end - m.start) * HOUR - 3, background: `color-mix(in srgb,${typeColor[m.type]} 15%,var(--panel))`, borderColor: typeColor[m.type], color: typeColor[m.type] }}>
@@ -134,7 +141,7 @@ function WeekView({ cur, meetingsOn, open, onDay }: { cur: JDate; meetingsOn: (j
         <div className="wk-head" style={{ gridTemplateColumns: '52px repeat(7,1fr)' }}>
           <div className="corner" />
           {days.map((j, i) => {
-            const today = sameJ(j, TODAY_J);
+            const today = sameJ(j, todayJ());
             return (
               <button className={'dh' + (today ? ' today' : '')} key={i} onClick={() => onDay(j)}>
                 <small>{jWeekdaysShort[i]}</small><b className="num">{toFa(j.jd)}</b>
@@ -148,11 +155,11 @@ function WeekView({ cur, meetingsOn, open, onDay }: { cur: JDate; meetingsOn: (j
           </div>
           {days.map((j, di) => {
             const items = meetingsOn(j);
-            const today = sameJ(j, TODAY_J);
+            const today = sameJ(j, todayJ());
             return (
               <div className="dcol" key={di}>
                 {Array.from({ length: END - START }, (_, i) => <div className="slot" key={i} />)}
-                {today && <div className="now-line" style={{ top: (NOW_HOUR - START) * HOUR }} />}
+                {today && <div className="now-line" style={{ top: (nowHour() - START) * HOUR }} />}
                 {items.map((m) => (
                   <button key={m.id} className="cev sm" onClick={() => open(m.id)}
                     style={{ top: (m.start - START) * HOUR, height: (m.end - m.start) * HOUR - 3, background: `color-mix(in srgb,${typeColor[m.type]} 16%,var(--panel))`, borderColor: typeColor[m.type], color: typeColor[m.type] }}>
@@ -185,7 +192,7 @@ function MonthView({ cur, meetingsOn, onDay }: { cur: JDate; meetingsOn: (j: JDa
         {cells.map((j, i) => {
           const inMonth = j.jm === cur.jm && j.jy === cur.jy;
           const items = inMonth ? meetingsOn(j) : [];
-          const today = sameJ(j, TODAY_J);
+          const today = sameJ(j, todayJ());
           return (
             <button className={'mcell' + (inMonth ? '' : ' out') + (today ? ' today' : '')} key={i} onClick={() => onDay(j)}>
               <span className="md num">{toFa(j.jd)}</span>
@@ -226,7 +233,7 @@ function YearView({ jy, meetingsOn, onMonth }: { jy: number; meetingsOn: (j: JDa
                 if (d === null) return <span key={i} />;
                 const j = { jy, jm, jd: d };
                 const has = meetingsOn(j).length > 0;
-                const today = sameJ(j, TODAY_J);
+                const today = sameJ(j, todayJ());
                 return <span key={i} className={'yd' + (has ? ' has' : '') + (today ? ' today' : '')}>{toFa(d)}</span>;
               })}
             </div>

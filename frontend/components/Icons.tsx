@@ -89,8 +89,12 @@ export const IconMoon = ({ size, className }: P) => (
 export const IconLogout = ({ size, className }: P) => (
   <svg {...s(size)} className={className} viewBox="0 0 24 24" {...stroke}><path d="M15 17v1.5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5.5a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2V7" /><path d="M19 12H9m10 0-3-3m3 3-3 3" /></svg>
 );
+export const IconEdit = ({ size, className }: P) => (
+  <svg {...s(size)} className={className} viewBox="0 0 24 24" {...stroke}><path d="M4 20h4.5L19 9.5a2.1 2.1 0 0 0-3-3L5.5 17 4 20Z" /><path d="M14.5 6.5 17.5 9.5" /></svg>
+);
+/* «تعریف‌ها»: کشوی داده‌های پایه — گویاتر از چرخ‌دنده */
 export const IconSettings = ({ size, className }: P) => (
-  <svg {...s(size)} className={className} viewBox="0 0 24 24" {...stroke}><circle cx="12" cy="12" r="3" /><path d="M19.4 13.5a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-2.87 1.2V21a2 2 0 1 1-4 0v-.06a1.7 1.7 0 0 0-2.87-1.2l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 13.5H4.5a2 2 0 1 1 0-4h.06A1.7 1.7 0 0 0 5.8 6.63l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 2.87-1.2V2.5a2 2 0 1 1 4 0v.06a1.7 1.7 0 0 0 2.87 1.2l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0 1.2 2.87h.1a2 2 0 1 1 0 4h-.06a1.7 1.7 0 0 0-1.53 1Z" /></svg>
+  <svg {...s(size)} className={className} viewBox="0 0 24 24" {...stroke}><rect x="3" y="4" width="18" height="6" rx="2" /><rect x="3" y="14" width="18" height="6" rx="2" /><path d="M7 7h.01M7 17h.01" /></svg>
 );
 export const IconBuilding = ({ size, className }: P) => (
   <svg {...s(size)} className={className} viewBox="0 0 24 24" {...stroke}><rect x="4" y="3" width="16" height="18" rx="2" /><path d="M8 7h.01M12 7h.01M16 7h.01M8 11h.01M12 11h.01M16 11h.01M8 15h.01M16 15h.01M10 21v-3.5a2 2 0 0 1 4 0V21" /></svg>

@@ -7,7 +7,7 @@ import { useStore } from '@/components/store';
 import LoginScene from '@/components/LoginScene';
 import { api } from '@/lib/api';
 import { toFa } from '@/lib/data';
-import { IconLeaf, IconBack, IconCheck, IconSun, IconMoon, IconPaperclip } from '@/components/Icons';
+import { IconLeaf, IconBack, IconCheck, IconSun, IconMoon } from '@/components/Icons';
 
 const CODE_LEN = 5;
 type Step = 'phone' | 'code' | 'profile';
@@ -29,16 +29,15 @@ export default function LoginPage() {
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [jobTitle, setJobTitle] = useState('');
-  const [dark, setDark] = useState(true);
+  const [dark, setDark] = useState(false);
   const boxRefs = useRef<(HTMLInputElement | null)[]>([]);
 
   /* ---------- تم صفحهٔ ورود (روشن/تیره) ---------- */
   useEffect(() => {
     let saved: string | null = null;
     try { saved = localStorage.getItem('gp-theme'); } catch { /* حالت خصوصی */ }
-    const prefersDark = saved ? saved === 'dark'
-      : window.matchMedia('(prefers-color-scheme: dark)').matches;
-    setDark(prefersDark);
+    // پیش‌فرض: حالت روشن (مگر کاربر قبلاً تیره را انتخاب کرده باشد)
+    setDark(saved === 'dark');
   }, []);
 
   useEffect(() => {
@@ -208,17 +207,6 @@ export default function LoginPage() {
     if (e.key === 'ArrowRight' && i > 0) boxRefs.current[i - 1]?.focus();
   }
 
-  async function pasteFromClipboard() {
-    try {
-      const text = await navigator.clipboard.readText();
-      const found = text.match(/\d{5}/)?.[0];
-      if (found) fillCode(found);
-      else setMsg('کد ۵ رقمی در کلیپ‌بورد پیدا نشد.');
-    } catch {
-      setMsg('اجازهٔ خواندن کلیپ‌بورد داده نشد؛ کد را دستی وارد کنید.');
-    }
-  }
-
   return (
     <div className={'login' + (dark ? '' : ' login-light')} ref={scope}>
       <LoginScene dark={dark} />
@@ -294,15 +282,10 @@ export default function LoginPage() {
                 ))}
               </div>
 
-              {/* پیشنهاد چسباندن کد از کلیپ‌بورد */}
-              {pasteHint ? (
+              {/* اگر کدی در کلیپ‌بورد باشد، خودش پیشنهاد می‌دهد (بدون دکمهٔ دائمی) */}
+              {pasteHint && (
                 <button className="lg-paste hint" onClick={() => fillCode(pasteHint)}>
-                  <IconPaperclip size={14} />
                   کد <b className="num">{toFa(pasteHint)}</b> در کلیپ‌بورد پیدا شد — چسباندن؟
-                </button>
-              ) : (
-                <button className="lg-paste" onClick={pasteFromClipboard}>
-                  <IconPaperclip size={14} />چسباندن کد از پیامک
                 </button>
               )}
 

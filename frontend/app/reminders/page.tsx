@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useStore } from '@/components/store';
 import { useReveal } from '@/components/useReveal';
-import { minuteMeta, dayNames, TODAY, toFa, normalizeFa } from '@/lib/data';
+import { minuteMeta, toFa, normalizeFa, todayISO, faDateLabel } from '@/lib/data';
 import type { Meeting, Minute } from '@/lib/types';
 import {
   IconReminder, IconSearch, IconX, IconCheck, IconClock, IconUsers, IconList, IconChevron,
@@ -26,21 +26,22 @@ export default function RemindersPage() {
     if (mn.type === 'task' || mn.type === 'reminder') items.push({ mn, m });
   }));
 
-  const openTasks = items.filter((x) => x.mn.type === 'task' && !x.mn.done).length;
+  const openTasks = items.filter((x) => !x.mn.done).length;
   const reminders = items.filter((x) => x.mn.type === 'reminder').length;
-  const overdue = items.filter((x) => x.mn.type === 'task' && !x.mn.done && x.m.day < TODAY).length;
+  const iso = todayISO();
+  const overdue = items.filter((x) => !x.mn.done && x.m.date < iso).length;
 
   const nq = normalizeFa(q);
   const rows = items
     .filter(({ mn, m }) => {
       if (tf !== 'all' && mn.type !== tf) return false;
-      if (time === 'today' && m.day !== TODAY) return false;
-      if (time === 'upcoming' && m.day < TODAY) return false;
-      if (time === 'past' && m.day >= TODAY) return false;
+      if (time === 'today' && m.date !== iso) return false;
+      if (time === 'upcoming' && m.date < iso) return false;
+      if (time === 'past' && m.date >= iso) return false;
       if (nq && !normalizeFa(mn.text + ' ' + m.title).includes(nq)) return false;
       return true;
     })
-    .sort((a, b) => a.m.day - b.m.day || a.m.start - b.m.start);
+    .sort((a, b) => a.m.date.localeCompare(b.m.date) || a.m.start - b.m.start);
 
   const scope = useReveal(['.page-head', '.rem-stat', '.searchbar', '.filters', '.rem']);
 
@@ -52,7 +53,7 @@ export default function RemindersPage() {
       </div>
 
       <div className="rem-count">
-        <div className="rem-stat"><div className="rs-val num"><i style={{ background: minuteMeta.task.color }} />{toFa(openTasks)}</div><div className="rs-lbl">تسک باز</div></div>
+        <div className="rem-stat"><div className="rs-val num"><i style={{ background: minuteMeta.task.color }} />{toFa(openTasks)}</div><div className="rs-lbl">انجام‌نشده</div></div>
         <div className="rem-stat"><div className="rs-val num"><i style={{ background: minuteMeta.reminder.color }} />{toFa(reminders)}</div><div className="rs-lbl">یادآور</div></div>
         <div className="rem-stat"><div className="rs-val num"><i style={{ background: 'var(--danger)' }} />{toFa(overdue)}</div><div className="rs-lbl">عقب‌افتاده</div></div>
       </div>
@@ -84,13 +85,11 @@ export default function RemindersPage() {
             const meta = minuteMeta[mn.type];
             return (
               <div className={'rem' + (mn.done ? ' done' : '')} key={mn.id} onClick={() => router.push(`/meetings/${m.id}`)} style={{ cursor: 'pointer' }}>
-                {mn.type === 'task' ? (
-                  <button className={'rcheck' + (mn.done ? ' on' : '')} onClick={(e) => { e.stopPropagation(); store.toggleTask(m.id, mn.id); }} aria-label="انجام شد">
-                    {mn.done && <IconCheck size={13} />}
-                  </button>
-                ) : (
-                  <span className="ri" style={{ background: `color-mix(in srgb,${meta.color} 15%,transparent)`, color: meta.color }}>{minuteIcon(mn.type, { size: 17 })}</span>
-                )}
+                <button className={'rcheck' + (mn.done ? ' on' : '')}
+                  onClick={(e) => { e.stopPropagation(); store.toggleTask(m.id, mn.id); }}
+                  aria-label={mn.done ? 'برگرداندن به انجام‌نشده' : 'انجام شد'}>
+                  {mn.done && <IconCheck size={13} />}
+                </button>
                 <div className="rbody">
                   <div className="rtop"><span className="rtype" style={{ color: meta.color }}>{meta.label}</span></div>
                   <div className="rtitle">{mn.text}</div>
@@ -99,7 +98,7 @@ export default function RemindersPage() {
                     {mn.type === 'task' && mn.assignee && <span><IconUsers size={12} />{store.people[mn.assignee]?.name ?? mn.assignee}</span>}
                     {mn.type === 'task' && mn.due && <span><IconClock size={12} />مهلت: {mn.due}</span>}
                     {mn.type === 'reminder' && mn.when && <span><IconClock size={12} />{mn.when}</span>}
-                    <span className="num">{dayNames[m.day]}</span>
+                    <span className="num">{faDateLabel(m.date)}</span>
                   </div>
                 </div>
                 <span className="chev"><IconChevron size={18} /></span>

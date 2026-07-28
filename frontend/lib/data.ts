@@ -2,20 +2,66 @@
  * ثابت‌های نمایشی و توابع کمکی.
  * دادهٔ دامنه (افراد، جلسات، صورت‌جلسه‌ها…) از API می‌آید — به `lib/api.ts` و store نگاه کنید.
  */
-import type { Category, MeetingStatus, MeetingType, MinuteType, Organization, Priority } from './types';
+import type { Category, MeetingStatus, MeetingType, MinuteType, Priority } from './types';
 
-/* ---------- لنگر تقویم دمو ----------
-   هفتهٔ شنبه ۲۱ تا چهارشنبه ۲۵ تیر ۱۴۰۴ (امروز = یکشنبه ۲۲، ساعت ۱۴:۳۰).
-   بک‌اند همین بازه را با datetime واقعی نگه می‌دارد و اندیس روز را برمی‌گرداند. */
-export const TODAY = 1;
-export const dayNames = ['شنبه', 'یکشنبه', 'دوشنبه', 'سه‌شنبه', 'چهارشنبه'];
-export const dayNums = ['۲۱', '۲۲', '۲۳', '۲۴', '۲۵'];
-export const CAL_YEAR = 1404;
-export const CAL_MONTH = 4;
-export const BASE_JD = 21;
-export const TODAY_J = { jy: 1404, jm: 4, jd: 22 };
-export const NOW_HOUR = 14.5;
-export function meetingJd(day: number): number { return BASE_JD + day; }
+/* ---------- تاریخ و زمان واقعی ----------
+   جلسات با تاریخ میلادی ISO از API می‌آیند؛ نمایش همه‌جا شمسی است. */
+
+/** تاریخ امروز به‌صورت ISO (YYYY-MM-DD) در منطقهٔ زمانی محلی */
+export function todayISO(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+/** ساعت جاری به‌صورت اعشاری (۱۴:۳۰ → ۱۴.۵) */
+export function nowHour(): number {
+  const d = new Date();
+  return d.getHours() + d.getMinutes() / 60;
+}
+
+/** ISO → آبجکت Date در نیمه‌شب محلی (بدون لغزش منطقهٔ زمانی) */
+export function isoToDate(iso: string): Date {
+  const [y, m, d] = iso.split('-').map(Number);
+  return new Date(Date.UTC(y, m - 1, d));
+}
+
+export function dateToISO(d: Date): string {
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
+}
+
+export function addDaysISO(iso: string, n: number): string {
+  return dateToISO(new Date(isoToDate(iso).getTime() + n * 86400000));
+}
+
+/* ---------- نمایش شمسی ---------- */
+import { dateToJ, jMonths, jWeekdays, faWeekday, type JDate } from './jalali';
+
+export function isoToJ(iso: string): JDate {
+  return dateToJ(isoToDate(iso));
+}
+
+/** «یکشنبه ۲۲ تیر» */
+export function faDate(iso: string, withYear = false): string {
+  const j = isoToJ(iso);
+  const wd = jWeekdays[faWeekday(j.jy, j.jm, j.jd)];
+  const base = `${wd} ${toFa(j.jd)} ${jMonths[j.jm - 1]}`;
+  return withYear ? `${base} ${toFa(j.jy)}` : base;
+}
+
+/** «۲۲ تیر» بدون نام روز */
+export function faDateShort(iso: string): string {
+  const j = isoToJ(iso);
+  return `${toFa(j.jd)} ${jMonths[j.jm - 1]}`;
+}
+
+/** برچسب نسبی: امروز / فردا / دیروز، وگرنه تاریخ */
+export function faDateLabel(iso: string): string {
+  const t = todayISO();
+  if (iso === t) return 'امروز';
+  if (iso === addDaysISO(t, 1)) return 'فردا';
+  if (iso === addDaysISO(t, -1)) return 'دیروز';
+  return faDate(iso);
+}
 
 /* ---------- برچسب‌ها و رنگ‌ها ---------- */
 export const typeLabels: Record<MeetingType, string> = {
@@ -47,9 +93,7 @@ export const priorityColor: Record<Priority, string> = {
   low: '#6B7B73', normal: '#0891B2', high: '#D9930B', critical: '#DC4B4B',
 };
 
-export const orgKindLabels: Record<Organization['kind'], string> = {
-  internal: 'داخلی', bank: 'بانک', regulator: 'رگولاتور', partner: 'شریک',
-};
+
 
 export const minuteMeta: Record<MinuteType, { label: string; color: string; icon: string }> = {
   note: { label: 'یادداشت', color: '#6B7B73', icon: 'note' },

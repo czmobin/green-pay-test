@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useStore } from './store';
-import { TODAY, NOW_HOUR, dayNames, fmtTime, toFa } from '@/lib/data';
+import { todayISO, nowHour, faDateLabel, fmtTime, toFa } from '@/lib/data';
 import {
   IconBell, IconCalendar, IconClock, IconTask, IconReminder, IconUsers, IconX,
 } from './Icons';
@@ -21,19 +21,21 @@ export default function NotificationBell() {
   const router = useRouter();
   const [open, setOpen] = useState(false);
 
+  const iso = todayISO();
+  const hour = nowHour();
   const notifs: N[] = [];
   store.visibleMeetings
-    .filter((m) => m.day === TODAY && m.start >= NOW_HOUR && m.status !== 'cancelled')
+    .filter((m) => m.date === iso && m.start >= hour && m.status !== 'cancelled')
     .sort((a, b) => a.start - b.start)
     .forEach((m) => {
-      const mins = Math.round((m.start - NOW_HOUR) * 60);
+      const mins = Math.round((m.start - hour) * 60);
       notifs.push({ id: 'm' + m.id, kind: 'meeting', title: m.title, sub: `شروع در ${human(mins)}`, urgent: mins <= 30, mid: m.id });
     });
   store.visibleMeetings.filter((m) => m.status === 'pending').forEach((m) => {
-    notifs.push({ id: 'i' + m.id, kind: 'invite', title: `دعوت: ${short(m.title)}`, sub: `${dayNames[m.day]} · ${fmtTime(m.start)}`, mid: m.id });
+    notifs.push({ id: 'i' + m.id, kind: 'invite', title: `دعوت: ${short(m.title)}`, sub: `${faDateLabel(m.date)} · ${fmtTime(m.start)}`, mid: m.id });
   });
   store.visibleMeetings.forEach((m) => (store.minutes[m.id] ?? []).forEach((x) => {
-    if (x.type === 'reminder') notifs.push({ id: x.id, kind: 'reminder', title: x.text, sub: x.when || dayNames[m.day], mid: m.id });
+    if (x.type === 'reminder' && !x.done) notifs.push({ id: x.id, kind: 'reminder', title: x.text, sub: x.when || faDateLabel(m.date), mid: m.id });
     if (x.type === 'task' && !x.done) notifs.push({ id: x.id, kind: 'task', title: x.text, sub: `مهلت: ${x.due || '—'}`, mid: m.id });
   }));
 

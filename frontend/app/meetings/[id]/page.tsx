@@ -1,13 +1,14 @@
 'use client';
-import React from 'react';
+import React, { useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useStore } from '@/components/store';
 import MinutesEditor from '@/components/MinutesEditor';
+import AgendaEditor from '@/components/AgendaEditor';
+import EditMeetingModal from '@/components/EditMeetingModal';
 import { useReveal } from '@/components/useReveal';
-import { typeLabels, statusLabels, dayNames, fmtTime, initials, toFa, priorityLabels, priorityColor } from '@/lib/data';
+import { typeLabels, statusLabels, fmtTime, initials, toFa, priorityLabels, priorityColor, faDate } from '@/lib/data';
 import {
-  IconBack, IconClock, IconMapPin, IconUsers, IconGuests, IconList, IconChevron,
-  IconGoogle, IconCheck, IconVideo, IconDashboard,
+  IconBack, IconClock, IconMapPin, IconUsers, IconList, IconChevron, IconVideo, IconEdit,
 } from '@/components/Icons';
 
 export default function MeetingDetail() {
@@ -16,7 +17,8 @@ export default function MeetingDetail() {
   const store = useStore();
   const { people, rooms, guests } = store;
   const m = store.getMeeting(id);
-  const scope = useReveal(['.detail-top', '.detail-head', '.minutes', '.gcard', '.disclosure']);
+  const scope = useReveal(['.detail-top', '.detail-head', '.minutes', '.disclosure']);
+  const [editOpen, setEditOpen] = useState(false);
 
   if (!m) {
     return (
@@ -37,10 +39,13 @@ export default function MeetingDetail() {
         <button className="back-btn" onClick={() => router.back()} aria-label="بازگشت"><IconBack size={18} /></button>
         <span className={'tag t-' + m.type}>{typeLabels[m.type]}</span>
         <span className={'pill p-' + m.status}>{statusLabels[m.status]}</span>
-        {m.priority && (
-          <span className="prio-chip" style={{ color: priorityColor[m.priority], background: `color-mix(in srgb,${priorityColor[m.priority]} 14%,transparent)` }}>
-            اولویت {priorityLabels[m.priority]}
-          </span>
+        <span className="prio-chip" style={{ color: priorityColor[m.priority ?? 'normal'], background: `color-mix(in srgb,${priorityColor[m.priority ?? 'normal']} 14%,transparent)` }}>
+          اولویت {priorityLabels[m.priority ?? 'normal']}
+        </span>
+        {store.canEdit(m) && (
+          <button className="edit-btn" onClick={() => setEditOpen(true)} aria-label="ویرایش جلسه" title="ویرایش جلسه">
+            <IconEdit size={17} />
+          </button>
         )}
       </div>
 
@@ -49,7 +54,7 @@ export default function MeetingDetail() {
         <div className="meta-grid">
           <div className="meta-box">
             <small><IconClock size={13} />زمان</small>
-            <b className="num">{dayNames[m.day]} · {fmtTime(m.start)} تا {fmtTime(m.end)}</b>
+            <b className="num">{faDate(m.date)} · {fmtTime(m.start)} تا {fmtTime(m.end)}</b>
           </div>
           <div className="meta-box">
             <small>{m.type === 'online' ? <IconVideo size={13} /> : <IconMapPin size={13} />}مکان</small>
@@ -60,17 +65,17 @@ export default function MeetingDetail() {
             <b>{org?.name}</b>
           </div>
         </div>
-        {m.meetLink ? (
-          <a className="btn btn-primary btn-block" style={{ marginTop: 12 }}
-            href={m.meetLink} target="_blank" rel="noopener noreferrer">
-            <IconVideo size={16} />پیوستن با Google Meet
-          </a>
-        ) : m.type === 'online' && (
-          <button className="btn btn-primary btn-block" style={{ marginTop: 12 }} onClick={() => store.toast('لینک Google Meet برای این جلسه ثبت نشده است', 'info')}>
-            <IconVideo size={16} />پیوستن به جلسه
-          </button>
-        )}
-        {m.meetLink && <div className="meet-link" dir="ltr">{m.meetLink}</div>}
+        {m.type === 'online' && (m.meetLink ? (
+          <>
+            <a className="btn btn-primary btn-block" style={{ marginTop: 12 }}
+              href={m.meetLink} target="_blank" rel="noopener noreferrer">
+              <IconVideo size={16} />پیوستن به جلسهٔ آنلاین
+            </a>
+            <div className="meet-link" dir="ltr">{m.meetLink}</div>
+          </>
+        ) : (
+          <div className="meet-link" style={{ marginTop: 12 }}>لینک جلسهٔ آنلاین ثبت نشده است.</div>
+        ))}
       </div>
 
       <div className="detail-layout">
@@ -81,17 +86,6 @@ export default function MeetingDetail() {
 
         {/* aside: details on demand */}
         <div className="d-aside">
-          <div className={'gcard ' + (m.synced ? 'ok' : 'pending')} style={{ marginBottom: 14 }}>
-            <span className="gi">{m.synced ? <IconGoogle size={22} /> : <IconGoogle size={22} />}</span>
-            <div>
-              <b>{m.synced ? 'همگام با Google Calendar' : 'همگام نشده'}</b>
-              <small>{m.synced ? 'دعوت‌نامه‌ها ارسال شد' : 'در Google Calendar ثبت نشده'}</small>
-            </div>
-            {m.synced
-              ? <span className="act">مشاهده ↗</span>
-              : <button className="act" onClick={() => { store.syncMeeting(m.id); store.toast('جلسه با Google Calendar همگام شد', 'ok'); }}>همگام کن</button>}
-          </div>
-
           <details className="disclosure" open>
             <summary>
               <span className="lead-ic"><IconList size={17} /></span>
@@ -99,17 +93,7 @@ export default function MeetingDetail() {
               <span className="cnt num">{toFa(m.agenda.length)} مورد</span>
               <span className="caret"><IconChevron size={16} /></span>
             </summary>
-            <div className="dz">
-              {m.agenda.length === 0
-                ? <div className="empty" style={{ padding: 12 }}>دستور جلسه‌ای ثبت نشده.</div>
-                : (
-                  <ul className="agenda">
-                    {m.agenda.map((a, i) => (
-                      <li key={i}><span className="n num">{toFa(i + 1)}</span><span>{a.title}</span><span className="dur num">{toFa(a.dur)} دقیقه</span></li>
-                    ))}
-                  </ul>
-                )}
-            </div>
+            <AgendaEditor meeting={m} />
           </details>
 
           <details className="disclosure">
@@ -148,6 +132,8 @@ export default function MeetingDetail() {
           </details>
         </div>
       </div>
+
+      <EditMeetingModal meeting={m} open={editOpen} onClose={() => setEditOpen(false)} />
     </div>
   );
 }

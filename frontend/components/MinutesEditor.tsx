@@ -6,6 +6,8 @@ import type { Meeting, Minute, MinuteType } from '@/lib/types';
 import { minuteIcon, IconDoc, IconPlus, IconTrash, IconCheck, IconClock, IconCall, IconUsers, IconPaperclip } from './Icons';
 
 const order: MinuteType[] = ['note', 'decision', 'task', 'reminder', 'call', 'letter', 'file'];
+/** انواعی که وضعیت انجام دارند */
+const DONEABLE = new Set<MinuteType>(['task', 'reminder', 'call']);
 
 export default function MinutesEditor({ meeting }: { meeting: Meeting }) {
   const store = useStore();
@@ -157,7 +159,7 @@ function MinuteRow({ m, mid }: { m: Minute; mid: string }) {
   const hasFile = m.type === 'letter' || m.type === 'file';
   return (
     <div className={'minute' + (m.done ? ' done' : '')}>
-      {m.type === 'task' ? (
+      {DONEABLE.has(m.type) ? (
         <button className={'task-check' + (m.done ? ' on' : '')} onClick={() => store.toggleTask(mid, m.id)} aria-label="انجام شد">
           {m.done && <IconCheck size={13} />}
         </button>
@@ -178,6 +180,7 @@ function MinuteRow({ m, mid }: { m: Minute; mid: string }) {
               <IconPaperclip size={12} />{m.fileName}
             </button>
           )}
+          {m.done && <span className="done-tag">انجام شد</span>}
           {m.type === 'task' && m.assignee && <span><IconUsers size={12} />{store.people[m.assignee]?.name ?? m.assignee}</span>}
           {m.type === 'task' && m.due && <span><IconClock size={12} />مهلت: {m.due}</span>}
           {m.type === 'reminder' && m.when && <span><IconClock size={12} />{m.when}</span>}

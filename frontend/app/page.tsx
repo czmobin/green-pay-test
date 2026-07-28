@@ -6,7 +6,7 @@ import { useStore } from '@/components/store';
 import MeetingRow from '@/components/MeetingRow';
 import HeroCanvas from '@/components/HeroCanvas';
 import { useReveal, useCountUp } from '@/components/useReveal';
-import { TODAY, NOW_HOUR, fmtTime, toFa, dayNames } from '@/lib/data';
+import { fmtTime, toFa, todayISO, nowHour, faDate, faDateLabel } from '@/lib/data';
 import {
   IconCalendar, IconClock, IconGuests, IconRoom, IconMapPin, IconVideo, IconCheck, IconX,
 } from '@/components/Icons';
@@ -17,12 +17,14 @@ export default function Dashboard() {
   const rooms = store.rooms;
   const vis = store.visibleMeetings;
   const meName = (store.people[store.currentUser]?.name ?? 'کاربر').split(' ')[0];
-  const today = vis.filter((m) => m.day === TODAY).sort((a, b) => a.start - b.start);
-  const next = today.find((m) => m.start >= NOW_HOUR) ?? today[today.length - 1];
+  const iso = todayISO();
+  const hour = nowHour();
+  const today = vis.filter((m) => m.date === iso).sort((a, b) => a.start - b.start);
+  const next = today.find((m) => m.start >= hour) ?? today[today.length - 1];
   const pending = vis.filter((m) => m.status === 'pending').length;
   const guestCount = new Set(today.flatMap((m) => m.guests)).size;
   const roomCount = new Set(today.map((m) => m.room)).size;
-  const invites = vis.filter((m) => m.status === 'pending').sort((a, b) => a.day - b.day || a.start - b.start);
+  const invites = vis.filter((m) => m.status === 'pending').sort((a, b) => a.date.localeCompare(b.date) || a.start - b.start);
 
   const scope = useReveal(['.page-head', '.next-card', '.kpi', '.section-title', '.invite', '.mrow']);
   useCountUp(scope);
@@ -31,7 +33,7 @@ export default function Dashboard() {
     <div ref={scope}>
       <div className="page-head">
         <h1>سلام، {meName} 👋</h1>
-        <p>یکشنبه ۲۲ تیر ۱۴۰۴ — امروز {toFa(today.length)} جلسه دارید.</p>
+        <p>{faDate(iso, true)} — امروز {toFa(today.length)} جلسه دارید.</p>
       </div>
 
       {next && (
@@ -93,7 +95,7 @@ export default function Dashboard() {
                 <div className="ib" onClick={() => router.push(`/meetings/${m.id}`)} style={{ cursor: 'pointer' }}>
                   <b>{m.title}</b>
                   <small>
-                    <span className="num"><IconClock size={12} />{dayNames[m.day]} · {fmtTime(m.start)}</span>
+                    <span className="num"><IconClock size={12} />{faDateLabel(m.date)} · {fmtTime(m.start)}</span>
                     <span>{m.type === 'online' ? <IconVideo size={12} /> : <IconMapPin size={12} />}{rooms[m.room]?.name ?? '—'}</span>
                   </small>
                 </div>

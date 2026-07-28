@@ -55,7 +55,7 @@ def _get_or_create_user(phone: str):
         last_name='',
         title='',
         role=User.Role.MEMBER,
-        organization=Organization.objects.filter(kind=Organization.Kind.INTERNAL).first(),
+        organization=Organization.objects.filter(kind__slug='internal').first(),
         color=color,
     )
     return user, True

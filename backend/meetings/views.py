@@ -4,15 +4,34 @@ from rest_framework import status, viewsets
 from rest_framework.decorators import action, api_view
 from rest_framework.response import Response
 
+from django.utils import timezone
+from rest_framework.exceptions import PermissionDenied
+
 from .models import (
-    Category, GoogleCalendarConnection, Location, Meeting, MinuteEntry, Organization, User,
+    AgendaItem, Category, GoogleCalendarConnection, Location, Meeting, MeetingParticipant,
+    MinuteEntry, Organization, OrganizationKind, User,
 )
 from .serializers import (
-    CategorySerializer, GuestSerializer, LocationCreateSerializer, LocationSerializer,
-    MeetingCreateSerializer, MeetingSerializer, MinuteEntryCreateSerializer,
-    MinuteEntrySerializer, OrganizationCreateSerializer, OrganizationSerializer,
-    PersonCreateSerializer, PersonSerializer,
+    AgendaItemSerializer, CategorySerializer, GuestSerializer, LocationCreateSerializer,
+    LocationSerializer, MeetingCreateSerializer, MeetingSerializer, MinuteEntryCreateSerializer,
+    MinuteEntrySerializer, OrganizationCreateSerializer, OrganizationKindSerializer,
+    OrganizationSerializer, PersonCreateSerializer, PersonSerializer, from_date_hour,
 )
+
+
+def is_manager(user) -> bool:
+    """ادمین و مدیرعامل به همهٔ جلسات دسترسی کامل دارند."""
+    return getattr(user, 'role', None) in (User.Role.ADMIN, User.Role.CEO) or user.is_superuser
+
+
+def can_edit_meeting(user, meeting) -> bool:
+    """سازندهٔ جلسه، مدیرعامل و ادمین می‌توانند جلسه و دستور جلسه را ویرایش کنند."""
+    return meeting.organizer_id == user.id or is_manager(user)
+
+
+def assert_can_edit(user, meeting):
+    if not can_edit_meeting(user, meeting):
+        raise PermissionDenied('فقط سازندهٔ جلسه، مدیرعامل یا ادمین می‌تواند این جلسه را ویرایش کند.')
 
 
 def find_conflicts(start, end, user_ids, exclude_meeting_id=None):
@@ -22,7 +41,7 @@ def find_conflicts(start, end, user_ids, exclude_meeting_id=None):
     این فقط یک هشدار است و هیچ‌جا مانع افزودن فرد یا ساخت جلسه نمی‌شود.
     بازه‌ها وقتی تداخل دارند که start < other_end و end > other_start باشد.
     """
-    from .serializers import to_day_index, to_float_hour
+    from .serializers import to_iso_date, to_float_hour
 
     user_ids = [str(u) for u in user_ids if u]
     if not user_ids:
@@ -49,12 +68,22 @@ def find_conflicts(start, end, user_ids, exclude_meeting_id=None):
                 'userName': person.get_full_name() or person.username,
                 'meeting': str(meeting.pk),
                 'meetingTitle': meeting.title,
-                'day': to_day_index(meeting.start),
+                'date': to_iso_date(meeting.start),
                 'start': to_float_hour(meeting.start),
                 'end': to_float_hour(meeting.end),
                 'room': meeting.location.name if meeting.location_id else '',
             })
     return conflicts
+
+
+def to_iso(dt):
+    from .serializers import to_iso_date
+    return to_iso_date(dt)
+
+
+def hour_of(dt):
+    from .serializers import to_float_hour
+    return to_float_hour(dt)
 
 
 def _by_id(serializer_data):
@@ -90,7 +119,9 @@ def bootstrap(request):
     gcal = GoogleCalendarConnection.objects.filter(user=ceo).first() if ceo else None
 
     return Response({
-        'organizations': _by_id(OrganizationSerializer(Organization.objects.all(), many=True).data),
+        'organizations': _by_id(OrganizationSerializer(
+            Organization.objects.select_related('kind'), many=True).data),
+        'orgKinds': _by_id(OrganizationKindSerializer(OrganizationKind.objects.all(), many=True).data),
         'categories': _by_id(CategorySerializer(Category.objects.all(), many=True).data),
         'rooms': _by_id(LocationSerializer(Location.objects.select_related('organization'), many=True).data),
         'people': _by_id(PersonSerializer(people, many=True).data),
@@ -112,6 +143,11 @@ class MeetingViewSet(viewsets.ModelViewSet):
         write.is_valid(raise_exception=True)
         meeting = write.save()
 
+        # جلسه‌ای که ادمین یا مدیرعامل می‌سازد، برای بقیه خودکار پذیرفته است
+        if is_manager(request.user):
+            meeting.meeting_participants.filter(is_guest=False).update(
+                response=MeetingParticipant.Response.ACCEPTED)
+
         # هشدار تداخل: جلسه ساخته شده و افراد اضافه شده‌اند؛ این فقط اطلاع‌رسانی است.
         attendees = [str(p.user_id) for p in meeting.meeting_participants.all()]
         data = MeetingSerializer(meeting).data
@@ -119,18 +155,67 @@ class MeetingViewSet(viewsets.ModelViewSet):
             meeting.start, meeting.end, attendees, exclude_meeting_id=meeting.pk)
         return Response(data, status=status.HTTP_201_CREATED)
 
+    def update(self, request, *args, **kwargs):
+        return self._edit(request, partial=kwargs.get('partial', False))
+
+    def partial_update(self, request, *args, **kwargs):
+        return self._edit(request, partial=True)
+
+    def _edit(self, request, partial):
+        """ویرایش جلسه — فقط سازنده، مدیرعامل یا ادمین."""
+        meeting = self.get_object()
+        assert_can_edit(request.user, meeting)
+        d = request.data
+
+        simple = {'title': 'title', 'priority': 'priority', 'status': 'status'}
+        for src, field in simple.items():
+            if src in d:
+                setattr(meeting, field, d[src])
+        if 'type' in d:
+            meeting.meeting_type = d['type']
+        if 'category' in d:
+            meeting.category_id = d['category'] or None
+        if 'room' in d:
+            meeting.location_id = d['room'] or None
+        if 'meetLink' in d:
+            meeting.meet_link = Meeting.normalize_meet(d['meetLink'])
+        if {'date', 'start', 'end'} & set(d):
+            day = d.get('date') or to_iso(meeting.start)
+            meeting.start = from_date_hour(day, float(d.get('start', hour_of(meeting.start))))
+            meeting.end = from_date_hour(day, float(d.get('end', hour_of(meeting.end))))
+        meeting.save()
+
+        if 'parts' in d:
+            wanted = {str(x) for x in d['parts']}
+            meeting.meeting_participants.filter(is_guest=False).exclude(user_id__in=wanted).delete()
+            existing = {str(p.user_id) for p in meeting.meeting_participants.filter(is_guest=False)}
+            auto = MeetingParticipant.Response.ACCEPTED if is_manager(request.user) \
+                else MeetingParticipant.Response.PENDING
+            for uid in wanted - existing:
+                MeetingParticipant.objects.get_or_create(
+                    meeting=meeting, user_id=uid,
+                    defaults={'is_guest': False, 'response': auto})
+
+        meeting.refresh_from_db()
+        data = MeetingSerializer(meeting).data
+        data['conflicts'] = find_conflicts(
+            meeting.start, meeting.end,
+            [str(p.user_id) for p in meeting.meeting_participants.all()],
+            exclude_meeting_id=meeting.pk)
+        return Response(data)
+
     @action(detail=False, methods=['post'], url_path='check-conflicts')
     def check_conflicts(self, request):
         """بررسی زنده هنگام پر کردن فرم — بدون ساخت جلسه."""
-        from .serializers import from_day_hour
         try:
-            day = int(request.data.get('day', 0))
+            date = str(request.data.get('date', ''))
             start = float(request.data.get('start', 0))
             end = float(request.data.get('end', 0))
+            begins, ends = from_date_hour(date, start), from_date_hour(date, end)
         except (TypeError, ValueError):
-            return Response({'detail': 'زمان نامعتبر است.'}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({'detail': 'تاریخ یا ساعت نامعتبر است.'}, status=status.HTTP_400_BAD_REQUEST)
         users = list(request.data.get('parts', [])) + list(request.data.get('guests', []))
-        conflicts = find_conflicts(from_day_hour(day, start), from_day_hour(day, end), users,
+        conflicts = find_conflicts(begins, ends, users,
                                    exclude_meeting_id=request.data.get('exclude'))
         return Response({'conflicts': conflicts})
 
@@ -164,15 +249,43 @@ class MinuteEntryViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'])
     def toggle(self, request, pk=None):
-        """تیک انجام‌شدن تسک."""
+        """تیک انجام‌شدن — برای تسک، یادآور و تماس تلفنی."""
         entry = self.get_object()
         entry.is_done = not entry.is_done
-        entry.save(update_fields=['is_done'])
+        entry.done_at = timezone.now() if entry.is_done else None
+        entry.save(update_fields=['is_done', 'done_at'])
         return Response(MinuteEntrySerializer(entry).data)
 
 
+class AgendaItemViewSet(viewsets.ModelViewSet):
+    """دستور جلسه — ایجاد/ویرایش/حذف فقط توسط سازندهٔ جلسه، مدیرعامل یا ادمین."""
+    queryset = AgendaItem.objects.select_related('meeting').order_by('order')
+    serializer_class = AgendaItemSerializer
+
+    def perform_create(self, serializer):
+        meeting = serializer.validated_data.get('meeting')
+        assert_can_edit(self.request.user, meeting)
+        last = meeting.agenda.order_by('-order').first()
+        serializer.save(created_by=self.request.user,
+                        order=serializer.validated_data.get('order') or ((last.order if last else 0) + 1))
+
+    def perform_update(self, serializer):
+        assert_can_edit(self.request.user, serializer.instance.meeting)
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        assert_can_edit(self.request.user, instance.meeting)
+        instance.delete()
+
+
+class OrganizationKindViewSet(viewsets.ReadOnlyModelViewSet):
+    """انواع سازمان — در پنل ادمین جنگو مدیریت می‌شوند."""
+    queryset = OrganizationKind.objects.all()
+    serializer_class = OrganizationKindSerializer
+
+
 class OrganizationViewSet(viewsets.ModelViewSet):
-    queryset = Organization.objects.all()
+    queryset = Organization.objects.select_related('kind')
     serializer_class = OrganizationSerializer
 
     def create(self, request, *args, **kwargs):

@@ -6,22 +6,20 @@
 `day` (اندیس روز نسبت به شنبهٔ هفتهٔ دمو) و `start`/`end` (ساعت اعشاری)
 را هم می‌دهد، چون تقویم شمسی فرانت با همین قالب کار می‌کند.
 """
-from datetime import date, datetime, timedelta
+from datetime import date as date_cls, datetime
 
 from django.utils import timezone
 from rest_framework import serializers
 
 from .models import (
     AgendaItem, Attachment, Category, Location, Meeting, MeetingParticipant,
-    MinuteEntry, Minutes, Organization, User,
+    MinuteEntry, Minutes, Organization, OrganizationKind, User,
 )
 
-# شنبهٔ هفتهٔ دمو = ۲۱ تیر ۱۴۰۴
-WEEK_ANCHOR = date(2025, 7, 12)
 
-
-def to_day_index(dt) -> int:
-    return (timezone.localtime(dt).date() - WEEK_ANCHOR).days
+def to_iso_date(dt) -> str:
+    """datetime ذخیره‌شده → تاریخ میلادی محلی به شکل YYYY-MM-DD."""
+    return timezone.localtime(dt).date().isoformat()
 
 
 def to_float_hour(dt) -> float:
@@ -29,20 +27,34 @@ def to_float_hour(dt) -> float:
     return local.hour + local.minute / 60
 
 
-def from_day_hour(day: int, hour: float) -> datetime:
-    """معکوس دو تابع بالا: (اندیس روز، ساعت اعشاری) → datetime آگاه از منطقهٔ زمانی."""
-    d = WEEK_ANCHOR + timedelta(days=int(day))
+def from_date_hour(d, hour: float) -> datetime:
+    """(تاریخ میلادی، ساعت اعشاری) → datetime آگاه از منطقهٔ زمانی."""
+    if isinstance(d, str):
+        d = date_cls.fromisoformat(d)
     h, m = int(hour), round((hour - int(hour)) * 60)
-    naive = datetime(d.year, d.month, d.day, h, m)
-    return timezone.make_aware(naive, timezone.get_current_timezone())
+    return timezone.make_aware(datetime(d.year, d.month, d.day, h, m),
+                               timezone.get_current_timezone())
+
+
+class OrganizationKindSerializer(serializers.ModelSerializer):
+    id = serializers.CharField(source='pk', read_only=True)
+
+    class Meta:
+        model = OrganizationKind
+        fields = ['id', 'slug', 'name']
 
 
 class OrganizationSerializer(serializers.ModelSerializer):
     id = serializers.CharField(source='pk', read_only=True)
+    kind = serializers.CharField(source='kind_id', allow_null=True, required=False)
+    kindName = serializers.SerializerMethodField()
 
     class Meta:
         model = Organization
-        fields = ['id', 'name', 'kind']
+        fields = ['id', 'name', 'kind', 'kindName']
+
+    def get_kindName(self, obj) -> str:
+        return obj.kind.name if obj.kind_id else '—' 
 
 
 class CategorySerializer(serializers.ModelSerializer):
@@ -98,11 +110,14 @@ class GuestSerializer(serializers.ModelSerializer):
 
 
 class AgendaItemSerializer(serializers.ModelSerializer):
+    id = serializers.CharField(source='pk', read_only=True)
     dur = serializers.IntegerField(source='duration_minutes')
+    meeting = serializers.PrimaryKeyRelatedField(queryset=Meeting.objects.all(), write_only=True, required=False)
 
     class Meta:
         model = AgendaItem
-        fields = ['title', 'dur']
+        fields = ['id', 'meeting', 'order', 'title', 'dur']
+        extra_kwargs = {'order': {'required': False}}
 
 
 class MeetingSerializer(serializers.ModelSerializer):
@@ -112,7 +127,7 @@ class MeetingSerializer(serializers.ModelSerializer):
     room = serializers.CharField(source='location_id')
     organizer = serializers.CharField(source='organizer_id')
     synced = serializers.BooleanField(source='google_synced')
-    day = serializers.SerializerMethodField()
+    date = serializers.SerializerMethodField()
     start = serializers.SerializerMethodField()
     end = serializers.SerializerMethodField()
     parts = serializers.SerializerMethodField()
@@ -123,11 +138,11 @@ class MeetingSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Meeting
-        fields = ['id', 'title', 'category', 'type', 'status', 'priority', 'day', 'start', 'end',
+        fields = ['id', 'title', 'category', 'type', 'status', 'priority', 'date', 'start', 'end',
                   'room', 'organizer', 'parts', 'guests', 'synced', 'meetLink', 'agenda']
 
-    def get_day(self, obj) -> int:
-        return to_day_index(obj.start)
+    def get_date(self, obj) -> str:
+        return to_iso_date(obj.start)
 
     def get_start(self, obj) -> float:
         return to_float_hour(obj.start)
@@ -159,11 +174,15 @@ class MinuteEntrySerializer(serializers.ModelSerializer):
     who = serializers.CharField(source='call_with', required=False, allow_blank=True)
     phone = serializers.CharField(source='call_phone', required=False, allow_blank=True)
     fileName = serializers.SerializerMethodField()
+    doneAt = serializers.SerializerMethodField()
 
     class Meta:
         model = MinuteEntry
         fields = ['id', 'meeting', 'type', 'text', 'createdAt', 'participant',
-                  'assignee', 'due', 'done', 'when', 'who', 'phone', 'fileName']
+                  'assignee', 'due', 'done', 'doneAt', 'when', 'who', 'phone', 'fileName']
+
+    def get_doneAt(self, obj):
+        return int(obj.done_at.timestamp() * 1000) if obj.done_at else None
 
     def get_createdAt(self, obj) -> int:
         return int(obj.created_at.timestamp() * 1000)
@@ -187,10 +206,10 @@ class MeetingCreateSerializer(serializers.Serializer):
     title = serializers.CharField(max_length=255)
     category = serializers.PrimaryKeyRelatedField(queryset=Category.objects.all())
     type = serializers.ChoiceField(choices=Meeting.Type.choices)
-    day = serializers.IntegerField(min_value=0, max_value=6)
+    date = serializers.DateField()
     start = serializers.FloatField(min_value=0, max_value=24)
     end = serializers.FloatField(min_value=0, max_value=24)
-    room = serializers.PrimaryKeyRelatedField(queryset=Location.objects.all())
+    room = serializers.PrimaryKeyRelatedField(queryset=Location.objects.all(), required=False, allow_null=True)
     organizer = serializers.PrimaryKeyRelatedField(queryset=User.objects.all())
     parts = serializers.ListField(child=serializers.CharField(), required=False, default=list)
     guests = serializers.ListField(child=serializers.CharField(), required=False, default=list)
@@ -212,10 +231,10 @@ class MeetingCreateSerializer(serializers.Serializer):
             status=Meeting.Status.CONFIRMED,
             priority=validated.get('priority', Meeting.Priority.NORMAL),
             meet_link=Meeting.normalize_meet(validated.get('meetLink', '')),
-            location=validated['room'],
+            location=validated.get('room'),
             organizer=validated['organizer'],
-            start=from_day_hour(validated['day'], validated['start']),
-            end=from_day_hour(validated['day'], validated['end']),
+            start=from_date_hour(validated['date'], validated['start']),
+            end=from_date_hour(validated['date'], validated['end']),
             google_synced=validated.get('synced', False),
         )
         for uid in set(validated.get('parts', [])) | {str(validated['organizer'].pk)}:
@@ -308,7 +327,9 @@ class LocationCreateSerializer(serializers.Serializer):
 
 class OrganizationCreateSerializer(serializers.Serializer):
     name = serializers.CharField(max_length=120)
-    kind = serializers.ChoiceField(choices=Organization.Kind.choices)
+    kind = serializers.PrimaryKeyRelatedField(
+        queryset=OrganizationKind.objects.all(), required=False, allow_null=True)
 
     def create(self, validated):
-        return Organization.objects.create(**validated)
+        return Organization.objects.create(
+            name=validated['name'], kind=validated.get('kind'))

@@ -9,7 +9,7 @@ import ConflictAlert from './ConflictAlert';
 import UserMenu from './UserMenu';
 import {
   IconDashboard, IconCalendar, IconList, IconPlus, IconReminder,
-  IconLeaf, IconGoogle, IconCheck, IconSettings, IconLogout,
+  IconLeaf, IconSettings, IconLogout,
 } from './Icons';
 import { initials } from '@/lib/data';
 
@@ -74,16 +74,6 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         </nav>
 
         <div className="side-foot">
-          <div className={'gcal' + (store.gcalConnected ? ' on' : '')}>
-            <div className="row">
-              <span className="gi"><IconGoogle size={17} /></span>
-              <div><b>Google Calendar</b><small>{store.gcalConnected ? '۱۱ رویداد همگام شد' : 'همگام‌سازی دوطرفه'}</small></div>
-            </div>
-            <div className="st"><span className="dot" />{store.gcalConnected ? 'متصل · هم‌اکنون همگام شد' : 'متصل نشده'}</div>
-            <button className="btn btn-ghost btn-block" style={{ marginTop: 10 }} onClick={store.connectGcal}>
-              {store.gcalConnected ? 'قطع اتصال' : 'اتصال حساب Google'}
-            </button>
-          </div>
           <div className="side-user">
             <span className="ava" style={{ background: `linear-gradient(145deg,${me?.color ?? 'var(--brand),var(--brand-deep)'})` }}>
               {me ? initials(me.name) : '—'}
@@ -109,10 +99,6 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           <span className="spacer" />
           <button className="btn btn-ghost only-desktop" onClick={store.openCreate}>
             <IconPlus size={16} />جلسهٔ جدید
-          </button>
-          <button className="icon-btn only-desktop" onClick={store.connectGcal} aria-label="اتصال تقویم"
-            style={store.gcalConnected ? { borderColor: 'color-mix(in srgb,var(--ok) 55%,var(--line))', color: 'var(--ok)' } : undefined}>
-            {store.gcalConnected ? <IconCheck size={18} /> : <IconGoogle size={18} />}
           </button>
           <Link href="/settings" className="icon-btn only-mobile" aria-label="تعریف‌ها"><IconSettings size={18} /></Link>
           <NotificationBell />

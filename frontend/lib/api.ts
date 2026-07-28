@@ -2,7 +2,7 @@
  * کلاینت API — در production فرانت و بک هم‌دامنه‌اند و nginx مسیر /api را
  * به Django می‌دهد؛ برای توسعهٔ محلی می‌توان NEXT_PUBLIC_API_URL را ست کرد.
  */
-import type { Category, Guest, Meeting, Minute, MinuteType, Organization, Person, Room } from './types';
+import type { AgendaItem, Category, Guest, Meeting, Minute, MinuteType, OrgKind, Organization, Person, Room } from './types';
 
 const BASE = (process.env.NEXT_PUBLIC_API_URL || '/api').replace(/\/$/, '');
 const ACCESS_KEY = 'gp-access';
@@ -71,6 +71,7 @@ export class UnauthorizedError extends Error {
 
 export interface Bootstrap {
   organizations: Record<string, Organization>;
+  orgKinds: Record<string, OrgKind>;
   categories: Record<string, Category>;
   rooms: Record<string, Room>;
   people: Record<string, Person>;
@@ -121,10 +122,10 @@ export interface NewMeeting {
   title: string;
   category: string;
   type: Meeting['type'];
-  day: number;
+  date: string;
   start: number;
   end: number;
-  room: string;
+  room?: string;
   organizer: string;
   parts: string[];
   guests?: string[];
@@ -133,16 +134,19 @@ export interface NewMeeting {
   meetLink?: string;
 }
 
+/** فیلدهای قابل ویرایش جلسه */
+export type MeetingPatch = Partial<Omit<NewMeeting, 'organizer'>>;
+
 /** تداخل زمانی یک شرکت‌کننده با جلسه‌ای دیگر — فقط هشدار است. */
 export interface Conflict {
   user: string;
   userName: string;
   meeting: string;
   meetingTitle: string;
-  day: number;
+  date: string;
   start: number;
   end: number;
-  room: string;
+  room?: string;
 }
 
 export type CreatedMeeting = Meeting & { conflicts?: Conflict[] };
@@ -183,8 +187,16 @@ export const api = {
   bootstrap: () => request<Bootstrap>('/bootstrap/'),
 
   createMeeting: (m: NewMeeting) => post<CreatedMeeting>('/meetings/', m),
-  checkConflicts: (q: { day: number; start: number; end: number; parts: string[]; guests?: string[] }) =>
+  updateMeeting: (id: string, patch: MeetingPatch) =>
+    request<CreatedMeeting>(`/meetings/${id}/`, { method: 'PATCH', body: JSON.stringify(patch) }),
+  checkConflicts: (q: { date: string; start: number; end: number; parts: string[]; guests?: string[] }) =>
     post<{ conflicts: Conflict[] }>('/meetings/check-conflicts/', q),
+
+  createAgenda: (a: { meeting: string; title: string; dur: number }) =>
+    post<AgendaItem>('/agenda/', a),
+  updateAgenda: (id: string, a: { title?: string; dur?: number; order?: number }) =>
+    request<AgendaItem>(`/agenda/${id}/`, { method: 'PATCH', body: JSON.stringify(a) }),
+  deleteAgenda: (id: string) => request<void>(`/agenda/${id}/`, { method: 'DELETE' }),
   respondMeeting: (id: string, accept: boolean) => post<Meeting>(`/meetings/${id}/respond/`, { accept }),
   syncMeeting: (id: string) => post<Meeting>(`/meetings/${id}/sync/`),
 
@@ -192,7 +204,7 @@ export const api = {
   deleteMinute: (id: string) => request<void>(`/entries/${id}/`, { method: 'DELETE' }),
   toggleMinute: (id: string) => post<Minute>(`/entries/${id}/toggle/`),
 
-  createOrg: (o: { name: string; kind: Organization['kind'] }) => post<Organization>('/organizations/', o),
+  createOrg: (o: { name: string; kind: string }) => post<Organization>('/organizations/', o),
   createPerson: (p: { name: string; role: string; orgId: string; color?: string }) => post<Person>('/people/', p),
   createRoom: (r: { name: string; cap: string; orgId: string }) => post<Room>('/locations/', r),
 

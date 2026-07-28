@@ -3,7 +3,7 @@ import React, { useMemo, useState } from 'react';
 import { useStore } from '@/components/store';
 import MeetingRow from '@/components/MeetingRow';
 import { useReveal } from '@/components/useReveal';
-import { categoryOf, dayNames, dayNums, TODAY, toFa, normalizeFa } from '@/lib/data';
+import { categoryOf, toFa, normalizeFa, todayISO, faDate, faDateLabel } from '@/lib/data';
 import type { Meeting } from '@/lib/types';
 import { IconSearch, IconX, IconList } from '@/components/Icons';
 
@@ -33,15 +33,16 @@ export default function MeetingsPage() {
   const nq = normalizeFa(q);
   const rows = store.visibleMeetings
     .filter((m) => (cat === 'all' || m.category === cat) && (!nq || haystack[m.id].includes(nq)))
-    .sort((a, b) => a.day - b.day || a.start - b.start);
+    .sort((a, b) => a.date.localeCompare(b.date) || a.start - b.start);
 
   // group by day
-  const groups: { day: number; items: Meeting[] }[] = [];
+  const groups: { date: string; items: Meeting[] }[] = [];
   rows.forEach((m) => {
-    let g = groups.find((x) => x.day === m.day);
-    if (!g) { g = { day: m.day, items: [] }; groups.push(g); }
+    let g = groups.find((x) => x.date === m.date);
+    if (!g) { g = { date: m.date, items: [] }; groups.push(g); }
     g.items.push(m);
   });
+  const iso = todayISO();
 
   const scope = useReveal(['.page-head', '.searchbar', '.filters', '.date-group', '.mrow']);
 
@@ -71,11 +72,10 @@ export default function MeetingsPage() {
         <div className="result-empty"><div><IconList size={40} /></div>جلسه‌ای با این فیلتر/جستجو پیدا نشد.</div>
       ) : (
         groups.map((g) => (
-          <div key={g.day}>
+          <div key={g.date}>
             <div className="date-group">
-              <h3>{dayNames[g.day]}</h3>
-              <span className="dnum num">{dayNums[g.day]} تیر</span>
-              {g.day === TODAY && <span className="today-b">امروز</span>}
+              <h3>{faDate(g.date)}</h3>
+              {g.date === iso && <span className="today-b">امروز</span>}
               <span className="cnt num">{toFa(g.items.length)} جلسه</span>
             </div>
             <div className="mlist">

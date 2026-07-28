@@ -16,16 +16,28 @@ from django.contrib.auth.models import AbstractUser
 from django.db import models
 
 
+class OrganizationKind(models.Model):
+    """نوع سازمان — از پنل ادمین قابل ایجاد و ویرایش است."""
+    slug = models.SlugField('شناسه', max_length=40, unique=True)
+    name = models.CharField('نام', max_length=60)
+    order = models.PositiveSmallIntegerField('ترتیب', default=0)
+
+    class Meta:
+        verbose_name = 'نوع سازمان'
+        verbose_name_plural = 'انواع سازمان'
+        ordering = ['order', 'name']
+
+    def __str__(self):
+        return self.name
+
+
 class Organization(models.Model):
     """سازمان/شرکت (داخلی گرین‌پی، بانک‌ها، رگولاتورها، شرکا)."""
-    class Kind(models.TextChoices):
-        INTERNAL = 'internal', 'داخلی'
-        BANK = 'bank', 'بانک'
-        REGULATOR = 'regulator', 'رگولاتور'
-        PARTNER = 'partner', 'شریک'
-
     name = models.CharField('نام', max_length=120)
-    kind = models.CharField('نوع', max_length=16, choices=Kind.choices, default=Kind.PARTNER)
+    kind = models.ForeignKey(
+        OrganizationKind, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name='organizations', verbose_name='نوع',
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -188,6 +200,10 @@ class MeetingParticipant(models.Model):
 class AgendaItem(models.Model):
     """دستور جلسه — فهرست موضوعات به‌ترتیب."""
     meeting = models.ForeignKey(Meeting, on_delete=models.CASCADE, related_name='agenda')
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name='created_agenda_items',
+    )
     order = models.PositiveIntegerField('ترتیب', default=0)
     title = models.CharField('موضوع', max_length=255)
     duration_minutes = models.PositiveIntegerField('مدت (دقیقه)', default=15)
@@ -249,7 +265,9 @@ class MinuteEntry(models.Model):
     )
     due_date = models.DateField('مهلت', null=True, blank=True)
     due_text = models.CharField('مهلت (متن واردشده)', max_length=60, blank=True)
+    # وضعیت انجام برای تسک، یادآور و تماس تلفنی
     is_done = models.BooleanField('انجام شد', default=False)
+    done_at = models.DateTimeField('زمان انجام', null=True, blank=True)
 
     # یادآور
     remind_at = models.DateTimeField('زمان یادآوری', null=True, blank=True)

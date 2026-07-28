@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { useStore } from '@/components/store';
 import { useReveal } from '@/components/useReveal';
-import { initials, orgKindLabels as kindLabels, avatarPalette, toFa } from '@/lib/data';
+import { initials, avatarPalette, toFa } from '@/lib/data';
 import type { Organization, Role } from '@/lib/types';
 import { IconBuilding, IconRoom, IconUsers, IconPlus } from '@/components/Icons';
 
@@ -14,7 +14,7 @@ export default function Settings() {
   const [busy, setBusy] = useState(false);
 
   const [oName, setOName] = useState('');
-  const [oKind, setOKind] = useState<Organization['kind']>('partner');
+  const [oKind, setOKind] = useState('');
   const [pName, setPName] = useState('');
   const [pRole, setPRole] = useState('');
   const [pOrg, setPOrg] = useState('');
@@ -23,6 +23,8 @@ export default function Settings() {
   const [lOrg, setLOrg] = useState('');
 
   const orgList = Object.values(store.orgs);
+  const kindList = Object.values(store.orgKinds);
+  const selectedKind = oKind || kindList[0]?.id || '';
   const defaultOrg = orgList[0]?.id ?? '';
   const orgName = (id?: string | null) => (id ? store.orgs[id]?.name ?? '—' : '—');
   // مدیرعامل و سایر اعضا برای سوییچر نقش
@@ -35,8 +37,9 @@ export default function Settings() {
   async function addOrg(e: React.FormEvent) {
     e.preventDefault();
     if (!oName.trim()) { store.toast('نام سازمان را وارد کنید', 'info'); return; }
+    if (!selectedKind) { store.toast('نوع سازمان تعریف نشده است', 'info'); return; }
     setBusy(true);
-    await store.addOrg({ name: oName.trim(), kind: oKind });
+    await store.addOrg({ name: oName.trim(), kind: selectedKind });
     setBusy(false);
     store.toast('سازمان اضافه شد', 'ok'); setOName('');
   }
@@ -91,8 +94,8 @@ export default function Settings() {
             <div className="def-form-body">
               <div className="field"><label>نام سازمان</label><input className="field-in" value={oName} onChange={(e) => setOName(e.target.value)} placeholder="مثلاً: بانک سامان" /></div>
               <div className="field"><label>نوع</label>
-                <select className="field-in" value={oKind} onChange={(e) => setOKind(e.target.value as Organization['kind'])}>
-                  {Object.entries(kindLabels).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+                <select className="field-in" value={selectedKind} onChange={(e) => setOKind(e.target.value)}>
+                  {kindList.map((k) => <option key={k.id} value={k.id}>{k.name}</option>)}
                 </select>
               </div>
               <button className="btn btn-primary" type="submit" disabled={busy}><IconPlus size={16} />{busy ? 'در حال ذخیره…' : 'افزودن'}</button>
@@ -103,7 +106,7 @@ export default function Settings() {
               <div className="def-item" key={o.id}>
                 <span className="di-ic" style={{ background: 'var(--mint-soft)', color: 'var(--brand-strong)' }}><IconBuilding size={18} /></span>
                 <div><b>{o.name}</b><small>{orgMemberCount(o.id)} عضو</small></div>
-                <span className="def-badge">{kindLabels[o.kind]}</span>
+                <span className="def-badge">{o.kindName ?? '—'}</span>
               </div>
             ))}
           </div>

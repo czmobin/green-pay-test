@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import gsap from 'gsap';
 import { useGSAP } from '@gsap/react';
 import { useStore } from './store';
-import { dayNames, fmtTime, toFa } from '@/lib/data';
+import { faDateLabel, fmtTime, toFa } from '@/lib/data';
 import { IconX, IconClock, IconMapPin, IconChevron } from './Icons';
 
 /**
@@ -71,7 +71,7 @@ export default function ConflictAlert() {
                 <b>{c.userName}</b>
                 <span className="cf-title">{c.meetingTitle}</span>
                 <span className="cf-meta">
-                  <span className="num"><IconClock size={11} />{dayNames[c.day] ?? ''} · {fmtTime(c.start)}–{fmtTime(c.end)}</span>
+                  <span className="num"><IconClock size={11} />{faDateLabel(c.date)} · {fmtTime(c.start)}–{fmtTime(c.end)}</span>
                   {c.room && <span><IconMapPin size={11} />{c.room}</span>}
                 </span>
               </div>

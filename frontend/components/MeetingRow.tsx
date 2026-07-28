@@ -2,11 +2,11 @@
 import React from 'react';
 import { useRouter } from 'next/navigation';
 import type { Meeting } from '@/lib/types';
-import { typeLabels, typeColor, statusLabels, fmtTime, initials, toFa, dayNames, priorityLabels, priorityColor } from '@/lib/data';
+import { typeLabels, typeColor, statusLabels, fmtTime, initials, toFa, faDateLabel, priorityLabels, priorityColor } from '@/lib/data';
 import { useStore } from './store';
-import { IconMapPin, IconGuests, IconChevron } from './Icons';
+import { IconMapPin, IconChevron } from './Icons';
 
-export default function MeetingRow({ m, showDay = false }: { m: Meeting; showDay?: boolean }) {
+export default function MeetingRow({ m, showDate = false }: { m: Meeting; showDate?: boolean }) {
   const router = useRouter();
   const { people, rooms } = useStore();
   const shown = m.parts.slice(0, 3);
@@ -21,15 +21,12 @@ export default function MeetingRow({ m, showDay = false }: { m: Meeting; showDay
       <span className="body">
         <span className="t">{m.title}</span>
         <span className="meta">
-          {showDay && <span className="num">{dayNames[m.day]}</span>}
+          {showDate && <span className="num">{faDateLabel(m.date)}</span>}
           <span><IconMapPin size={12} />{rooms[m.room]?.name ?? '—'}</span>
-          {m.guests.length > 0 && <span style={{ color: 'var(--info)' }}><IconGuests size={12} />{toFa(m.guests.length)} مهمان</span>}
           <span className={'tag t-' + m.type}>{typeLabels[m.type]}</span>
-          {m.priority && m.priority !== 'normal' && (
-            <span className="prio-chip" style={{ color: priorityColor[m.priority], background: `color-mix(in srgb,${priorityColor[m.priority]} 14%,transparent)` }}>
-              اولویت {priorityLabels[m.priority]}
-            </span>
-          )}
+          <span className="prio-chip" style={{ color: priorityColor[m.priority ?? 'normal'], background: `color-mix(in srgb,${priorityColor[m.priority ?? 'normal']} 14%,transparent)` }}>
+            اولویت {priorityLabels[m.priority ?? 'normal']}
+          </span>
         </span>
       </span>
       <span className="side">

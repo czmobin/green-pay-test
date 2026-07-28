@@ -2,7 +2,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useStore } from './store';
-import { dayNames, typeLabels, toFa, fmtTime, normalizeFa, priorityLabels, priorityColor } from '@/lib/data';
+import { typeLabels, toFa, fmtTime, normalizeFa, priorityLabels, priorityColor, todayISO, addDaysISO, faDate } from '@/lib/data';
 import type { MeetingType, Priority } from '@/lib/types';
 import { api, type Conflict } from '@/lib/api';
 import { IconX, IconPlus, IconDashboard, IconGuests, IconRoom, IconVideo, IconSearch } from './Icons';
@@ -23,7 +23,7 @@ export default function CreateMeetingModal() {
   const [title, setTitle] = useState('');
   const [cat, setCat] = useState('');
   const [type, setType] = useState<MeetingType>('internal');
-  const [day, setDay] = useState(1);
+  const [date, setDate] = useState('');
   const [start, setStart] = useState(10);
   const [end, setEnd] = useState(11);
   const [room, setRoom] = useState('');
@@ -33,21 +33,44 @@ export default function CreateMeetingModal() {
   const [priority, setPriority] = useState<Priority>('normal');
   const [meetLink, setMeetLink] = useState('');
   const [liveConflicts, setLiveConflicts] = useState<Conflict[]>([]);
+  const [confirmConflicts, setConfirmConflicts] = useState<Conflict[] | null>(null);
 
   // مقادیر پیش‌فرض پس از رسیدن داده از API
   const categoryIds = Object.keys(store.categories);
   const roomIds = Object.keys(store.rooms);
   const defaultCat = categoryIds[0] ?? '';
-  const defaultRoom = roomIds[0] ?? '';
+  const defaultRoom = roomIds[0] ?? '';   // خالی یعنی «بدون محل»
   const onlineRoom = Object.values(store.rooms).find((r) => r.is_online)?.id ?? defaultRoom;
   const selectedCat = cat || defaultCat;
   const selectedRoom = type === 'online' ? onlineRoom : (room || defaultRoom);
   const selectedParts = parts.length ? parts : (store.currentUser ? [store.currentUser] : []);
+  // انتخاب هر روزی از امروز تا ۳۰ روز آینده (همهٔ روزهای هفته)
+  const today = todayISO();
+  const selectedDate = date || today;
+  const dateOptions = Array.from({ length: 30 }, (_, i) => addDaysISO(today, i));
+
+  /* پیشنهاد: ۱۰ نفری که کاربر جاری بیشترین جلسهٔ مشترک را با آن‌ها داشته
+     (به‌علاوهٔ کسانی که همین حالا انتخاب شده‌اند). بقیه با جستجو پیدا می‌شوند. */
+  const frequent = useMemo(() => {
+    const count = new Map<string, number>();
+    store.meetings
+      .filter((m) => m.organizer === store.currentUser || m.parts.includes(store.currentUser))
+      .forEach((m) => m.parts.forEach((id) => count.set(id, (count.get(id) ?? 0) + 1)));
+    return Object.values(store.people)
+      .sort((a, b) => (count.get(b.id) ?? 0) - (count.get(a.id) ?? 0) || a.name.localeCompare(b.name))
+      .slice(0, 10)
+      .map((p) => p.id);
+  }, [store.meetings, store.people, store.currentUser]);
 
   const filteredPeople = useMemo(() => {
     const nq = normalizeFa(pq);
-    return Object.values(store.people).filter((p) => !nq || normalizeFa(p.name + ' ' + p.role).includes(nq));
-  }, [pq, store.people]);
+    const all = Object.values(store.people);
+    if (nq) return all.filter((p) => normalizeFa(p.name + ' ' + p.role).includes(nq));
+    const show = new Set([...frequent, ...selectedParts]);
+    return all.filter((p) => show.has(p.id));
+  }, [pq, store.people, frequent, selectedParts]);
+
+  const hiddenCount = Object.keys(store.people).length - filteredPeople.length;
 
   /* هشدار زندهٔ تداخل: با تغییر زمان یا شرکت‌کنندگان بررسی می‌شود.
      صرفاً نمایشی است و هیچ‌وقت مانع انتخاب فرد یا ثبت جلسه نمی‌شود. */
@@ -56,16 +79,17 @@ export default function CreateMeetingModal() {
     if (!store.createOpen || !partsKey) { setLiveConflicts([]); return; }
     let alive = true;
     const t = setTimeout(() => {
-      api.checkConflicts({ day, start, end, parts: partsKey.split(',') })
+      api.checkConflicts({ date: selectedDate, start, end, parts: partsKey.split(',') })
         .then((r) => { if (alive) setLiveConflicts(r.conflicts); })
         .catch(() => { if (alive) setLiveConflicts([]); });
     }, 350);
     return () => { alive = false; clearTimeout(t); };
-  }, [store.createOpen, partsKey, day, start, end]);
+  }, [store.createOpen, partsKey, selectedDate, start, end]);
 
   function reset() {
-    setTitle(''); setCat(''); setType('internal'); setDay(1); setStart(10); setEnd(11);
-    setRoom(''); setParts([]); setPq(''); setPriority('normal'); setMeetLink('');
+    setConfirmConflicts(null);
+    setTitle(''); setCat(''); setType('internal'); setStart(10); setEnd(11);
+    setRoom(''); setParts([]); setPq(''); setPriority('normal'); setMeetLink(''); setDate('');
     setLiveConflicts([]);
   }
   function onStart(v: number) { setStart(v); if (end <= v) setEnd(Math.min(v + 1, 18)); }
@@ -80,19 +104,29 @@ export default function CreateMeetingModal() {
     e.preventDefault();
     if (!title.trim()) { store.toast('عنوان جلسه را وارد کنید', 'info'); return; }
     if (end <= start) { store.toast('ساعت پایان باید بعد از شروع باشد', 'info'); return; }
-    if (!selectedCat || !selectedRoom || !store.currentUser) { store.toast('داده‌ها هنوز آماده نیست', 'info'); return; }
+    if (!selectedCat || !store.currentUser) { store.toast('داده‌ها هنوز آماده نیست', 'info'); return; }
 
+    // اگر تداخلی هست، اول تأیید بگیر
+    if (liveConflicts.length > 0 && !confirmConflicts) {
+      setConfirmConflicts(liveConflicts);
+      return;
+    }
+    await doCreate();
+  }
+
+  async function doCreate() {
+    setConfirmConflicts(null);
     setSaving(true);
     const created = await store.createMeeting({
-      title: title.trim(), category: selectedCat, type, day, start, end,
-      room: selectedRoom, organizer: store.currentUser, parts: selectedParts,
-      guests: [], synced: store.gcalConnected, priority, meetLink: meetLink.trim(),
+      title: title.trim(), category: selectedCat, type, date: selectedDate, start, end,
+      room: selectedRoom || '', organizer: store.currentUser, parts: selectedParts,
+      guests: [], priority, meetLink: type === 'online' ? meetLink.trim() : '',
     });
     setSaving(false);
     if (!created) return;
 
     store.closeCreate();
-    store.toast(store.gcalConnected ? 'جلسه ساخته و با Google Calendar همگام شد' : 'جلسهٔ جدید ساخته شد', 'ok');
+    store.toast('جلسهٔ جدید ساخته شد', 'ok');
     reset();
     router.push(`/meetings/${created.id}`);
   }
@@ -133,14 +167,19 @@ export default function CreateMeetingModal() {
 
           <div className="field-row">
             <div className="field">
-              <label>روز</label>
-              <select className="field-in" value={day} onChange={(e) => setDay(Number(e.target.value))}>
-                {dayNames.map((d, i) => <option key={i} value={i}>{d}</option>)}
+              <label>روز جلسه</label>
+              <select className="field-in" value={selectedDate} onChange={(e) => setDate(e.target.value)}>
+                {dateOptions.map((iso, i) => (
+                  <option key={iso} value={iso}>
+                    {i === 0 ? `امروز · ${faDate(iso)}` : i === 1 ? `فردا · ${faDate(iso)}` : faDate(iso)}
+                  </option>
+                ))}
               </select>
             </div>
             <div className="field">
               <label>محل جلسه</label>
               <select className="field-in" value={selectedRoom} disabled={type === 'online'} onChange={(e) => setRoom(e.target.value)}>
+                <option value="">— بدون محل —</option>
                 {Object.values(store.rooms).map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
               </select>
             </div>
@@ -159,11 +198,13 @@ export default function CreateMeetingModal() {
             </div>
           </div>
 
-          <div className="field">
-            <label>لینک یا شناسهٔ Google Meet <span className="opt">(اختیاری)</span></label>
-            <input className="field-in" dir="ltr" value={meetLink} onChange={(e) => setMeetLink(e.target.value)}
-              placeholder="abc-defg-hij یا https://meet.google.com/…" />
-          </div>
+          {type === 'online' && (
+            <div className="field">
+              <label>لینک یا شناسهٔ جلسهٔ آنلاین <span className="opt">(اختیاری)</span></label>
+              <input className="field-in" dir="ltr" value={meetLink} onChange={(e) => setMeetLink(e.target.value)}
+                placeholder="abc-defg-hij یا https://meet.google.com/…" />
+            </div>
+          )}
 
           <div className="field-row">
             <div className="field">
@@ -198,6 +239,9 @@ export default function CreateMeetingModal() {
               ))}
               {filteredPeople.length === 0 && <div className="empty-hint" style={{ fontSize: 12, color: 'var(--muted)', padding: 8 }}>کسی پیدا نشد.</div>}
             </div>
+            {!pq && hiddenCount > 0 && (
+              <div className="pp-more">{toFa(hiddenCount)} نفر دیگر — برای دیدنشان جستجو کنید.</div>
+            )}
 
             {liveConflicts.length > 0 && (
               <div className="conflict-hint">
@@ -210,6 +254,30 @@ export default function CreateMeetingModal() {
             )}
           </div>
         </div>
+
+        {confirmConflicts && (
+          <div className="confirm-layer" onClick={() => setConfirmConflicts(null)}>
+            <div className="confirm-box" onClick={(e) => e.stopPropagation()}>
+              <div className="cb-head"><span className="ch-ic">!</span><b>تداخل زمانی</b></div>
+              <p>
+                {Array.from(new Set(confirmConflicts.map((c) => c.userName))).join('، ')} در این بازه
+                جلسهٔ دیگری {confirmConflicts.length > 1 ? 'دارند' : 'دارد'}. آیا جلسه ساخته شود؟
+              </p>
+              <ul className="cb-list">
+                {confirmConflicts.slice(0, 4).map((c, i) => (
+                  <li key={i}><b>{c.userName}</b><span>{c.meetingTitle}</span>
+                    <span className="num">{fmtTime(c.start)}–{fmtTime(c.end)}</span></li>
+                ))}
+              </ul>
+              <div className="cb-actions">
+                <button type="button" className="btn btn-ghost" onClick={() => setConfirmConflicts(null)}>بازگشت</button>
+                <button type="button" className="btn btn-primary" onClick={doCreate} disabled={saving}>
+                  {saving ? 'در حال ذخیره…' : 'بله، جلسه ساخته شود'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="modal-foot">
           <button type="button" className="btn btn-ghost" onClick={store.closeCreate}>انصراف</button>

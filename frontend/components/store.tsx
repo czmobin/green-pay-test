@@ -1,11 +1,11 @@
 'use client';
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import type {
-  Category, Guest, Meeting, Minute, Organization, Person, Role, Room,
+  AgendaItem, Category, Guest, Meeting, Minute, OrgKind, Organization, Person, Role, Room,
 } from '@/lib/types';
 import {
   api, loadToken, setTokens, UnauthorizedError,
-  type Conflict, type NewMeeting, type NewMinute,
+  type Conflict, type MeetingPatch, type NewMeeting, type NewMinute,
 } from '@/lib/api';
 import { IconCheck, IconX } from './Icons';
 
@@ -35,10 +35,16 @@ interface Store {
   guests: Record<string, Guest>;
   rooms: Record<string, Room>;
   orgs: Record<string, Organization>;
+  orgKinds: Record<string, OrgKind>;
   categories: Record<string, Category>;
 
   getMeeting: (id: string) => Meeting | undefined;
+  canEdit: (m: Meeting) => boolean;
   createMeeting: (m: NewMeeting) => Promise<Meeting | null>;
+  updateMeeting: (id: string, patch: MeetingPatch) => Promise<Meeting | null>;
+  addAgenda: (meetingId: string, item: { title: string; dur: number }) => Promise<void>;
+  updateAgenda: (meetingId: string, id: string, item: { title?: string; dur?: number }) => Promise<void>;
+  deleteAgenda: (meetingId: string, id: string) => Promise<void>;
   respondMeeting: (id: string, accept: boolean) => Promise<void>;
   syncMeeting: (id: string) => Promise<void>;
 
@@ -48,7 +54,7 @@ interface Store {
 
   addPerson: (p: { name: string; role: string; orgId: string; color?: string }) => Promise<void>;
   addRoom: (r: { name: string; cap: string; orgId: string }) => Promise<void>;
-  addOrg: (o: { name: string; kind: Organization['kind'] }) => Promise<void>;
+  addOrg: (o: { name: string; kind: string }) => Promise<void>;
 
   /* دسترسی و تنظیمات */
   role: Role;
@@ -93,6 +99,7 @@ export default function Providers({ children }: { children: React.ReactNode }) {
   const [guests, setGuests] = useState<Record<string, Guest>>({});
   const [rooms, setRooms] = useState<Record<string, Room>>({});
   const [orgs, setOrgs] = useState<Record<string, Organization>>({});
+  const [orgKinds, setOrgKinds] = useState<Record<string, OrgKind>>({});
   const [categories, setCategories] = useState<Record<string, Category>>({});
 
   const [role, setRole] = useState<Role>('ceo');
@@ -142,7 +149,7 @@ export default function Providers({ children }: { children: React.ReactNode }) {
     setMe(null);
     setReady(true);
     setMeetings([]); setMinutes({}); setPeople({}); setGuests({});
-    setRooms({}); setOrgs({}); setCategories({});
+    setRooms({}); setOrgs({}); setOrgKinds({}); setCategories({});
   }, []);
 
   /* ---------- بارگذاری اولیه ---------- */
@@ -155,6 +162,7 @@ export default function Providers({ children }: { children: React.ReactNode }) {
       setGuests(d.guests);
       setRooms(d.rooms);
       setOrgs(d.organizations);
+      setOrgKinds(d.orgKinds ?? {});
       setCategories(d.categories);
       setGcal(d.gcalConnected);
       setSms(d.smsEnabled);
@@ -218,6 +226,44 @@ export default function Providers({ children }: { children: React.ReactNode }) {
       return created;
     }), [guarded]);
 
+  /** سازندهٔ جلسه، مدیرعامل و ادمین اجازهٔ ویرایش دارند (هم‌سو با قانون بک‌اند). */
+  const canEdit = useCallback((m: Meeting) =>
+    m.organizer === currentUser || role === 'ceo' || role === 'admin',
+    [currentUser, role]);
+
+  const updateMeeting = useCallback(async (id: string, patch: MeetingPatch) =>
+    guarded(async () => {
+      const updated = await api.updateMeeting(id, patch);
+      upsertMeeting(updated);
+      setConflicts(updated.conflicts ?? []);
+      return updated;
+    }), [guarded]);
+
+  /* ---------- دستور جلسه ---------- */
+  const patchAgenda = (meetingId: string, fn: (list: AgendaItem[]) => AgendaItem[]) =>
+    setMeetings((ms) => ms.map((m) => (m.id === meetingId ? { ...m, agenda: fn(m.agenda) } : m)));
+
+  const addAgenda = useCallback(async (meetingId: string, item: { title: string; dur: number }) => {
+    await guarded(async () => {
+      const created = await api.createAgenda({ meeting: meetingId, ...item });
+      patchAgenda(meetingId, (l) => [...l, created]);
+    });
+  }, [guarded]);
+
+  const updateAgendaItem = useCallback(async (meetingId: string, id: string, item: { title?: string; dur?: number }) => {
+    await guarded(async () => {
+      const updated = await api.updateAgenda(id, item);
+      patchAgenda(meetingId, (l) => l.map((a) => (a.id === id ? updated : a)));
+    });
+  }, [guarded]);
+
+  const deleteAgendaItem = useCallback(async (meetingId: string, id: string) => {
+    await guarded(async () => {
+      await api.deleteAgenda(id);
+      patchAgenda(meetingId, (l) => l.filter((a) => a.id !== id));
+    });
+  }, [guarded]);
+
   const respondMeeting = useCallback(async (id: string, accept: boolean) => {
     await guarded(async () => upsertMeeting(await api.respondMeeting(id, accept)));
   }, [guarded]);
@@ -263,7 +309,7 @@ export default function Providers({ children }: { children: React.ReactNode }) {
     });
   }, [guarded]);
 
-  const addOrg = useCallback(async (o: { name: string; kind: Organization['kind'] }) => {
+  const addOrg = useCallback(async (o: { name: string; kind: string }) => {
     await guarded(async () => {
       const created = await api.createOrg(o);
       setOrgs((s) => ({ ...s, [created.id]: created }));
@@ -310,8 +356,10 @@ export default function Providers({ children }: { children: React.ReactNode }) {
   const value = useMemo<Store>(() => ({
     authed, authChecked, needsProfile, me, signIn, completeProfile, signOut,
     ready, error, reload,
-    meetings, visibleMeetings, minutes, people, guests, rooms, orgs, categories,
-    getMeeting, createMeeting, respondMeeting, syncMeeting,
+    meetings, visibleMeetings, minutes, people, guests, rooms, orgs, orgKinds, categories,
+    getMeeting, canEdit, createMeeting, updateMeeting,
+    addAgenda, updateAgenda: updateAgendaItem, deleteAgenda: deleteAgendaItem,
+    respondMeeting, syncMeeting,
     addMinute, deleteMinute, toggleTask,
     addPerson, addRoom, addOrg,
     role, currentUser, setRole, setCurrentUser,
@@ -320,8 +368,9 @@ export default function Providers({ children }: { children: React.ReactNode }) {
     createOpen, openCreate: () => setCreateOpen(true), closeCreate: () => setCreateOpen(false),
     toast, toggleTheme,
   }), [conflicts, authed, authChecked, needsProfile, me, signIn, completeProfile, signOut,
-    ready, error, reload, meetings, visibleMeetings, minutes, people, guests, rooms, orgs, categories,
-    getMeeting, createMeeting, respondMeeting, syncMeeting, addMinute, deleteMinute, toggleTask,
+    ready, error, reload, meetings, visibleMeetings, minutes, people, guests, rooms, orgs, orgKinds, categories,
+    getMeeting, canEdit, createMeeting, updateMeeting, addAgenda, updateAgendaItem, deleteAgendaItem,
+    respondMeeting, syncMeeting, addMinute, deleteMinute, toggleTask,
     addPerson, addRoom, addOrg, role, currentUser, gcalConnected, connectGcal, smsEnabled, toggleSms,
     createOpen, toast, toggleTheme]);
 

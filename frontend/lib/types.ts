@@ -20,10 +20,17 @@ export interface Guest {
   role: string;
 }
 
+export interface OrgKind {
+  id: string;
+  slug: string;
+  name: string;
+}
+
 export interface Organization {
   id: string;
   name: string;
-  kind: 'internal' | 'bank' | 'regulator' | 'partner';
+  kind: string | null;   // شناسهٔ نوع سازمان
+  kindName?: string;
 }
 
 export interface Category {
@@ -41,8 +48,10 @@ export interface Room {
 }
 
 export interface AgendaItem {
+  id: string;
   title: string;
-  dur: number; // minutes
+  dur: number; // دقیقه
+  order?: number;
 }
 
 export interface Meeting {
@@ -53,7 +62,7 @@ export interface Meeting {
   status: MeetingStatus;
   priority: Priority;
   meetLink?: string;
-  day: number; // 0..4  (شنبه..چهارشنبه)
+  date: string; // تاریخ میلادی ISO (YYYY-MM-DD)
   start: number; // hour, e.g. 9 or 13.5
   end: number;
   room: string; // room id
@@ -77,6 +86,7 @@ export interface Minute {
   assignee?: string;
   due?: string;
   done?: boolean;
+  doneAt?: number | null;
   // reminder
   when?: string;
   // call

@@ -21,7 +21,8 @@ export const viewport: Viewport = {
   themeColor: '#0E9F6E',
 };
 
-const themeScript = `(function(){try{var t=localStorage.getItem('gp-theme');if(t)document.documentElement.setAttribute('data-theme',t);}catch(e){}})();`;
+// پیش‌فرض اپ حالت روشن است؛ فقط اگر کاربر تیره را انتخاب کرده باشد تیره می‌شود.
+const themeScript = `(function(){try{var t=localStorage.getItem('gp-theme');document.documentElement.setAttribute('data-theme',t==='dark'?'dark':'light');}catch(e){document.documentElement.setAttribute('data-theme','light');}})();`;
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
