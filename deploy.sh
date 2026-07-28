@@ -27,7 +27,7 @@ main() {
   ./.venv/bin/pip install --quiet -r requirements.txt
   set -a; . /etc/greenpay.env; set +a
   ./.venv/bin/python manage.py migrate --noinput
-  ./.venv/bin/python manage.py seed_demo            # اگر دیتابیس داده دارد، کاری نمی‌کند
+  ./.venv/bin/python manage.py init_data           # فقط داده‌های پایه (انواع سازمان و دسته‌ها)
   ./.venv/bin/python manage.py collectstatic --noinput --clear >/dev/null
 
   echo "▸ راه‌اندازی مجدد سرویس‌ها…"
