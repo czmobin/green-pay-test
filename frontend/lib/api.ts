@@ -157,7 +157,7 @@ export interface NewMinute {
   type: MinuteType;
   text: string;
   assignee?: string | null;
-  due?: string;
+  due?: string | null;
   when?: string;
   who?: string;
   phone?: string;
@@ -207,6 +207,9 @@ export const api = {
   createOrg: (o: { name: string; kind: string }) => post<Organization>('/organizations/', o),
   createPerson: (p: { name: string; role: string; orgId: string; color?: string }) => post<Person>('/people/', p),
   createRoom: (r: { name: string; cap: string; orgId: string }) => post<Room>('/locations/', r),
+  deleteOrg: (id: string) => request<void>(`/organizations/${id}/`, { method: 'DELETE' }),
+  deletePerson: (id: string) => request<void>(`/people/${id}/`, { method: 'DELETE' }),
+  deleteRoom: (id: string) => request<void>(`/locations/${id}/`, { method: 'DELETE' }),
 
   setGcal: (connected: boolean) => post<{ gcalConnected: boolean }>('/settings/gcal/', { connected }),
   setSms: (enabled: boolean) => post<{ smsEnabled: boolean }>('/settings/sms/', { enabled }),

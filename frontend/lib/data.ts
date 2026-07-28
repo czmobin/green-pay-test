@@ -65,9 +65,7 @@ export function faDateLabel(iso: string): string {
 
 /* ---------- برچسب‌ها و رنگ‌ها ---------- */
 export const typeLabels: Record<MeetingType, string> = {
-  board: 'هیئت مدیره',
-  external: 'با مهمان خارجی',
-  internal: 'داخلی',
+  in_person: 'حضوری',
   online: 'آنلاین',
 };
 
@@ -79,9 +77,7 @@ export const statusLabels: Record<MeetingStatus, string> = {
 };
 
 export const typeColor: Record<MeetingType, string> = {
-  board: '#7C3AED',
-  external: '#2F7FE4',
-  internal: '#0E9F6E',
+  in_person: '#0E9F6E',
   online: '#D9930B',
 };
 

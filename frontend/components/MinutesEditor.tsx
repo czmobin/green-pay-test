@@ -1,7 +1,8 @@
 'use client';
 import React, { useState } from 'react';
 import { useStore } from './store';
-import { minuteMeta, toFa, initials } from '@/lib/data';
+import { minuteMeta, toFa, initials, faDate, todayISO } from '@/lib/data';
+import DatePicker from './DatePicker';
 import type { Meeting, Minute, MinuteType } from '@/lib/types';
 import { minuteIcon, IconDoc, IconPlus, IconTrash, IconCheck, IconClock, IconCall, IconUsers, IconPaperclip } from './Icons';
 
@@ -16,7 +17,7 @@ export default function MinutesEditor({ meeting }: { meeting: Meeting }) {
   const [type, setType] = useState<MinuteType>('note');
   const [text, setText] = useState('');
   const [assignee, setAssignee] = useState(meeting.parts[0] ?? 'ceo');
-  const [due, setDue] = useState('');
+  const [due, setDue] = useState('');   // تاریخ ISO مهلت
   const [when, setWhen] = useState('');
   const [who, setWho] = useState('');
   const [phone, setPhone] = useState('');
@@ -39,7 +40,7 @@ export default function MinutesEditor({ meeting }: { meeting: Meeting }) {
       type,
       text: text.trim() || fileName,
       assignee: type === 'task' ? assignee : null,
-      due: type === 'task' ? due : '',
+      due: type === 'task' ? (due || todayISO()) : null,
       when: type === 'reminder' ? when : '',
       who: type === 'call' ? who : '',
       phone: type === 'call' ? phone : '',
@@ -105,7 +106,7 @@ export default function MinutesEditor({ meeting }: { meeting: Meeting }) {
             <select className="field-in" value={assignee} onChange={(e) => setAssignee(e.target.value)}>
               {meeting.parts.map((pid) => <option key={pid} value={pid}>{store.people[pid]?.name ?? pid}</option>)}
             </select>
-            <input className="field-in" type="text" value={due} onChange={(e) => setDue(e.target.value)} placeholder="مهلت (مثلاً ۲۵ تیر)" />
+            <DatePicker value={due || todayISO()} onChange={setDue} min={todayISO()} />
           </div>
         )}
         {type === 'reminder' && (
@@ -182,7 +183,7 @@ function MinuteRow({ m, mid }: { m: Minute; mid: string }) {
           )}
           {m.done && <span className="done-tag">انجام شد</span>}
           {m.type === 'task' && m.assignee && <span><IconUsers size={12} />{store.people[m.assignee]?.name ?? m.assignee}</span>}
-          {m.type === 'task' && m.due && <span><IconClock size={12} />مهلت: {m.due}</span>}
+          {m.type === 'task' && m.due && <span><IconClock size={12} />مهلت: {faDate(m.due)}</span>}
           {m.type === 'reminder' && m.when && <span><IconClock size={12} />{m.when}</span>}
           {m.type === 'call' && m.who && <span><IconCall size={12} />{m.who}</span>}
           {m.type === 'call' && m.phone && <span className="num">{m.phone}</span>}

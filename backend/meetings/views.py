@@ -34,6 +34,15 @@ def assert_can_edit(user, meeting):
         raise PermissionDenied('فقط سازندهٔ جلسه، مدیرعامل یا ادمین می‌تواند این جلسه را ویرایش کند.')
 
 
+class ManagerOnlyDeleteMixin:
+    """حذف تعریف‌ها (افراد، محل‌ها، سازمان‌ها) فقط برای ادمین و مدیرعامل."""
+
+    def perform_destroy(self, instance):
+        if not is_manager(self.request.user):
+            raise PermissionDenied('فقط مدیرعامل یا ادمین می‌تواند این مورد را حذف کند.')
+        instance.delete()
+
+
 def find_conflicts(start, end, user_ids, exclude_meeting_id=None):
     """
     جلسه‌های هم‌زمانِ افرادِ داده‌شده را برمی‌گرداند.
@@ -128,7 +137,9 @@ def bootstrap(request):
         'guests': _by_id(GuestSerializer(guests, many=True).data),
         'meetings': MeetingSerializer(meetings_queryset(), many=True).data,
         'minutes': minutes,
-        'currentUser': str(ceo.pk) if ceo else None,
+        'currentUser': str(request.user.pk),
+        'currentRole': request.user.role,
+        'isManager': is_manager(request.user),
         'gcalConnected': bool(gcal and gcal.is_connected),
         'smsEnabled': bool(ceo and ceo.sms_enabled),
     })
@@ -284,7 +295,7 @@ class OrganizationKindViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = OrganizationKindSerializer
 
 
-class OrganizationViewSet(viewsets.ModelViewSet):
+class OrganizationViewSet(ManagerOnlyDeleteMixin, viewsets.ModelViewSet):
     queryset = Organization.objects.select_related('kind')
     serializer_class = OrganizationSerializer
 
@@ -294,7 +305,7 @@ class OrganizationViewSet(viewsets.ModelViewSet):
         return Response(OrganizationSerializer(write.save()).data, status=status.HTTP_201_CREATED)
 
 
-class PersonViewSet(viewsets.ModelViewSet):
+class PersonViewSet(ManagerOnlyDeleteMixin, viewsets.ModelViewSet):
     queryset = User.objects.filter(is_external=False).select_related('organization')
     serializer_class = PersonSerializer
 
@@ -304,7 +315,7 @@ class PersonViewSet(viewsets.ModelViewSet):
         return Response(PersonSerializer(write.save()).data, status=status.HTTP_201_CREATED)
 
 
-class LocationViewSet(viewsets.ModelViewSet):
+class LocationViewSet(ManagerOnlyDeleteMixin, viewsets.ModelViewSet):
     queryset = Location.objects.select_related('organization')
     serializer_class = LocationSerializer
 

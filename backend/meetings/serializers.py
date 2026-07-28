@@ -168,7 +168,7 @@ class MinuteEntrySerializer(serializers.ModelSerializer):
     participant = serializers.SerializerMethodField()
     meeting = serializers.SerializerMethodField()
     assignee = serializers.CharField(source='assignee_id', required=False, allow_null=True)
-    due = serializers.CharField(source='due_text', required=False, allow_blank=True)
+    due = serializers.DateField(source='due_date', required=False, allow_null=True)
     done = serializers.BooleanField(source='is_done', required=False)
     when = serializers.CharField(source='remind_text', required=False, allow_blank=True)
     who = serializers.CharField(source='call_with', required=False, allow_blank=True)
@@ -259,7 +259,7 @@ class MinuteEntryCreateSerializer(serializers.Serializer):
     text = serializers.CharField(allow_blank=True, required=False, default='')
     assignee = serializers.PrimaryKeyRelatedField(
         queryset=User.objects.all(), required=False, allow_null=True)
-    due = serializers.CharField(required=False, allow_blank=True, default='')
+    due = serializers.DateField(required=False, allow_null=True, default=None)
     when = serializers.CharField(required=False, allow_blank=True, default='')
     who = serializers.CharField(required=False, allow_blank=True, default='')
     phone = serializers.CharField(required=False, allow_blank=True, default='')
@@ -273,7 +273,7 @@ class MinuteEntryCreateSerializer(serializers.Serializer):
             entry_type=validated['type'],
             text=validated.get('text', ''),
             assignee=validated.get('assignee'),
-            due_text=validated.get('due', ''),
+            due_date=validated.get('due'),
             remind_text=validated.get('when', ''),
             call_with=validated.get('who', ''),
             call_phone=validated.get('phone', ''),

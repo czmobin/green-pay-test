@@ -6,9 +6,9 @@ import { useStore } from '@/components/store';
 import MeetingRow from '@/components/MeetingRow';
 import HeroCanvas from '@/components/HeroCanvas';
 import { useReveal, useCountUp } from '@/components/useReveal';
-import { fmtTime, toFa, todayISO, nowHour, faDate, faDateLabel } from '@/lib/data';
+import { fmtTime, toFa, todayISO, nowHour, faDate, faDateLabel, addDaysISO } from '@/lib/data';
 import {
-  IconCalendar, IconClock, IconGuests, IconRoom, IconMapPin, IconVideo, IconCheck, IconX,
+  IconCalendar, IconClock, IconGuests, IconMapPin, IconVideo, IconCheck, IconX,
 } from '@/components/Icons';
 
 export default function Dashboard() {
@@ -22,8 +22,7 @@ export default function Dashboard() {
   const today = vis.filter((m) => m.date === iso).sort((a, b) => a.start - b.start);
   const next = today.find((m) => m.start >= hour) ?? today[today.length - 1];
   const pending = vis.filter((m) => m.status === 'pending').length;
-  const guestCount = new Set(today.flatMap((m) => m.guests)).size;
-  const roomCount = new Set(today.map((m) => m.room)).size;
+  const tomorrowCount = vis.filter((m) => m.date === addDaysISO(iso, 1)).length;
   const invites = vis.filter((m) => m.status === 'pending').sort((a, b) => a.date.localeCompare(b.date) || a.start - b.start);
 
   const scope = useReveal(['.page-head', '.next-card', '.kpi', '.section-title', '.invite', '.mrow']);
@@ -72,14 +71,9 @@ export default function Dashboard() {
           <div className="val num"><span data-count={pending}>{toFa(pending)}</span> <small>دعوت</small></div>
         </div>
         <div className="kpi">
-          <div className="ic" style={{ background: 'var(--info-soft)', color: 'var(--info)' }}><IconGuests size={18} /></div>
-          <div className="lbl">مهمان خارجی امروز</div>
-          <div className="val num"><span data-count={guestCount}>{toFa(guestCount)}</span> <small>نفر</small></div>
-        </div>
-        <div className="kpi">
-          <div className="ic" style={{ background: 'var(--violet-soft)', color: 'var(--violet)' }}><IconRoom size={18} /></div>
-          <div className="lbl">اتاق‌های امروز</div>
-          <div className="val num"><span data-count={roomCount}>{toFa(roomCount)}</span> <small>اتاق</small></div>
+          <div className="ic" style={{ background: 'var(--info-soft)', color: 'var(--info)' }}><IconCalendar size={18} /></div>
+          <div className="lbl">جلسات فردا</div>
+          <div className="val num"><span data-count={tomorrowCount}>{toFa(tomorrowCount)}</span> <small>جلسه</small></div>
         </div>
       </div>
 

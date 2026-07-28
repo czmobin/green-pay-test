@@ -59,8 +59,11 @@ export default function AgendaEditor({ meeting }: { meeting: Meeting }) {
                 <>
                   <input className="field-in ag-in" value={editTitle} autoFocus
                     onChange={(e) => setEditTitle(e.target.value)} />
-                  <input className="field-in ag-dur num" type="number" min={5} max={240} step={5}
-                    value={editDur} onChange={(e) => setEditDur(Number(e.target.value))} />
+                  <span className="ag-dur-wrap">
+                    <input className="field-in ag-dur num" type="number" min={5} max={240} step={5}
+                      value={editDur} onChange={(e) => setEditDur(Number(e.target.value))} />
+                    <i>دقیقه</i>
+                  </span>
                   <button className="ag-act ok" onClick={() => saveEdit(a.id)} disabled={busy} aria-label="ذخیره">
                     <IconCheck size={14} />
                   </button>
@@ -95,8 +98,11 @@ export default function AgendaEditor({ meeting }: { meeting: Meeting }) {
         <form className="ag-add" onSubmit={add}>
           <input className="field-in" value={title} onChange={(e) => setTitle(e.target.value)}
             placeholder="موضوع جدید…" />
-          <input className="field-in ag-dur num" type="number" min={5} max={240} step={5}
-            value={dur} onChange={(e) => setDur(Number(e.target.value))} aria-label="مدت به دقیقه" />
+          <span className="ag-dur-wrap">
+            <input className="field-in ag-dur num" type="number" min={5} max={240} step={5}
+              value={dur} onChange={(e) => setDur(Number(e.target.value))} aria-label="مدت به دقیقه" />
+            <i>دقیقه</i>
+          </span>
           <button className="btn btn-primary" type="submit" disabled={busy}>
             <IconPlus size={15} />{busy ? '…' : 'افزودن'}
           </button>

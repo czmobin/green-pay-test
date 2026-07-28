@@ -55,6 +55,11 @@ interface Store {
   addPerson: (p: { name: string; role: string; orgId: string; color?: string }) => Promise<void>;
   addRoom: (r: { name: string; cap: string; orgId: string }) => Promise<void>;
   addOrg: (o: { name: string; kind: string }) => Promise<void>;
+  deletePerson: (id: string) => Promise<void>;
+  deleteRoom: (id: string) => Promise<void>;
+  deleteOrg: (id: string) => Promise<void>;
+  /** فقط ادمین و مدیرعامل می‌توانند تعریف‌های دیگران را حذف کنند */
+  isManager: boolean;
 
   /* دسترسی و تنظیمات */
   role: Role;
@@ -316,6 +321,22 @@ export default function Providers({ children }: { children: React.ReactNode }) {
     });
   }, [guarded]);
 
+  const dropFrom = <T,>(map: Record<string, T>, id: string) => {
+    const next = { ...map };
+    delete next[id];
+    return next;
+  };
+
+  const deletePerson = useCallback(async (id: string) => {
+    await guarded(async () => { await api.deletePerson(id); setPeople((s) => dropFrom(s, id)); });
+  }, [guarded]);
+  const deleteRoom = useCallback(async (id: string) => {
+    await guarded(async () => { await api.deleteRoom(id); setRooms((s) => dropFrom(s, id)); });
+  }, [guarded]);
+  const deleteOrg = useCallback(async (id: string) => {
+    await guarded(async () => { await api.deleteOrg(id); setOrgs((s) => dropFrom(s, id)); });
+  }, [guarded]);
+
   /* ---------- تنظیمات ---------- */
   const connectGcal = useCallback(async () => {
     if (gcalConnected) { toast('تقویم Google از قبل متصل است', 'info'); return; }
@@ -362,6 +383,8 @@ export default function Providers({ children }: { children: React.ReactNode }) {
     respondMeeting, syncMeeting,
     addMinute, deleteMinute, toggleTask,
     addPerson, addRoom, addOrg,
+    deletePerson, deleteRoom, deleteOrg,
+    isManager: role === 'admin' || role === 'ceo',
     role, currentUser, setRole, setCurrentUser,
     gcalConnected, connectGcal, smsEnabled, toggleSms,
     conflicts, dismissConflicts: () => setConflicts([]),
@@ -371,7 +394,7 @@ export default function Providers({ children }: { children: React.ReactNode }) {
     ready, error, reload, meetings, visibleMeetings, minutes, people, guests, rooms, orgs, orgKinds, categories,
     getMeeting, canEdit, createMeeting, updateMeeting, addAgenda, updateAgendaItem, deleteAgendaItem,
     respondMeeting, syncMeeting, addMinute, deleteMinute, toggleTask,
-    addPerson, addRoom, addOrg, role, currentUser, gcalConnected, connectGcal, smsEnabled, toggleSms,
+    addPerson, addRoom, addOrg, deletePerson, deleteRoom, deleteOrg, role, currentUser, gcalConnected, connectGcal, smsEnabled, toggleSms,
     createOpen, toast, toggleTheme]);
 
   return (

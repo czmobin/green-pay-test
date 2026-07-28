@@ -3,10 +3,10 @@ import React, { useState } from 'react';
 import { useStore } from '@/components/store';
 import { useReveal } from '@/components/useReveal';
 import { initials, avatarPalette, toFa } from '@/lib/data';
-import type { Organization, Role } from '@/lib/types';
-import { IconBuilding, IconRoom, IconUsers, IconPlus } from '@/components/Icons';
 
-type Tab = 'orgs' | 'people' | 'locations' | 'access';
+import { IconBuilding, IconRoom, IconPlus, IconTrash } from '@/components/Icons';
+
+type Tab = 'orgs' | 'people' | 'locations';
 
 export default function Settings() {
   const store = useStore();
@@ -27,9 +27,6 @@ export default function Settings() {
   const selectedKind = oKind || kindList[0]?.id || '';
   const defaultOrg = orgList[0]?.id ?? '';
   const orgName = (id?: string | null) => (id ? store.orgs[id]?.name ?? '—' : '—');
-  // مدیرعامل و سایر اعضا برای سوییچر نقش
-  const ceoId = Object.values(store.people).find((p) => p.accessRole === 'ceo')?.id ?? store.currentUser;
-  const others = Object.values(store.people).filter((p) => p.id !== ceoId);
   const orgMemberCount = (orgId: string) =>
     toFa(Object.values(store.people).filter((p) => p.orgId === orgId).length
       + Object.values(store.guests).filter((g) => store.orgs[orgId]?.name === g.org).length);
@@ -51,15 +48,6 @@ export default function Settings() {
     await store.addPerson({ name: pName.trim(), role: pRole.trim() || 'عضو', color, orgId: pOrg || defaultOrg });
     setBusy(false);
     store.toast('فرد اضافه شد', 'ok'); setPName(''); setPRole('');
-  }
-  function selectRole(r: Role) {
-    store.setRole(r);
-    if (r === 'user') {
-      if (store.currentUser === ceoId && others[0]) store.setCurrentUser(others[0].id);
-    } else if (ceoId) {
-      store.setCurrentUser(ceoId);
-    }
-    store.toast('سطح دسترسی تغییر کرد', 'ok');
   }
   async function addLoc(e: React.FormEvent) {
     e.preventDefault();
@@ -83,7 +71,6 @@ export default function Settings() {
         <button className={'chip-btn' + (tab === 'orgs' ? ' active' : '')} onClick={() => setTab('orgs')}>سازمان‌ها</button>
         <button className={'chip-btn' + (tab === 'people' ? ' active' : '')} onClick={() => setTab('people')}>افراد</button>
         <button className={'chip-btn' + (tab === 'locations' ? ' active' : '')} onClick={() => setTab('locations')}>محل‌ها</button>
-        <button className={'chip-btn' + (tab === 'access' ? ' active' : '')} onClick={() => setTab('access')}>دسترسی</button>
       </div>
 
       {/* ORGANIZATIONS */}
@@ -107,6 +94,10 @@ export default function Settings() {
                 <span className="di-ic" style={{ background: 'var(--mint-soft)', color: 'var(--brand-strong)' }}><IconBuilding size={18} /></span>
                 <div><b>{o.name}</b><small>{orgMemberCount(o.id)} عضو</small></div>
                 <span className="def-badge">{o.kindName ?? '—'}</span>
+                {store.isManager && (
+                  <button className="def-del" aria-label="حذف سازمان" title="حذف"
+                    onClick={() => store.deleteOrg(o.id)}><IconTrash size={15} /></button>
+                )}
               </div>
             ))}
           </div>
@@ -137,6 +128,10 @@ export default function Settings() {
                 <span className="ava" style={{ background: `linear-gradient(145deg,${p.color})` }}>{initials(p.name)}</span>
                 <div><b>{p.name}</b><small>{p.role}</small></div>
                 <span className="def-badge">{orgName(p.orgId)}</span>
+                {store.isManager && p.id !== store.currentUser && (
+                  <button className="def-del" aria-label="حذف فرد" title="حذف"
+                    onClick={() => store.deletePerson(p.id)}><IconTrash size={15} /></button>
+                )}
               </div>
             ))}
           </div>
@@ -167,34 +162,16 @@ export default function Settings() {
                 <span className="di-ic" style={{ background: 'var(--violet-soft)', color: 'var(--violet)' }}><IconRoom size={18} /></span>
                 <div><b>{r.name}</b><small>{r.cap}</small></div>
                 <span className="def-badge">{orgName(r.orgId)}</span>
+                {store.isManager && (
+                  <button className="def-del" aria-label="حذف محل" title="حذف"
+                    onClick={() => store.deleteRoom(r.id)}><IconTrash size={15} /></button>
+                )}
               </div>
             ))}
           </div>
         </>
       )}
 
-      {tab === 'access' && (
-        <div className="card def-form">
-          <div className="card-head"><h3>سطح دسترسی (نمایش دمو)</h3></div>
-          <div className="def-form-body">
-            <div className="role-grid">
-              {([['admin', 'ادمین', 'دسترسی کامل + مشاهدهٔ جلسات همهٔ اعضا در کنار جلسات خود'], ['ceo', 'مدیرعامل', 'دسترسی کامل + مشاهدهٔ جلسات همهٔ اعضا در کنار جلسات خود'], ['user', 'کاربر عادی', 'فقط جلسات خودش را می‌بیند']] as [Role, string, string][]).map(([r, label, desc]) => (
-                <button type="button" key={r} className={'role-opt' + (store.role === r ? ' active' : '')} onClick={() => selectRole(r)}>
-                  <b>{label}</b><small>{desc}</small>
-                </button>
-              ))}
-            </div>
-            {store.role === 'user' && (
-              <div className="field">
-                <label>نمایش به‌عنوانِ</label>
-                <select className="field-in" value={store.currentUser} onChange={(e) => store.setCurrentUser(e.target.value)}>
-                  {others.map((p) => <option key={p.id} value={p.id}>{p.name} — {p.role}</option>)}
-                </select>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
     </div>
   );
 }

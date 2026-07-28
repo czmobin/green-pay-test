@@ -2,27 +2,26 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useStore } from './store';
-import { typeLabels, toFa, fmtTime, normalizeFa, priorityLabels, priorityColor, todayISO, addDaysISO, faDate } from '@/lib/data';
+import { typeLabels, toFa, fmtTime, normalizeFa, priorityLabels, priorityColor, todayISO } from '@/lib/data';
 import type { MeetingType, Priority } from '@/lib/types';
 import { api, type Conflict } from '@/lib/api';
-import { IconX, IconPlus, IconDashboard, IconGuests, IconRoom, IconVideo, IconSearch } from './Icons';
+import DatePicker from './DatePicker';
+import TimePicker from './TimePicker';
+import { IconX, IconPlus, IconRoom, IconVideo, IconSearch } from './Icons';
 
 const PRIORITIES: Priority[] = ['low', 'normal', 'high', 'critical'];
 
 const types: { id: MeetingType; icon: React.ReactNode }[] = [
-  { id: 'internal', icon: <IconDashboard size={16} /> },
-  { id: 'external', icon: <IconGuests size={16} /> },
-  { id: 'board', icon: <IconRoom size={16} /> },
+  { id: 'in_person', icon: <IconRoom size={16} /> },
   { id: 'online', icon: <IconVideo size={16} /> },
 ];
-const slots = [8, 8.5, 9, 9.5, 10, 10.5, 11, 11.5, 12, 12.5, 13, 13.5, 14, 14.5, 15, 15.5, 16, 16.5, 17, 17.5, 18];
 
 export default function CreateMeetingModal() {
   const store = useStore();
   const router = useRouter();
   const [title, setTitle] = useState('');
   const [cat, setCat] = useState('');
-  const [type, setType] = useState<MeetingType>('internal');
+  const [type, setType] = useState<MeetingType>('in_person');
   const [date, setDate] = useState('');
   const [start, setStart] = useState(10);
   const [end, setEnd] = useState(11);
@@ -44,10 +43,8 @@ export default function CreateMeetingModal() {
   const selectedCat = cat || defaultCat;
   const selectedRoom = type === 'online' ? onlineRoom : (room || defaultRoom);
   const selectedParts = parts.length ? parts : (store.currentUser ? [store.currentUser] : []);
-  // انتخاب هر روزی از امروز تا ۳۰ روز آینده (همهٔ روزهای هفته)
   const today = todayISO();
   const selectedDate = date || today;
-  const dateOptions = Array.from({ length: 30 }, (_, i) => addDaysISO(today, i));
 
   /* پیشنهاد: ۱۰ نفری که کاربر جاری بیشترین جلسهٔ مشترک را با آن‌ها داشته
      (به‌علاوهٔ کسانی که همین حالا انتخاب شده‌اند). بقیه با جستجو پیدا می‌شوند. */
@@ -88,11 +85,11 @@ export default function CreateMeetingModal() {
 
   function reset() {
     setConfirmConflicts(null);
-    setTitle(''); setCat(''); setType('internal'); setStart(10); setEnd(11);
+    setTitle(''); setCat(''); setType('in_person'); setStart(10); setEnd(11);
     setRoom(''); setParts([]); setPq(''); setPriority('normal'); setMeetLink(''); setDate('');
     setLiveConflicts([]);
   }
-  function onStart(v: number) { setStart(v); if (end <= v) setEnd(Math.min(v + 1, 18)); }
+  function onStart(v: number) { setStart(v); if (end <= v) setEnd(Math.min(v + 1, 23.75)); }
   function toggle(id: string) {
     setParts(() => {
       const cur = selectedParts;
@@ -168,13 +165,7 @@ export default function CreateMeetingModal() {
           <div className="field-row">
             <div className="field">
               <label>روز جلسه</label>
-              <select className="field-in" value={selectedDate} onChange={(e) => setDate(e.target.value)}>
-                {dateOptions.map((iso, i) => (
-                  <option key={iso} value={iso}>
-                    {i === 0 ? `امروز · ${faDate(iso)}` : i === 1 ? `فردا · ${faDate(iso)}` : faDate(iso)}
-                  </option>
-                ))}
-              </select>
+              <DatePicker value={selectedDate} onChange={setDate} />
             </div>
             <div className="field">
               <label>محل جلسه</label>
@@ -209,15 +200,11 @@ export default function CreateMeetingModal() {
           <div className="field-row">
             <div className="field">
               <label>ساعت شروع</label>
-              <select className="field-in num" value={start} onChange={(e) => onStart(Number(e.target.value))}>
-                {slots.slice(0, -1).map((h) => <option key={h} value={h}>{fmtTime(h)}</option>)}
-              </select>
+              <TimePicker value={start} onChange={onStart} />
             </div>
             <div className="field">
               <label>ساعت پایان</label>
-              <select className="field-in num" value={end} onChange={(e) => setEnd(Number(e.target.value))}>
-                {slots.filter((h) => h > start).map((h) => <option key={h} value={h}>{fmtTime(h)}</option>)}
-              </select>
+              <TimePicker value={end} onChange={setEnd} />
             </div>
           </div>
 

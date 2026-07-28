@@ -1,18 +1,17 @@
 'use client';
 import React, { useEffect, useMemo, useState } from 'react';
 import { useStore } from './store';
-import { typeLabels, toFa, fmtTime, normalizeFa, priorityLabels, priorityColor, todayISO, addDaysISO, faDate } from '@/lib/data';
+import { typeLabels, toFa, normalizeFa, priorityLabels, priorityColor } from '@/lib/data';
 import type { Meeting, MeetingType, Priority } from '@/lib/types';
-import { IconX, IconCheck, IconDashboard, IconGuests, IconRoom, IconVideo, IconSearch } from './Icons';
+import DatePicker from './DatePicker';
+import TimePicker from './TimePicker';
+import { IconX, IconCheck, IconRoom, IconVideo, IconSearch } from './Icons';
 
 const PRIORITIES: Priority[] = ['low', 'normal', 'high', 'critical'];
 const types: { id: MeetingType; icon: React.ReactNode }[] = [
-  { id: 'internal', icon: <IconDashboard size={16} /> },
-  { id: 'external', icon: <IconGuests size={16} /> },
-  { id: 'board', icon: <IconRoom size={16} /> },
+  { id: 'in_person', icon: <IconRoom size={16} /> },
   { id: 'online', icon: <IconVideo size={16} /> },
 ];
-const slots = [8, 8.5, 9, 9.5, 10, 10.5, 11, 11.5, 12, 12.5, 13, 13.5, 14, 14.5, 15, 15.5, 16, 16.5, 17, 17.5, 18, 18.5, 19];
 
 /** ویرایش جلسه — همان فیلدهای ساخت، از دکمهٔ ویرایش صفحهٔ جلسه باز می‌شود. */
 export default function EditMeetingModal(
@@ -41,13 +40,6 @@ export default function EditMeetingModal(
     setMeetLink(meeting.meetLink ?? ''); setParts(meeting.parts); setPq('');
   }, [open, meeting]);
 
-  const today = todayISO();
-  // بازهٔ انتخاب: از ۳۰ روز قبل تا ۶۰ روز بعد (تا جلسات گذشته هم قابل ویرایش باشند)
-  const dateOptions = useMemo(
-    () => Array.from({ length: 90 }, (_, i) => addDaysISO(today, i - 30)),
-    [today]);
-  const dates = dateOptions.includes(date) ? dateOptions : [date, ...dateOptions];
-
   const filteredPeople = useMemo(() => {
     const nq = normalizeFa(pq);
     const all = Object.values(store.people);
@@ -58,7 +50,7 @@ export default function EditMeetingModal(
   function toggle(id: string) {
     setParts((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
   }
-  function onStart(v: number) { setStart(v); if (end <= v) setEnd(Math.min(v + 1, 19)); }
+  function onStart(v: number) { setStart(v); if (end <= v) setEnd(Math.min(v + 1, 23.75)); }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -108,11 +100,7 @@ export default function EditMeetingModal(
           <div className="field-row">
             <div className="field">
               <label>روز جلسه</label>
-              <select className="field-in" value={date} onChange={(e) => setDate(e.target.value)}>
-                {dates.map((iso) => (
-                  <option key={iso} value={iso}>{iso === today ? `امروز · ${faDate(iso)}` : faDate(iso)}</option>
-                ))}
-              </select>
+              <DatePicker value={date} onChange={setDate} />
             </div>
             <div className="field">
               <label>محل جلسه</label>
@@ -147,15 +135,11 @@ export default function EditMeetingModal(
           <div className="field-row">
             <div className="field">
               <label>ساعت شروع</label>
-              <select className="field-in num" value={start} onChange={(e) => onStart(Number(e.target.value))}>
-                {slots.slice(0, -1).map((h) => <option key={h} value={h}>{fmtTime(h)}</option>)}
-              </select>
+              <TimePicker value={start} onChange={onStart} />
             </div>
             <div className="field">
               <label>ساعت پایان</label>
-              <select className="field-in num" value={end} onChange={(e) => setEnd(Number(e.target.value))}>
-                {slots.filter((h) => h > start).map((h) => <option key={h} value={h}>{fmtTime(h)}</option>)}
-              </select>
+              <TimePicker value={end} onChange={setEnd} />
             </div>
           </div>
 

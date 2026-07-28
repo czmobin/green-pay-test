@@ -1,6 +1,6 @@
 export type Role = 'admin' | 'ceo' | 'user' | 'member';
 
-export type MeetingType = 'board' | 'external' | 'internal' | 'online';
+export type MeetingType = 'in_person' | 'online';
 export type MeetingStatus = 'confirmed' | 'pending' | 'cancelled' | 'done';
 export type Priority = 'low' | 'normal' | 'high' | 'critical';
 
@@ -84,7 +84,7 @@ export interface Minute {
   fileName?: string; // برای نامه/فایل
   // task
   assignee?: string;
-  due?: string;
+  due?: string | null;   // تاریخ ISO مهلت
   done?: boolean;
   doneAt?: number | null;
   // reminder

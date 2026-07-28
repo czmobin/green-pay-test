@@ -110,9 +110,7 @@ class Category(models.Model):
 class Meeting(models.Model):
     """جلسه."""
     class Type(models.TextChoices):
-        BOARD = 'board', 'هیئت مدیره'
-        EXTERNAL = 'external', 'با مهمان خارجی'
-        INTERNAL = 'internal', 'داخلی'
+        IN_PERSON = 'in_person', 'حضوری'
         ONLINE = 'online', 'آنلاین'
 
     class Status(models.TextChoices):
@@ -134,7 +132,7 @@ class Meeting(models.Model):
         Category, null=True, blank=True, on_delete=models.SET_NULL, related_name='meetings',
         verbose_name='دسته‌بندی',
     )
-    meeting_type = models.CharField('نوع', max_length=12, choices=Type.choices, default=Type.INTERNAL)
+    meeting_type = models.CharField('نوع', max_length=12, choices=Type.choices, default=Type.IN_PERSON)
     status = models.CharField('وضعیت', max_length=12, choices=Status.choices, default=Status.CONFIRMED)
     location = models.ForeignKey(
         Location, null=True, blank=True, on_delete=models.SET_NULL, related_name='meetings',
@@ -264,7 +262,7 @@ class MinuteEntry(models.Model):
         related_name='assigned_entries', verbose_name='مسئول',
     )
     due_date = models.DateField('مهلت', null=True, blank=True)
-    due_text = models.CharField('مهلت (متن واردشده)', max_length=60, blank=True)
+    due_text = models.CharField('مهلت (متن آزاد — فقط دادهٔ قدیمی)', max_length=60, blank=True)
     # وضعیت انجام برای تسک، یادآور و تماس تلفنی
     is_done = models.BooleanField('انجام شد', default=False)
     done_at = models.DateTimeField('زمان انجام', null=True, blank=True)
