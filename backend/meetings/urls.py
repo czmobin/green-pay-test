@@ -2,7 +2,7 @@ from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 from rest_framework_simplejwt.views import TokenRefreshView
 
-from . import auth_views, views
+from . import auth_views, reports, views
 
 router = DefaultRouter()
 router.register('meetings', views.MeetingViewSet, basename='meeting')
@@ -22,6 +22,7 @@ urlpatterns = [
     path('auth/logout/', auth_views.logout, name='logout'),
 
     path('bootstrap/', views.bootstrap, name='bootstrap'),
+    path('reports/full/', reports.full_report, name='full-report'),
     path('settings/gcal/', views.set_gcal, name='set-gcal'),
     path('settings/sms/', views.set_sms, name='set-sms'),
     path('', include(router.urls)),

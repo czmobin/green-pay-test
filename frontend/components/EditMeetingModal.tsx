@@ -126,9 +126,9 @@ export default function EditMeetingModal(
 
           {type === 'online' && (
             <div className="field">
-              <label>لینک یا شناسهٔ جلسهٔ آنلاین <span className="opt">(اختیاری)</span></label>
+              <label>لینک جلسهٔ آنلاین <span className="opt">(اختیاری)</span></label>
               <input className="field-in" dir="ltr" value={meetLink} onChange={(e) => setMeetLink(e.target.value)}
-                placeholder="abc-defg-hij یا https://meet.google.com/…" />
+                placeholder="https://… (Google Meet، اسکای‌روم، Zoom یا هر سرویس دیگر)" />
             </div>
           )}
 

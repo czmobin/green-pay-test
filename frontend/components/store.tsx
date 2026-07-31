@@ -1,7 +1,7 @@
 'use client';
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import type {
-  AgendaItem, Category, Guest, Meeting, Minute, OrgKind, Organization, Person, Role, Room,
+  AgendaItem, Category, Guest, Meeting, Minute, OrgKind, Organization, Person, Role, Room, Scope,
 } from '@/lib/types';
 import {
   api, loadToken, setTokens, UnauthorizedError,
@@ -63,6 +63,11 @@ interface Store {
 
   /* دسترسی و تنظیمات */
   role: Role;
+  /** دامنهٔ نمایش جلسات — «mine» فقط جلسه‌های خودم، «all» جلسه‌های همه */
+  scope: Scope;
+  setScope: (s: Scope) => void;
+  /** فقط ادمین و مدیرعامل می‌توانند دامنه را عوض کنند */
+  canSwitchScope: boolean;
   currentUser: string;
   setRole: (r: Role) => void;
   setCurrentUser: (id: string) => void;
@@ -108,6 +113,8 @@ export default function Providers({ children }: { children: React.ReactNode }) {
   const [categories, setCategories] = useState<Record<string, Category>>({});
 
   const [role, setRole] = useState<Role>('ceo');
+  const [scope, setScopeState] = useState<Scope>('mine');
+  const scopeTouched = useRef(false);
   const [currentUser, setCurrentUser] = useState<string>('');
   const [gcalConnected, setGcal] = useState(false);
   const [smsEnabled, setSms] = useState(false);
@@ -115,6 +122,21 @@ export default function Providers({ children }: { children: React.ReactNode }) {
   const [createOpen, setCreateOpen] = useState(false);
   const [conflicts, setConflicts] = useState<Conflict[]>([]);
   const [toasts, setToasts] = useState<Toast[]>([]);
+
+  /** ادمین پیش‌فرض همهٔ جلسات را می‌بیند، مدیرعامل پیش‌فرض جلسه‌های خودش را. */
+  const applyDefaultScope = useCallback((r: Role) => {
+    if (scopeTouched.current) return;
+    let saved: string | null = null;
+    try { saved = localStorage.getItem('gp-scope'); } catch { /* حالت خصوصی مرورگر */ }
+    if (saved === 'mine' || saved === 'all') { setScopeState(saved); return; }
+    setScopeState(r === 'admin' ? 'all' : 'mine');
+  }, []);
+
+  const setScope = useCallback((next: Scope) => {
+    scopeTouched.current = true;
+    setScopeState(next);
+    try { localStorage.setItem('gp-scope', next); } catch { /* حالت خصوصی مرورگر */ }
+  }, []);
 
   const toast = useCallback((msg: string, kind: ToastKind = 'info') => {
     const id = Date.now() + Math.random();
@@ -129,9 +151,11 @@ export default function Providers({ children }: { children: React.ReactNode }) {
     setAuthed(true);
     setNeedsProfile(isNew);
     setCurrentUser(user.id);
-    setRole(user.accessRole === 'ceo' ? 'ceo' : user.accessRole === 'admin' ? 'admin' : 'user');
+    const r: Role = user.accessRole === 'ceo' ? 'ceo' : user.accessRole === 'admin' ? 'admin' : 'user';
+    setRole(r);
+    applyDefaultScope(r);
     setReady(false);            // داده‌ها با توکن جدید دوباره خوانده می‌شوند
-  }, []);
+  }, [applyDefaultScope]);
 
   const completeProfile = useCallback(async (p: { firstName: string; lastName: string; title?: string }) => {
     try {
@@ -195,11 +219,13 @@ export default function Providers({ children }: { children: React.ReactNode }) {
         setAuthed(true);
         setNeedsProfile(Boolean(user.isNew));
         setCurrentUser((c) => c || user.id);
-        setRole(user.accessRole === 'ceo' ? 'ceo' : user.accessRole === 'admin' ? 'admin' : 'user');
+        const r: Role = user.accessRole === 'ceo' ? 'ceo' : user.accessRole === 'admin' ? 'admin' : 'user';
+        setRole(r);
+        applyDefaultScope(r);
       })
       .catch(() => { setTokens(null, null); setAuthed(false); })
       .finally(() => setAuthChecked(true));
-  }, []);
+  }, [applyDefaultScope]);
 
   // داده‌ها فقط وقتی احراز هویت شده‌ایم خوانده می‌شوند
   useEffect(() => {
@@ -359,11 +385,14 @@ export default function Providers({ children }: { children: React.ReactNode }) {
   }, [smsEnabled, guarded, toast]);
 
   /* ---------- دسترسی ---------- */
+  const isManager = role === 'admin' || role === 'ceo';
+  const mine = useCallback(
+    (m: Meeting) => m.organizer === currentUser || m.parts.includes(currentUser),
+    [currentUser]);
+
   const visibleMeetings = useMemo(() =>
-    role === 'user'
-      ? meetings.filter((m) => m.organizer === currentUser || m.parts.includes(currentUser))
-      : meetings,
-    [meetings, role, currentUser]);
+    (!isManager || scope === 'mine') ? meetings.filter(mine) : meetings,
+    [meetings, isManager, scope, mine]);
 
   const toggleTheme = useCallback(() => {
     const root = document.documentElement;
@@ -384,8 +413,8 @@ export default function Providers({ children }: { children: React.ReactNode }) {
     addMinute, deleteMinute, toggleTask,
     addPerson, addRoom, addOrg,
     deletePerson, deleteRoom, deleteOrg,
-    isManager: role === 'admin' || role === 'ceo',
-    role, currentUser, setRole, setCurrentUser,
+    isManager,
+    role, scope, setScope, canSwitchScope: isManager, currentUser, setRole, setCurrentUser,
     gcalConnected, connectGcal, smsEnabled, toggleSms,
     conflicts, dismissConflicts: () => setConflicts([]),
     createOpen, openCreate: () => setCreateOpen(true), closeCreate: () => setCreateOpen(false),
@@ -394,7 +423,8 @@ export default function Providers({ children }: { children: React.ReactNode }) {
     ready, error, reload, meetings, visibleMeetings, minutes, people, guests, rooms, orgs, orgKinds, categories,
     getMeeting, canEdit, createMeeting, updateMeeting, addAgenda, updateAgendaItem, deleteAgendaItem,
     respondMeeting, syncMeeting, addMinute, deleteMinute, toggleTask,
-    addPerson, addRoom, addOrg, deletePerson, deleteRoom, deleteOrg, role, currentUser, gcalConnected, connectGcal, smsEnabled, toggleSms,
+    addPerson, addRoom, addOrg, deletePerson, deleteRoom, deleteOrg, role, isManager, scope, setScope,
+    currentUser, gcalConnected, connectGcal, smsEnabled, toggleSms,
     createOpen, toast, toggleTheme]);
 
   return (

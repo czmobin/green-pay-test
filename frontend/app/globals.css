@@ -95,7 +95,7 @@ input,select,textarea{font-family:inherit}
   display:grid;place-items:center;flex:0 0 auto;box-shadow:0 6px 16px -8px rgba(52,211,153,.7)}
 .topbar .tb-logo svg{width:19px;height:19px}
 .topbar .tb-title{font-weight:800;font-size:15px;letter-spacing:-.2px}
-.topbar .tb-title small{display:block;font-size:10.5px;color:var(--muted);font-weight:600;letter-spacing:0}
+.topbar .tb-title small{display:block;font-size:10.5px;color:var(--muted);font-weight:600;letter-spacing:0;white-space:nowrap}
 .topbar .spacer{margin-inline-start:auto}
 .icon-btn{width:38px;height:38px;border-radius:10px;border:1px solid var(--line-strong);background:var(--panel);
   display:grid;place-items:center;color:var(--ink-soft);position:relative;transition:.15s;flex:0 0 auto}
@@ -942,6 +942,119 @@ select.field-in{appearance:none;background-image:url("data:image/svg+xml;utf8,<s
   .ym-name{font-size:13.5px}
   .ym-days span{font-size:10px}
 }
+
+/* ===================== دامنهٔ نمایش (جلسه‌های من / همه) ===================== */
+.scope-sw{display:inline-flex;align-items:center;gap:2px;padding:3px;border-radius:11px;
+  background:var(--panel-2);border:1px solid var(--line);flex:0 0 auto}
+.scope-sw button{display:inline-flex;align-items:center;gap:6px;padding:6px 11px;border-radius:8px;
+  font-size:12.5px;font-weight:700;color:var(--muted);white-space:nowrap;transition:.14s}
+.scope-sw button svg{flex:0 0 auto}
+.scope-sw button:hover{color:var(--ink-soft)}
+.scope-sw button.on{background:var(--panel);color:var(--brand-strong);box-shadow:var(--shadow-sm)}
+/* در موبایل فقط برچسبِ گزینهٔ فعال می‌ماند تا معلوم باشد کجاییم */
+@media (max-width:760px){
+  .scope-sw button:not(.on) span{display:none}
+  .scope-sw button:not(.on){padding:6px 9px}
+  .scope-sw button.on{padding:6px 10px}
+  .scope-sw button.on span{font-size:11.5px}
+}
+/* نوار بالا در گوشی جا ندارد — فقط آیکون‌ها می‌مانند */
+@media (max-width:560px){
+  .scope-sw{padding:2px}
+  .scope-sw button span{display:none}
+  .scope-sw button,.scope-sw button.on{padding:6px 8px}
+}
+/* گوشی‌های باریک: زیرعنوان برند حذف می‌شود تا نوار سرریز نکند */
+@media (max-width:560px){
+  /* برند کوچک می‌شود تا دکمه‌ها بیرون نزنند و زیرعنوان دو خطی نشود */
+  .topbar .tb-brand{min-width:0;overflow:hidden}
+  .topbar .tb-title{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+}
+@media (max-width:380px){
+  .topbar .tb-title small{display:none}
+  .topbar{gap:6px}
+  .topbar .tb-title{font-size:14px}
+}
+
+/* ===================== گزارش کامل ===================== */
+.rep-range{font-size:11.5px;color:var(--muted);margin-inline-start:auto;align-self:center}
+@media (max-width:640px){.rep-range{flex:1 0 100%;margin:4px 0 0;text-align:start}}
+
+.rep-kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:18px}
+@media (max-width:820px){.rep-kpis{grid-template-columns:repeat(2,1fr)}}
+@media (max-width:360px){.rep-kpis{grid-template-columns:1fr}}
+.rep-kpi{background:var(--panel);border:1px solid var(--line);border-radius:15px;padding:14px 15px;
+  display:flex;flex-direction:column;gap:3px}
+.rep-kpi .rk-lbl{font-size:11.5px;color:var(--muted);font-weight:700}
+.rep-kpi b{font-size:25px;font-weight:800;line-height:1.25;color:var(--ink)}
+.rep-kpi small{font-size:11px;color:var(--muted);line-height:1.6}
+.rep-kpi.bad b{color:var(--danger)}
+.rep-kpi.bad{border-color:color-mix(in srgb,var(--danger) 30%,var(--line))}
+
+.alert-list{display:flex;flex-direction:column;gap:11px}
+.alert-card{display:flex;gap:12px;padding:14px 15px;border-radius:15px;background:var(--panel);
+  border:1px solid var(--line);border-inline-start-width:4px}
+.alert-card.lv-high{border-inline-start-color:var(--danger)}
+.alert-card.lv-mid{border-inline-start-color:var(--warn)}
+.alert-card.lv-low{border-inline-start-color:var(--muted)}
+.alert-card .ac-ic{width:32px;height:32px;border-radius:10px;display:grid;place-items:center;flex:0 0 auto}
+.lv-high .ac-ic{background:var(--danger-soft);color:var(--danger)}
+.lv-mid .ac-ic{background:var(--warn-soft);color:var(--warn)}
+.lv-low .ac-ic{background:var(--panel-2);color:var(--muted)}
+.ac-body{min-width:0;flex:1}
+.ac-top{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:5px}
+.ac-top b{font-size:14.5px;font-weight:800}
+.ac-lvl{font-size:10.5px;font-weight:700;color:var(--muted);border:1px solid var(--line-strong);
+  border-radius:999px;padding:2px 8px}
+.ac-n{margin-inline-start:auto;font-size:17px;font-weight:800;color:var(--ink-soft)}
+.lv-high .ac-n{color:var(--danger)}
+.lv-mid .ac-n{color:var(--warn)}
+.ac-detail{font-size:12.8px;color:var(--ink-soft);line-height:1.85}
+.ac-hint{font-size:11.8px;color:var(--muted);line-height:1.8;margin-top:4px}
+
+.rep-cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:14px;align-items:start}
+.rep-card{padding:15px 16px}
+.rep-card .card-head h3{display:flex;align-items:center;gap:7px}
+.rep-card .card-head .cnt{margin-inline-start:auto;font-size:12.5px;font-weight:800;color:var(--muted);
+  background:var(--panel-2);border-radius:999px;padding:2px 10px}
+.rep-note{font-size:11.5px;color:var(--muted);line-height:1.85;margin:-2px 0 10px}
+.rep-empty{font-size:12.5px;color:var(--muted);padding:14px 0;text-align:center}
+
+.rep-list{display:flex;flex-direction:column;gap:2px}
+.rep-list li{display:flex;align-items:center;gap:10px;padding:9px 8px;border-radius:11px;
+  cursor:pointer;transition:.12s}
+.rep-list li:hover{background:var(--panel-2)}
+.rep-list li > div{min-width:0;flex:1}
+.rep-list b{display:block;font-size:13px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rep-list small{display:block;font-size:11px;color:var(--muted);margin-top:2px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rep-list svg{color:var(--muted);flex:0 0 auto}
+.rl-dot{width:9px;height:9px;border-radius:50%;flex:0 0 auto}
+.rl-late{font-size:11px;font-weight:800;color:var(--danger);background:var(--danger-soft);
+  border-radius:8px;padding:4px 8px;flex:0 0 auto;white-space:nowrap}
+
+.rep-table-card{padding-bottom:8px}
+.rep-scroll{overflow-x:auto;margin:0 -4px}
+.rep-table{width:100%;border-collapse:collapse;font-size:12.5px;min-width:560px}
+.rep-table th{text-align:start;font-size:11px;font-weight:700;color:var(--muted);
+  padding:8px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
+.rep-table td{padding:10px;border-bottom:1px solid var(--line);vertical-align:middle}
+.rep-table tr:last-child td{border-bottom:0}
+.rep-table td.bad{color:var(--danger);font-weight:800}
+.rep-table .dash{color:var(--muted)}
+.tp-person{display:inline-flex;align-items:center;gap:9px;min-width:0}
+.tp-person b{font-size:12.8px;font-weight:700;display:block;white-space:nowrap}
+.tp-person small{font-size:10.5px;color:var(--muted);display:block}
+
+.rate{display:inline-flex;align-items:center;gap:8px;min-width:96px}
+.rate-bar{flex:1;height:6px;border-radius:999px;background:var(--panel-2);overflow:hidden;min-width:44px}
+.rate-bar i{display:block;height:100%;border-radius:999px}
+.rate b{font-size:11.5px;font-weight:800;flex:0 0 auto}
+
+/* شناسهٔ اتاق جلسه وقتی لینک کامل نیست */
+.meet-note{display:flex;align-items:center;gap:8px;padding:11px 13px;border-radius:12px;
+  background:var(--panel-2);border:1px dashed var(--line-strong);font-size:12.5px;color:var(--ink-soft)}
+.meet-note svg{color:var(--muted);flex:0 0 auto}
 
 /* برچسب «دقیقه» کنار ورودی مدت در دستور جلسه */
 .ag-dur-wrap{position:relative;display:inline-flex;align-items:center;flex:0 0 auto}

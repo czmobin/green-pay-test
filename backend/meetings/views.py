@@ -1,5 +1,5 @@
 """ویوهای API — یک endpoint راه‌انداز (bootstrap) به‌علاوهٔ عملیات نوشتن."""
-from django.db.models import Prefetch
+from django.db.models import Prefetch, Q
 from rest_framework import status, viewsets
 from rest_framework.decorators import action, api_view
 from rest_framework.response import Response
@@ -100,18 +100,26 @@ def _by_id(serializer_data):
     return {row['id']: row for row in serializer_data}
 
 
-def meetings_queryset():
-    return (Meeting.objects
-            .select_related('category', 'location', 'organizer')
-            .prefetch_related('meeting_participants', 'agenda')
-            .order_by('start'))
+def meetings_queryset(user=None):
+    """جلسات قابل مشاهده؛ کاربر عادی فقط جلسه‌های خودش را می‌بیند."""
+    qs = (Meeting.objects
+          .select_related('category', 'location', 'organizer')
+          .prefetch_related('meeting_participants', 'agenda')
+          .order_by('start'))
+    if user is not None and not is_manager(user):
+        qs = qs.filter(Q(organizer=user) | Q(participants=user)).distinct()
+    return qs
 
 
-def entries_queryset():
-    return (MinuteEntry.objects
-            .select_related('minutes', 'minutes__meeting', 'assignee')
-            .prefetch_related('attachments')
-            .order_by('-created_at'))
+def entries_queryset(user=None):
+    qs = (MinuteEntry.objects
+          .select_related('minutes', 'minutes__meeting', 'assignee')
+          .prefetch_related('attachments')
+          .order_by('-created_at'))
+    if user is not None and not is_manager(user):
+        qs = qs.filter(Q(minutes__meeting__organizer=user)
+                       | Q(minutes__meeting__participants=user)).distinct()
+    return qs
 
 
 @api_view(['GET'])
@@ -122,7 +130,7 @@ def bootstrap(request):
     ceo = people.filter(role=User.Role.CEO).first() or people.first()
 
     minutes: dict[str, list] = {}
-    for row in MinuteEntrySerializer(entries_queryset(), many=True).data:
+    for row in MinuteEntrySerializer(entries_queryset(request.user), many=True).data:
         minutes.setdefault(row['meeting'], []).append(row)
 
     gcal = GoogleCalendarConnection.objects.filter(user=ceo).first() if ceo else None
@@ -135,7 +143,7 @@ def bootstrap(request):
         'rooms': _by_id(LocationSerializer(Location.objects.select_related('organization'), many=True).data),
         'people': _by_id(PersonSerializer(people, many=True).data),
         'guests': _by_id(GuestSerializer(guests, many=True).data),
-        'meetings': MeetingSerializer(meetings_queryset(), many=True).data,
+        'meetings': MeetingSerializer(meetings_queryset(request.user), many=True).data,
         'minutes': minutes,
         'currentUser': str(request.user.pk),
         'currentRole': request.user.role,
@@ -148,6 +156,9 @@ def bootstrap(request):
 class MeetingViewSet(viewsets.ModelViewSet):
     queryset = meetings_queryset()
     serializer_class = MeetingSerializer
+
+    def get_queryset(self):
+        return meetings_queryset(self.request.user)
 
     def create(self, request, *args, **kwargs):
         write = MeetingCreateSerializer(data=request.data)
@@ -251,6 +262,9 @@ class MeetingViewSet(viewsets.ModelViewSet):
 class MinuteEntryViewSet(viewsets.ModelViewSet):
     queryset = entries_queryset()
     serializer_class = MinuteEntrySerializer
+
+    def get_queryset(self):
+        return entries_queryset(self.request.user)
 
     def create(self, request, *args, **kwargs):
         write = MinuteEntryCreateSerializer(data=request.data)

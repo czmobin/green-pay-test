@@ -174,6 +174,61 @@ export interface OtpRequestResult {
   devCode?: string;   // فقط وقتی سرویس پیامک خاموش است (محیط توسعه)
 }
 
+/* ---------- گزارش کامل (فقط ادمین و مدیرعامل) ---------- */
+export interface ReportAlert {
+  level: 'high' | 'mid' | 'low';
+  kind: string;
+  title: string;
+  detail: string;
+  count: number;
+  hint: string;
+}
+export interface ReportMeeting {
+  id: string; title: string; date: string; start: number; hours: number;
+  organizer: string; organizerName: string; people: number;
+  category: string; categoryColor: string; entries?: number;
+}
+export interface ReportTask {
+  id: string; text: string; due: string; daysLate: number;
+  assignee: string | null; assigneeName: string; meeting: string; meetingTitle: string;
+}
+export interface ReportReminder {
+  id: string; text: string; when: string; meeting: string; meetingTitle: string;
+}
+export interface ReportInvite {
+  user: string; userName: string; meeting: string; meetingTitle: string; date: string;
+}
+export interface ReportPerson {
+  id: string; name: string; role: string; color: string;
+  meetings: number; hours: number;
+  organized: number; organizedPast: number; organizedWithMinutes: number;
+  tasksOpen: number; tasksOverdue: number; tasksDone: number;
+  pendingInvites: number; entriesWritten: number;
+  minuteRate: number; taskDoneRate: number;
+}
+export interface ReportCategory {
+  id: string; name: string; color: string;
+  meetings: number; past: number; hours: number; withAction: number; tasks: number; actionRate: number;
+}
+export interface FullReport {
+  days: number; from: string; to: string;
+  totals: {
+    meetings: number; past: number; hours: number; avgLength: number;
+    minuteRate: number; actionRate: number;
+    tasks: number; tasksDone: number; taskDoneRate: number; tasksOverdue: number;
+    reminders: number; remindersStale: number; wastedHours: number;
+  };
+  alerts: ReportAlert[];
+  deadMeetings: ReportMeeting[];
+  noActionMeetings: ReportMeeting[];
+  overdueTasks: ReportTask[];
+  staleReminders: ReportReminder[];
+  unanswered: ReportInvite[];
+  silentOrganizers: ReportPerson[];
+  people: ReportPerson[];
+  categories: ReportCategory[];
+}
+
 export const api = {
   requestOtp: (phone: string) => post<OtpRequestResult>('/auth/request-otp/', { phone }),
   verifyOtp: (phone: string, code: string) =>
@@ -185,6 +240,7 @@ export const api = {
   logout: () => post<{ ok: boolean }>('/auth/logout/'),
 
   bootstrap: () => request<Bootstrap>('/bootstrap/'),
+  report: (days: number) => request<FullReport>(`/reports/full/?days=${days}`),
 
   createMeeting: (m: NewMeeting) => post<CreatedMeeting>('/meetings/', m),
   updateMeeting: (id: string, patch: MeetingPatch) =>

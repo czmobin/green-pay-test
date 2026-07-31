@@ -1,8 +1,9 @@
 'use client';
 import React, { useEffect, useRef, useState } from 'react';
+import Link from 'next/link';
 import { useStore } from './store';
 import { initials } from '@/lib/data';
-import { IconSun, IconMoon, IconLogout, IconCheck } from './Icons';
+import { IconSun, IconMoon, IconLogout, IconCheck, IconReport, IconSettings } from './Icons';
 
 const roleLabels: Record<string, string> = {
   admin: 'ادمین', ceo: 'مدیرعامل', user: 'کاربر عادی', member: 'کاربر عادی',
@@ -64,6 +65,17 @@ export default function UserMenu() {
               <small>{roleLabels[store.role] ?? 'کاربر'}{me?.role ? ` · ${me.role}` : ''}</small>
             </div>
           </div>
+
+          {/* در موبایل نوار کناری دیده نمی‌شود، پس مسیرهای مدیریت اینجا می‌آیند */}
+          <div className="um-section only-mobile">مدیریت</div>
+          {store.isManager && (
+            <Link href="/reports" className="um-item only-mobile" onClick={() => setOpen(false)}>
+              <IconReport size={16} />گزارش کامل
+            </Link>
+          )}
+          <Link href="/settings" className="um-item only-mobile" onClick={() => setOpen(false)}>
+            <IconSettings size={16} />تعریف‌ها
+          </Link>
 
           <div className="um-section">نمایش</div>
           <div className="um-theme">

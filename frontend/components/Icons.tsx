@@ -109,6 +109,19 @@ export const IconPaperclip = ({ size, className }: P) => (
   <svg {...s(size)} className={className} viewBox="0 0 24 24" {...stroke}><path d="M21 11.5 12.5 20a5 5 0 0 1-7-7l8-8a3.3 3.3 0 0 1 4.7 4.7l-8 8a1.7 1.7 0 0 1-2.4-2.4l7.3-7.3" /></svg>
 );
 
+export const IconReport = ({ size, className }: P) => (
+  <svg {...s(size)} className={className} viewBox="0 0 24 24" {...stroke}><path d="M3 20h18" /><rect x="4" y="11" width="4" height="7" rx="1" /><rect x="10" y="6" width="4" height="12" rx="1" /><rect x="16" y="14" width="4" height="4" rx="1" /></svg>
+);
+export const IconAlert = ({ size, className }: P) => (
+  <svg {...s(size)} className={className} viewBox="0 0 24 24" {...stroke}><path d="M10.3 3.9 1.9 18a2 2 0 0 0 1.7 3h16.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z" /><path d="M12 9v4M12 17h.01" /></svg>
+);
+export const IconEye = ({ size, className }: P) => (
+  <svg {...s(size)} className={className} viewBox="0 0 24 24" {...stroke}><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7Z" /><circle cx="12" cy="12" r="3" /></svg>
+);
+export const IconUser = ({ size, className }: P) => (
+  <svg {...s(size)} className={className} viewBox="0 0 24 24" {...stroke}><circle cx="12" cy="8" r="4" /><path d="M4 21c0-4 3.6-6 8-6s8 2 8 6" /></svg>
+);
+
 export const IconLeaf = ({ size, className }: P) => (
   <svg {...s(size)} className={className} viewBox="0 0 24 24"><path d="M12 3C7 3 3.5 6.5 3.5 11.5c0 4.2 3 7.6 7 8.4-.3-1.3-.2-3 .6-4.6 1-2 3-3.4 5.4-4.2-2 .3-3.7 1-5 2.1.8-3 3.1-5 6.5-5.6C16.9 4 14.7 3 12 3Z" fill="#062018" /></svg>
 );

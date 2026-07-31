@@ -6,7 +6,7 @@ import MinutesEditor from '@/components/MinutesEditor';
 import AgendaEditor from '@/components/AgendaEditor';
 import EditMeetingModal from '@/components/EditMeetingModal';
 import { useReveal } from '@/components/useReveal';
-import { typeLabels, statusLabels, fmtTime, initials, toFa, priorityLabels, priorityColor, faDate } from '@/lib/data';
+import { typeLabels, statusLabels, fmtTime, initials, toFa, priorityLabels, priorityColor, faDate, isUrl, meetPlatform } from '@/lib/data';
 import {
   IconBack, IconClock, IconMapPin, IconUsers, IconList, IconChevron, IconVideo, IconEdit,
 } from '@/components/Icons';
@@ -67,10 +67,18 @@ export default function MeetingDetail() {
         </div>
         {m.type === 'online' && (m.meetLink ? (
           <>
-            <a className="btn btn-primary btn-block" style={{ marginTop: 12 }}
-              href={m.meetLink} target="_blank" rel="noopener noreferrer">
-              <IconVideo size={16} />پیوستن به جلسهٔ آنلاین
-            </a>
+            {/* هر سازمانی سرویس خودش را دارد — لینک همان‌طور که ثبت شده باز می‌شود */}
+            {isUrl(m.meetLink) ? (
+              <a className="btn btn-primary btn-block" style={{ marginTop: 12 }}
+                href={m.meetLink} target="_blank" rel="noopener noreferrer">
+                <IconVideo size={16} />
+                پیوستن به جلسه{meetPlatform(m.meetLink) ? ` در ${meetPlatform(m.meetLink)}` : ''}
+              </a>
+            ) : (
+              <div className="meet-note" style={{ marginTop: 12 }}>
+                <IconVideo size={14} />شناسهٔ اتاق جلسه — در سرویس سازمان وارد کنید.
+              </div>
+            )}
             <div className="meet-link" dir="ltr">{m.meetLink}</div>
           </>
         ) : (

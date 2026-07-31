@@ -1,4 +1,6 @@
 export type Role = 'admin' | 'ceo' | 'user' | 'member';
+/** دامنهٔ نمایش جلسات برای مدیرها */
+export type Scope = 'mine' | 'all';
 
 export type MeetingType = 'in_person' | 'online';
 export type MeetingStatus = 'confirmed' | 'pending' | 'cancelled' | 'done';

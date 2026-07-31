@@ -9,8 +9,9 @@ import ConflictAlert from './ConflictAlert';
 import UserMenu from './UserMenu';
 import {
   IconDashboard, IconCalendar, IconList, IconPlus, IconReminder,
-  IconLeaf, IconSettings, IconLogout,
+  IconLeaf, IconSettings, IconLogout, IconReport,
 } from './Icons';
+import ScopeSwitch from './ScopeSwitch';
 import { initials } from '@/lib/data';
 
 const nav = [
@@ -70,6 +71,11 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
         <div className="nav-label">مدیریت</div>
         <nav className="nav">
+          {store.isManager && (
+            <Link href="/reports" className={isActive(path, '/reports') ? 'active' : ''}>
+              <IconReport size={19} />گزارش کامل
+            </Link>
+          )}
           <Link href="/settings" className={isActive(path, '/settings') ? 'active' : ''}><IconSettings size={19} />تعریف‌ها</Link>
         </nav>
 
@@ -96,11 +102,11 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             <span className="tb-logo"><IconLeaf size={19} /></span>
             <span className="tb-title">گرین‌پی<small>اتاق جلسات</small></span>
           </Link>
+          <ScopeSwitch />
           <span className="spacer" />
           <button className="btn btn-ghost only-desktop" onClick={store.openCreate}>
             <IconPlus size={16} />جلسهٔ جدید
           </button>
-          <Link href="/settings" className="icon-btn only-mobile" aria-label="تعریف‌ها"><IconSettings size={18} /></Link>
           <NotificationBell />
           <UserMenu />
         </header>

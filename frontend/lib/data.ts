@@ -139,3 +139,26 @@ export function initials(name: string): string {
 export function categoryOf(categories: Record<string, Category>, id: string): Category {
   return categories[id] ?? { id, name: '—', color: 'var(--muted)' };
 }
+
+/** یک نشانی وب کامل است یا فقط شناسه/کد اتاق؟ */
+export const isUrl = (v?: string | null) => !!v && /^https?:\/\//i.test(v.trim());
+
+const MEET_HOSTS: [RegExp, string][] = [
+  [/meet\.google\./i, 'Google Meet'],
+  [/skyroom\./i, 'اسکای‌روم'],
+  [/zoom\.(us|com)/i, 'Zoom'],
+  [/teams\.(microsoft|live)\./i, 'Microsoft Teams'],
+  [/adobeconnect|connect\..*\/|\/adobe/i, 'Adobe Connect'],
+  [/bigbluebutton|bbb\./i, 'BigBlueButton'],
+  [/webex\./i, 'Webex'],
+  [/jitsi|meet\.jit\.si/i, 'Jitsi'],
+  [/whereby\./i, 'Whereby'],
+];
+
+/** نام سرویس جلسهٔ آنلاین از روی لینک — برای برچسب دکمهٔ «پیوستن». */
+export function meetPlatform(link?: string | null): string {
+  if (!link) return '';
+  for (const [re, name] of MEET_HOSTS) if (re.test(link)) return name;
+  if (!isUrl(link)) return '';
+  try { return new URL(link).hostname.replace(/^www\./, ''); } catch { return ''; }
+}

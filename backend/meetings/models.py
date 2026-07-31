@@ -11,6 +11,8 @@
   User ─< Notification                          (اعلان ۳۰ دقیقه قبل + پیامک)
   User ─ GoogleCalendarConnection               (calendar موازی گوگل)
 """
+import re
+
 from django.conf import settings
 from django.contrib.auth.models import AbstractUser
 from django.db import models
@@ -127,7 +129,8 @@ class Meeting(models.Model):
 
     title = models.CharField('عنوان', max_length=255)
     priority = models.CharField('اولویت', max_length=10, choices=Priority.choices, default=Priority.NORMAL)
-    meet_link = models.CharField('لینک/شناسهٔ Google Meet', max_length=255, blank=True)
+    meet_link = models.CharField('لینک جلسهٔ آنلاین', max_length=500, blank=True,
+                                 help_text='نشانی کامل هر سرویسی — Google Meet، اسکای‌روم، Zoom، Adobe Connect و…')
     category = models.ForeignKey(
         Category, null=True, blank=True, on_delete=models.SET_NULL, related_name='meetings',
         verbose_name='دسته‌بندی',
@@ -164,14 +167,21 @@ class Meeting(models.Model):
 
     @staticmethod
     def normalize_meet(value: str) -> str:
-        """«abc-defg-hij» یا نشانی کامل → نشانی کامل Google Meet."""
+        """
+        لینک جلسهٔ آنلاین را همان‌طور که هست نگه می‌دارد.
+
+        هر سازمانی سرویس خودش را دارد (Google Meet، اسکای‌روم، Zoom، Adobe Connect و…)
+        پس هیچ دامنه‌ای حدس زده نمی‌شود؛ فقط اگر کاربر نشانی را بدون //:https نوشته
+        باشد، همان را کامل می‌کنیم تا لینک قابل کلیک بماند.
+        """
         value = (value or '').strip()
         if not value:
             return ''
-        if value.startswith('http://') or value.startswith('https://'):
+        if value.startswith(('http://', 'https://')):
             return value
-        code = value.split('/')[-1]
-        return f'https://meet.google.com/{code}'
+        if re.match(r'^[\w.-]+\.[A-Za-z]{2,}(?::\d+)?(?:[/?#]|$)', value):
+            return 'https://' + value
+        return value                      # شناسه یا کد اتاق — بدون تغییر ذخیره می‌شود
 
 
 class MeetingParticipant(models.Model):
