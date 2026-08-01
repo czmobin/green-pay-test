@@ -69,18 +69,21 @@ ssh root@109.122.252.99 'cd /opt/greenpay/backend && set -a && . /etc/greenpay.e
 یادآورشان رسیده پیامک می‌فرستد. فاصلهٔ یادآور برای هر «جلسه × کاربر» جداگانه است؛
 هر کس از صفحهٔ جلسه می‌تواند فاصلهٔ خودش را عوض کند یا یادآور را خاموش کند.
 
+`manage.py` خودش `/etc/greenpay.env` را می‌خواند، پس لازم نیست پیش از هر دستور
+`set -a; . /etc/greenpay.env` بزنید:
+
 ```bash
 # تشخیص علت رد شدن پیامک (بدون ارسال) — خروجی را می‌شود به پشتیبانی داد
-ssh root@109.122.252.99 'cd /opt/greenpay/backend && set -a && . /etc/greenpay.env && set +a \
-  && ./.venv/bin/python manage.py test_sms 09121234567 --diagnose'
+ssh root@109.122.252.99 '/opt/greenpay/backend/.venv/bin/python \
+  /opt/greenpay/backend/manage.py test_sms 09121234567 --diagnose'
 
 # یک پیامک آزمایشی واقعی
-ssh root@109.122.252.99 'cd /opt/greenpay/backend && set -a && . /etc/greenpay.env && set +a \
-  && ./.venv/bin/python manage.py test_sms 09121234567'
+ssh root@109.122.252.99 '/opt/greenpay/backend/.venv/bin/python \
+  /opt/greenpay/backend/manage.py test_sms 09121234567'
 
 # دیدن اینکه چه پیامکی می‌رفت، بدون ارسال
-ssh root@109.122.252.99 'cd /opt/greenpay/backend && set -a && . /etc/greenpay.env && set +a \
-  && ./.venv/bin/python manage.py send_reminders --dry-run'
+ssh root@109.122.252.99 '/opt/greenpay/backend/.venv/bin/python \
+  /opt/greenpay/backend/manage.py send_reminders --dry-run'
 
 # وضعیت زمان‌بند و آخرین اجراها
 ssh root@109.122.252.99 'systemctl list-timers greenpay-reminders.timer --no-pager'

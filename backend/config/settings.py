@@ -5,6 +5,36 @@ import os
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+
+def _load_env_file(path: str) -> None:
+    """
+    خواندن فایل KEY=VALUE (مثل /etc/greenpay.env) اگر وجود داشته باشد.
+
+    تا کسی مجبور نباشد پیش از هر `manage.py` روی سرور دستی `set -a; . file` بزند —
+    فراموش‌شدنش باعث می‌شود کلیدها خالی دیده شوند. مقادیری که از قبل در محیط
+    هستند دست‌نخورده می‌مانند، پس EnvironmentFile سرویس systemd همچنان اولویت دارد.
+    """
+    try:
+        with open(path, encoding='utf-8') as fh:
+            lines = fh.readlines()
+    except OSError:
+        return
+    for raw in lines:
+        line = raw.strip()
+        if not line or line.startswith('#') or '=' not in line:
+            continue
+        key, _, value = line.partition('=')
+        key = key.strip()
+        if key.startswith('export '):
+            key = key[len('export '):].strip()
+        value = value.strip()
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in '"\'':
+            value = value[1:-1]
+        os.environ.setdefault(key, value)
+
+
+_load_env_file(os.environ.get('GREENPAY_ENV_FILE', '/etc/greenpay.env'))
+
 SECRET_KEY = os.environ.get('SECRET_KEY', 'dev-insecure-change-me')
 DEBUG = os.environ.get('DEBUG', '1') == '1'
 ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', '*').split(',')
