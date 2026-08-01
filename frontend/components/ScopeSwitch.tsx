@@ -17,7 +17,7 @@ export default function ScopeSwitch() {
     <div className="scope-sw" role="group" aria-label="دامنهٔ نمایش جلسات">
       <button className={store.scope === 'mine' ? 'on' : ''}
         onClick={() => store.setScope('mine')}
-        title="فقط جلسه‌هایی که خودم سازنده یا شرکت‌کننده‌شان هستم">
+        title="فقط جلسه‌هایی که خودم در آن‌ها شرکت دارم (نه جلسه‌ای که صرفاً ساخته‌ام)">
         <IconUser size={15} /><span>جلسه‌های من</span>
         <b className="num">{toFa(store.mineCount)}</b>
       </button>

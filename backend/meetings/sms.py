@@ -152,17 +152,17 @@ def send_text(phone: str, text: str, tag: str = 'greenpay') -> SmsResult:
     return SmsResult(False, reason or f'status-{code}')
 
 
-def probe(phone: str = '09121234567') -> list[tuple[str, int, str]]:
+def probe() -> list[tuple[str, int, str]]:
     """
     تشخیص علت رد شدن پیامک — با مقایسهٔ پاسخِ توکن درست و توکن الکی.
 
-    سرویس اول احراز هویت می‌کند و بعد IP را بررسی می‌کند؛ پس اگر توکنِ الکی
-    «۴۰۱ Unauthorized» بگیرد و توکنِ ما «۴۲۸ IpNotValid»، یعنی توکن سالم است و
-    مشکل فقط فهرست IPهای مجاز در پنل است. این خروجی را می‌شود به پشتیبانی داد.
+    سرویس به این ترتیب بررسی می‌کند: اول احراز هویت (۴۰۱)، بعد IP مجاز (۴۲۸)،
+    بعد اعتبارسنجی محتوا (۴۰۶). پس با بدنهٔ عمداً خالی می‌شود فهمید کدام مرحله
+    رد می‌کند، بدون اینکه پیامکی فرستاده شود. خروجی قابل ارائه به پشتیبانی است.
     """
     payload = json.dumps({
-        'messageBodies': ['probe'],
-        'recipientNumbers': [normalize_phone(phone)],
+        'messageBodies': [],
+        'recipientNumbers': [],
         'userTag': 'greenpay-probe',
         'senderNumber': settings.PISHGAM_SMS_SENDER,
     }).encode('utf-8')

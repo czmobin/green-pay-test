@@ -54,7 +54,7 @@ export default function MeetingsPage() {
         {store.canSwitchScope && (
           <p className="scope-hint">
             {store.scope === 'mine'
-              ? <>نمایش <b className="num">{toFa(store.mineCount)}</b> جلسه از <b className="num">{toFa(store.meetings.length)}</b> جلسهٔ سازمان — آن‌هایی که سازنده یا شرکت‌کننده‌شان هستید.</>
+              ? <>نمایش <b className="num">{toFa(store.mineCount)}</b> جلسه از <b className="num">{toFa(store.meetings.length)}</b> جلسهٔ سازمان — آن‌هایی که خودتان در آن‌ها شرکت دارید.</>
               : <>نمایش هر <b className="num">{toFa(store.meetings.length)}</b> جلسهٔ سازمان.</>}
             {store.mineCount === store.meetings.length && store.meetings.length > 0 && (
               <> شما در همهٔ جلسه‌ها حضور دارید، پس دو حالت این کلید یکی است.</>

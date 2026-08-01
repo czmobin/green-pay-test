@@ -388,9 +388,9 @@ export default function Providers({ children }: { children: React.ReactNode }) {
 
   /* ---------- دسترسی ---------- */
   const isManager = role === 'admin' || role === 'ceo';
-  const mine = useCallback(
-    (m: Meeting) => m.organizer === currentUser || m.parts.includes(currentUser),
-    [currentUser]);
+  // «جلسه‌های من» یعنی جلسه‌هایی که در آن‌ها شرکت دارم — نه جلسه‌ای که فقط ساخته‌ام
+  // و خودم در آن نیستم (مثلاً جلسه‌ای که برای دیگران تنظیم کرده‌ام).
+  const mine = useCallback((m: Meeting) => m.parts.includes(currentUser), [currentUser]);
 
   const mineCount = useMemo(() => meetings.filter(mine).length, [meetings, mine]);
 

@@ -31,20 +31,26 @@ class Command(BaseCommand):
             raise CommandError('PISHGAM_SMS_TOKEN تنظیم نشده — /etc/greenpay.env را ببینید.')
 
         if opts['diagnose']:
-            self.stdout.write('مقایسهٔ پاسخ سرویس با توکن درست و توکن نامعتبر:\n')
-            rows = probe(phone)
+            self.stdout.write('مقایسهٔ پاسخ سرویس با توکن درست و توکن نامعتبر '
+                              '(بدنهٔ خالی — پیامکی فرستاده نمی‌شود):\n')
+            rows = probe()
             for label, code, body in rows:
                 self.stdout.write(f'  {label:22} → HTTP {code}  {body}')
             codes = {label: code for label, code, _ in rows}
             self.stdout.write('')
-            if codes.get('توکن عمداً نامعتبر') == 401 and codes.get('توکن پیکربندی‌شده') == 428:
+            mine = codes.get('توکن پیکربندی‌شده')
+            if mine == 401:
+                self.stdout.write(self.style.ERROR(
+                    'نتیجه: توکن پذیرفته نمی‌شود — PISHGAM_SMS_TOKEN را در پنل بررسی کنید.'))
+            elif mine == 428:
                 self.stdout.write(self.style.WARNING(
-                    'نتیجه: توکن سالم است (توکن نامعتبر ۴۰۱ می‌گیرد، توکن ما نمی‌گیرد).\n'
-                    'سرویس فقط IP را رد می‌کند — فهرست IPهای مجازِ همین توکن در پنل باید بررسی شود.'))
-            elif codes.get('توکن پیکربندی‌شده') == 401:
-                self.stdout.write(self.style.ERROR('نتیجه: توکن پذیرفته نمی‌شود — توکن را در پنل بررسی کنید.'))
-            elif codes.get('توکن پیکربندی‌شده') and 200 <= codes['توکن پیکربندی‌شده'] < 300:
-                self.stdout.write(self.style.SUCCESS('نتیجه: سرویس درخواست را پذیرفت.'))
+                    'نتیجه: توکن سالم است ولی IP این سرور مجاز نیست.\n'
+                    'در پنل پیشگام رایان، IP خروجی سرور را به فهرست مجاز همین توکن اضافه کنید.'))
+            else:
+                self.stdout.write(self.style.SUCCESS(
+                    'نتیجه: احراز هویت و IP هر دو درست‌اند؛ سرویس فقط به بدنهٔ خالی ایراد گرفت '
+                    f'(HTTP {mine}) که برای این آزمون طبیعی است.\n'
+                    'برای ارسال واقعی همین دستور را بدون --diagnose بزنید.'))
             return
 
         self.stdout.write(f'فرستنده: {settings.PISHGAM_SMS_SENDER} → گیرنده: {phone}')
