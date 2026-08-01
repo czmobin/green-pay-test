@@ -105,8 +105,9 @@ class Command(BaseCommand):
                     reminder.send_error = ''
                     sent += 1
                 else:
-                    reminder.send_error = result.detail[:120]
+                    reminder.send_error = result.detail[:200]
                     failed += 1
+                    self.stderr.write(f'✗ {user.phone}: {result.detail}')
                 reminder.save(update_fields=['sent_at', 'send_error', 'updated_at'])
 
         self.stdout.write(self.style.SUCCESS(

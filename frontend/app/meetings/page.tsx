@@ -49,8 +49,18 @@ export default function MeetingsPage() {
   return (
     <div ref={scope}>
       <div className="page-head">
-        <h1>همهٔ جلسات</h1>
+        <h1>{store.canSwitchScope && store.scope === 'mine' ? 'جلسه‌های من' : 'همهٔ جلسات'}</h1>
         <p>جستجو در عنوان، مهمان، محل، دستورجلسه و صورت‌جلسه — یا فیلتر بر اساس دسته.</p>
+        {store.canSwitchScope && (
+          <p className="scope-hint">
+            {store.scope === 'mine'
+              ? <>نمایش <b className="num">{toFa(store.mineCount)}</b> جلسه از <b className="num">{toFa(store.meetings.length)}</b> جلسهٔ سازمان — آن‌هایی که سازنده یا شرکت‌کننده‌شان هستید.</>
+              : <>نمایش هر <b className="num">{toFa(store.meetings.length)}</b> جلسهٔ سازمان.</>}
+            {store.mineCount === store.meetings.length && store.meetings.length > 0 && (
+              <> شما در همهٔ جلسه‌ها حضور دارید، پس دو حالت این کلید یکی است.</>
+            )}
+          </p>
+        )}
       </div>
 
       <div className="searchbar">

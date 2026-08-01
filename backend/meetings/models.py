@@ -342,7 +342,7 @@ class MeetingReminder(models.Model):
     enabled = models.BooleanField('فعال', default=True)
 
     sent_at = models.DateTimeField('زمان ارسال', null=True, blank=True)
-    send_error = models.CharField('خطای ارسال', max_length=120, blank=True)
+    send_error = models.CharField('خطای ارسال', max_length=200, blank=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

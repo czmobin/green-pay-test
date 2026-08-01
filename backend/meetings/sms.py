@@ -24,6 +24,26 @@ API_BASE = 'https://api.kavenegar.com/v1'
 PISHGAM_URL = 'https://api.pishgamrayan.com/send'
 TIMEOUT = 12
 
+# پیام‌های شناخته‌شدهٔ پیشگام رایان → توضیح فارسیِ قابل‌فهم برای کاربر پنل
+PISHGAM_ERRORS = {
+    'IpNotValid': 'IP سرور در پنل پیشگام رایان مجاز نیست — آن را در فهرست IPهای مجاز اضافه کنید.',
+    'TokenNotValid': 'توکن پیامک نامعتبر است.',
+    'SenderNotValid': 'شمارهٔ فرستنده در پنل تأیید نشده است.',
+    'InsufficientCredit': 'اعتبار پنل پیامک کافی نیست.',
+    'RecipientNotValid': 'شمارهٔ گیرنده نامعتبر است.',
+}
+
+
+def _pishgam_error(body: str) -> str:
+    """پیام خطای سرویس را از بدنهٔ پاسخ درمی‌آورد و در صورت امکان فارسی می‌کند."""
+    try:
+        code = (json.loads(body) or {}).get('message') or ''
+    except Exception:
+        code = ''
+    if not code:
+        return ''
+    return PISHGAM_ERRORS.get(code, code)
+
 
 class SmsResult:
     def __init__(self, sent: bool, detail: str = ''):
@@ -118,13 +138,15 @@ def send_text(phone: str, text: str, tag: str = 'greenpay') -> SmsResult:
             code = resp.status
     except urllib.error.HTTPError as exc:
         detail = exc.read().decode('utf-8', 'ignore')[:300]
+        reason = _pishgam_error(detail)
         logger.error('پیشگام رایان خطا داد (%s): %s', exc.code, detail)
-        return SmsResult(False, f'http-{exc.code}')
+        return SmsResult(False, reason or f'http-{exc.code}')
     except Exception as exc:                      # شبکه/تایم‌اوت
         logger.error('ارسال پیامک ناموفق: %s', exc)
         return SmsResult(False, 'network-error')
 
     if 200 <= code < 300:
         return SmsResult(True, 'sent')
+    reason = _pishgam_error(body)
     logger.error('پیشگام رایان پیامک را نپذیرفت (%s): %s', code, body)
-    return SmsResult(False, f'status-{code}')
+    return SmsResult(False, reason or f'status-{code}')
