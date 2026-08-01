@@ -150,3 +150,33 @@ def send_text(phone: str, text: str, tag: str = 'greenpay') -> SmsResult:
     reason = _pishgam_error(body)
     logger.error('پیشگام رایان پیامک را نپذیرفت (%s): %s', code, body)
     return SmsResult(False, reason or f'status-{code}')
+
+
+def probe(phone: str = '09121234567') -> list[tuple[str, int, str]]:
+    """
+    تشخیص علت رد شدن پیامک — با مقایسهٔ پاسخِ توکن درست و توکن الکی.
+
+    سرویس اول احراز هویت می‌کند و بعد IP را بررسی می‌کند؛ پس اگر توکنِ الکی
+    «۴۰۱ Unauthorized» بگیرد و توکنِ ما «۴۲۸ IpNotValid»، یعنی توکن سالم است و
+    مشکل فقط فهرست IPهای مجاز در پنل است. این خروجی را می‌شود به پشتیبانی داد.
+    """
+    payload = json.dumps({
+        'messageBodies': ['probe'],
+        'recipientNumbers': [normalize_phone(phone)],
+        'userTag': 'greenpay-probe',
+        'senderNumber': settings.PISHGAM_SMS_SENDER,
+    }).encode('utf-8')
+
+    out = []
+    for label, token in (('توکن پیکربندی‌شده', settings.PISHGAM_SMS_TOKEN),
+                         ('توکن عمداً نامعتبر', 'DEADBEEF00000000')):
+        req = urllib.request.Request(PISHGAM_URL, data=payload, method='POST', headers={
+            'Authorization': token, 'Content-Type': 'application/json'})
+        try:
+            with urllib.request.urlopen(req, timeout=TIMEOUT) as resp:
+                out.append((label, resp.status, resp.read().decode('utf-8', 'ignore')[:160]))
+        except urllib.error.HTTPError as exc:
+            out.append((label, exc.code, exc.read().decode('utf-8', 'ignore')[:160]))
+        except Exception as exc:
+            out.append((label, 0, str(exc)[:160]))
+    return out

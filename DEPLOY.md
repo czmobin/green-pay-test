@@ -70,6 +70,14 @@ ssh root@109.122.252.99 'cd /opt/greenpay/backend && set -a && . /etc/greenpay.e
 هر کس از صفحهٔ جلسه می‌تواند فاصلهٔ خودش را عوض کند یا یادآور را خاموش کند.
 
 ```bash
+# تشخیص علت رد شدن پیامک (بدون ارسال) — خروجی را می‌شود به پشتیبانی داد
+ssh root@109.122.252.99 'cd /opt/greenpay/backend && set -a && . /etc/greenpay.env && set +a \
+  && ./.venv/bin/python manage.py test_sms 09121234567 --diagnose'
+
+# یک پیامک آزمایشی واقعی
+ssh root@109.122.252.99 'cd /opt/greenpay/backend && set -a && . /etc/greenpay.env && set +a \
+  && ./.venv/bin/python manage.py test_sms 09121234567'
+
 # دیدن اینکه چه پیامکی می‌رفت، بدون ارسال
 ssh root@109.122.252.99 'cd /opt/greenpay/backend && set -a && . /etc/greenpay.env && set +a \
   && ./.venv/bin/python manage.py send_reminders --dry-run'
