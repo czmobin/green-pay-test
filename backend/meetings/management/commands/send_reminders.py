@@ -103,12 +103,14 @@ class Command(BaseCommand):
                 if result.sent:
                     reminder.sent_at = timezone.now()
                     reminder.send_error = ''
+                    reminder.provider_msg_id = result.msg_id
                     sent += 1
+                    self.stdout.write(f'✓ {user.phone} — شناسهٔ پیام {result.msg_id or "—"}')
                 else:
                     reminder.send_error = result.detail[:200]
                     failed += 1
                     self.stderr.write(f'✗ {user.phone}: {result.detail}')
-                reminder.save(update_fields=['sent_at', 'send_error', 'updated_at'])
+                reminder.save(update_fields=['sent_at', 'send_error', 'provider_msg_id', 'updated_at'])
 
         self.stdout.write(self.style.SUCCESS(
             f'بررسی‌شده: {checked} | ارسال: {sent} | ناموفق: {failed} | کهنه: {skipped}'))

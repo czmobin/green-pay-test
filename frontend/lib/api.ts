@@ -185,6 +185,8 @@ export interface MeetingReminder {
   sendHour: number;
   sentAt: number | null;
   error: string;
+  /** شناسهٔ پیام نزد سرویس پیامک — برای پیگیری گزارش تحویل */
+  msgId: string;
   applies: boolean;
   hasPhone: boolean;
   choices: number[];

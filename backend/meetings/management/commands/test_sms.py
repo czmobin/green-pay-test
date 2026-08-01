@@ -57,6 +57,8 @@ class Command(BaseCommand):
         result = send_text(phone, opts['text'], tag='greenpay-test')
 
         if result.sent:
-            self.stdout.write(self.style.SUCCESS('✓ پیامک تحویل سرویس شد.'))
+            self.stdout.write(self.style.SUCCESS(
+                f'✓ پیامک تحویل سرویس شد — شناسهٔ پیام: {result.msg_id or "—"}\n'
+                'اگر نرسید، گزارش تحویل همین شناسه را در پنل پیامک ببینید.'))
         else:
             raise CommandError(f'✗ ارسال نشد — {result.detail}')

@@ -109,6 +109,7 @@ def reminder_state(meeting, user):
         'sendHour': hour_of(send_at),
         'sentAt': int(row.sent_at.timestamp() * 1000) if row and row.sent_at else None,
         'error': row.send_error if row else '',
+        'msgId': row.provider_msg_id if row else '',
         'applies': is_part and bool(getattr(user, 'phone', '')),
         'hasPhone': bool(getattr(user, 'phone', '')),
         'choices': MeetingReminder.LEAD_CHOICES,

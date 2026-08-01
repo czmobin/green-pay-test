@@ -343,6 +343,9 @@ class MeetingReminder(models.Model):
 
     sent_at = models.DateTimeField('زمان ارسال', null=True, blank=True)
     send_error = models.CharField('خطای ارسال', max_length=200, blank=True)
+    provider_msg_id = models.CharField(
+        'شناسهٔ پیام نزد سرویس', max_length=40, blank=True,
+        help_text='برای پیگیری گزارش تحویل در پنل پیامک')
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

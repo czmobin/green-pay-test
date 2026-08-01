@@ -46,9 +46,10 @@ def _pishgam_error(body: str) -> str:
 
 
 class SmsResult:
-    def __init__(self, sent: bool, detail: str = ''):
+    def __init__(self, sent: bool, detail: str = '', msg_id: str = ''):
         self.sent = sent
         self.detail = detail
+        self.msg_id = msg_id        # شناسهٔ پیام نزد سرویس — برای پیگیری گزارش تحویل
 
 
 def normalize_phone(raw: str) -> str:
@@ -146,7 +147,13 @@ def send_text(phone: str, text: str, tag: str = 'greenpay') -> SmsResult:
         return SmsResult(False, 'network-error')
 
     if 200 <= code < 300:
-        return SmsResult(True, 'sent')
+        msg_id = ''
+        try:
+            ids = (json.loads(body) or {}).get('result') or []
+            msg_id = str(ids[0]) if ids else ''
+        except Exception:
+            pass
+        return SmsResult(True, 'sent', msg_id)
     reason = _pishgam_error(body)
     logger.error('پیشگام رایان پیامک را نپذیرفت (%s): %s', code, body)
     return SmsResult(False, reason or f'status-{code}')
