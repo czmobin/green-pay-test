@@ -79,6 +79,9 @@ export default function ReminderCard({ meetingId }: { meetingId: string }) {
           <p className="rc-note">
             {sent ? (
               <><IconCheck size={13} /> پیامک یادآور برای شما فرستاده شد.
+                {data.delivery && (
+                  <span className={'rc-dlv' + (data.delivered ? ' ok' : ' warn')}>{data.delivery}</span>
+                )}
                 {data.msgId && <span className="rc-msgid num">شناسهٔ پیام: {data.msgId}</span>}</>
             ) : (
               <><IconClock size={13} /> پیامک {leadLabel(data.leadMinutes)} پیش از جلسه

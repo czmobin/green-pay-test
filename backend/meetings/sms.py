@@ -21,7 +21,8 @@ from django.conf import settings
 logger = logging.getLogger(__name__)
 
 API_BASE = 'https://api.kavenegar.com/v1'
-PISHGAM_URL = 'https://api.pishgamrayan.com/send'
+PISHGAM_BASE = 'https://api.pishgamrayan.com'
+PISHGAM_URL = PISHGAM_BASE + '/send'
 TIMEOUT = 12
 
 # پیام‌های شناخته‌شدهٔ پیشگام رایان → توضیح فارسیِ قابل‌فهم برای کاربر پنل
@@ -187,3 +188,40 @@ def probe() -> list[tuple[str, int, str]]:
         except Exception as exc:
             out.append((label, 0, str(exc)[:160]))
     return out
+
+
+# کدهای وضعیت تحویل — بر پایهٔ رفتار مشاهده‌شدهٔ سرویس
+DELIVERY_LABELS = {
+    10: 'تحویل شد',
+    1: 'به مخابرات رفت ولی تحویل نشد',
+    0: 'در صف ارسال',
+}
+
+
+def delivery_label(code) -> str:
+    if code is None:
+        return ''
+    return DELIVERY_LABELS.get(code, f'کد {code}')
+
+
+def delivery_status(msg_ids: list[str]) -> dict[str, int]:
+    """
+    وضعیت تحویل پیام‌ها را از سرویس می‌پرسد: {شناسه: کد}.
+
+    ورودیِ این endpoint یک آرایهٔ خام از شناسه‌هاست (نه شیء)، و خروجی آرایه‌ای
+    هم‌ترتیب با ورودی است.
+    """
+    ids = [int(i) for i in msg_ids if str(i).strip().isdigit()]
+    if not ids or not settings.PISHGAM_SMS_TOKEN:
+        return {}
+    req = urllib.request.Request(
+        PISHGAM_BASE + '/status', data=json.dumps(ids).encode('utf-8'), method='POST',
+        headers={'Authorization': settings.PISHGAM_SMS_TOKEN, 'Content-Type': 'application/json'})
+    try:
+        with urllib.request.urlopen(req, timeout=TIMEOUT) as resp:
+            body = json.loads(resp.read().decode('utf-8', 'ignore'))
+    except Exception as exc:
+        logger.error('خواندن وضعیت تحویل ناموفق: %s', exc)
+        return {}
+    codes = body.get('result') or []
+    return {str(i): c for i, c in zip(ids, codes)}

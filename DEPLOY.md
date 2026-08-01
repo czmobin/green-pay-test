@@ -85,6 +85,10 @@ ssh root@109.122.252.99 '/opt/greenpay/backend/.venv/bin/python \
 ssh root@109.122.252.99 '/opt/greenpay/backend/.venv/bin/python \
   /opt/greenpay/backend/manage.py send_reminders --dry-run'
 
+# وضعیت تحویل پیامک‌ها (چه چیزی واقعاً به گوشی رسید)
+ssh root@109.122.252.99 '/opt/greenpay/backend/.venv/bin/python \
+  /opt/greenpay/backend/manage.py sms_status --by-phone'
+
 # وضعیت زمان‌بند و آخرین اجراها
 ssh root@109.122.252.99 'systemctl list-timers greenpay-reminders.timer --no-pager'
 ssh root@109.122.252.99 'journalctl -u greenpay-reminders -n 30 --no-pager'

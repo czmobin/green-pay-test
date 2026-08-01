@@ -74,7 +74,8 @@ admin.site.register(Notification)
 
 @admin.register(MeetingReminder)
 class MeetingReminderAdmin(admin.ModelAdmin):
-    list_display = ('meeting', 'user', 'lead_minutes', 'enabled', 'sent_at', 'provider_msg_id', 'send_error')
+    list_display = ('meeting', 'user', 'lead_minutes', 'enabled', 'sent_at',
+                    'provider_msg_id', 'delivery_code', 'send_error')
     list_filter = ('enabled', 'lead_minutes')
     search_fields = ('meeting__title', 'user__first_name', 'user__last_name', 'user__phone')
     autocomplete_fields = ()

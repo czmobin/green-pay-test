@@ -346,6 +346,8 @@ class MeetingReminder(models.Model):
     provider_msg_id = models.CharField(
         'شناسهٔ پیام نزد سرویس', max_length=40, blank=True,
         help_text='برای پیگیری گزارش تحویل در پنل پیامک')
+    delivery_code = models.IntegerField('کد تحویل', null=True, blank=True)
+    delivery_checked_at = models.DateTimeField('آخرین بررسی تحویل', null=True, blank=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

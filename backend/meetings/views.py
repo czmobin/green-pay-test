@@ -96,6 +96,8 @@ def reminder_state(meeting, user):
     from django.conf import settings as dj_settings
     from datetime import timedelta
 
+    from .sms import delivery_label
+
     row = MeetingReminder.objects.filter(meeting=meeting, user=user).first()
     lead = row.lead_minutes if row else dj_settings.MEETING_REMINDER_LEAD_MINUTES
     enabled = row.enabled if row else True
@@ -110,6 +112,8 @@ def reminder_state(meeting, user):
         'sentAt': int(row.sent_at.timestamp() * 1000) if row and row.sent_at else None,
         'error': row.send_error if row else '',
         'msgId': row.provider_msg_id if row else '',
+        'delivery': delivery_label(row.delivery_code) if row and row.delivery_code is not None else '',
+        'delivered': (row.delivery_code == 10) if row and row.delivery_code is not None else None,
         'applies': is_part and bool(getattr(user, 'phone', '')),
         'hasPhone': bool(getattr(user, 'phone', '')),
         'choices': MeetingReminder.LEAD_CHOICES,
