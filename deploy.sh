@@ -30,7 +30,8 @@ main() {
   ./.venv/bin/python manage.py init_data           # فقط داده‌های پایه (انواع سازمان و دسته‌ها)
   ./.venv/bin/python manage.py collectstatic --noinput --clear >/dev/null
 
-  # زمان‌بند یادآور پیامکی — هر ۵ دقیقه بررسی می‌کند چه کسی باید پیامک بگیرد
+  # زمان‌بند یادآور پیامکی — هر دقیقه بررسی می‌کند چه کسی باید پیامک بگیرد
+  # (با ۵ دقیقه، یادآور تا ۵ دقیقه دیر می‌رسید)
   echo "▸ زمان‌بند یادآور…"
   cat > /etc/systemd/system/greenpay-reminders.service <<'UNIT'
 [Unit]
@@ -45,12 +46,12 @@ ExecStart=/opt/greenpay/backend/.venv/bin/python manage.py send_reminders
 UNIT
   cat > /etc/systemd/system/greenpay-reminders.timer <<'UNIT'
 [Unit]
-Description=GreenPay — بررسی هر ۵ دقیقهٔ یادآورهای جلسه
+Description=GreenPay — بررسی هر دقیقهٔ یادآورهای جلسه
 
 [Timer]
-OnBootSec=3min
-OnUnitActiveSec=5min
-AccuracySec=30s
+OnBootSec=1min
+OnUnitActiveSec=1min
+AccuracySec=5s
 Persistent=true
 
 [Install]
