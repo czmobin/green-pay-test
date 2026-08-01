@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useStore } from '@/components/store';
 import { useReveal } from '@/components/useReveal';
-import { minuteMeta, toFa, normalizeFa, todayISO, faDateLabel, faDate } from '@/lib/data';
+import { minuteMeta, toFa, normalizeFa, todayISO, faDateLabel, faDate, remindLabel } from '@/lib/data';
 import type { Meeting, Minute } from '@/lib/types';
 import {
   IconReminder, IconSearch, IconX, IconCheck, IconClock, IconUsers, IconList, IconChevron,
@@ -97,7 +97,7 @@ export default function RemindersPage() {
                     <span className="mlink"><IconList size={12} />{m.title.replace(/—.*/, '').trim()}</span>
                     {mn.type === 'task' && mn.assignee && <span><IconUsers size={12} />{store.people[mn.assignee]?.name ?? mn.assignee}</span>}
                     {mn.type === 'task' && mn.due && <span><IconClock size={12} />مهلت: {faDate(mn.due)}</span>}
-                    {mn.type === 'reminder' && mn.when && <span><IconClock size={12} />{mn.when}</span>}
+                    {mn.type === 'reminder' && remindLabel(mn) && <span><IconClock size={12} />{remindLabel(mn)}</span>}
                     <span className="num">{faDateLabel(m.date)}</span>
                   </div>
                 </div>

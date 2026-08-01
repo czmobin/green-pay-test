@@ -1,8 +1,9 @@
 'use client';
 import React, { useState } from 'react';
 import { useStore } from './store';
-import { minuteMeta, toFa, initials, faDate, todayISO } from '@/lib/data';
+import { minuteMeta, toFa, initials, faDate, todayISO, remindLabel } from '@/lib/data';
 import DatePicker from './DatePicker';
+import TimePicker from './TimePicker';
 import type { Meeting, Minute, MinuteType } from '@/lib/types';
 import { minuteIcon, IconDoc, IconPlus, IconTrash, IconCheck, IconClock, IconCall, IconUsers, IconPaperclip } from './Icons';
 
@@ -18,7 +19,8 @@ export default function MinutesEditor({ meeting }: { meeting: Meeting }) {
   const [text, setText] = useState('');
   const [assignee, setAssignee] = useState(meeting.parts[0] ?? 'ceo');
   const [due, setDue] = useState('');   // تاریخ ISO مهلت
-  const [when, setWhen] = useState('');
+  const [remindDate, setRemindDate] = useState('');   // تاریخ ISO یادآوری
+  const [remindHour, setRemindHour] = useState(9);    // ساعت اعشاری یادآوری
   const [who, setWho] = useState('');
   const [phone, setPhone] = useState('');
   const [fileName, setFileName] = useState('');
@@ -41,13 +43,15 @@ export default function MinutesEditor({ meeting }: { meeting: Meeting }) {
       text: text.trim() || fileName,
       assignee: type === 'task' ? assignee : null,
       due: type === 'task' ? (due || todayISO()) : null,
-      when: type === 'reminder' ? when : '',
+      remindDate: type === 'reminder' ? (remindDate || todayISO()) : null,
+      remindHour: type === 'reminder' ? remindHour : null,
       who: type === 'call' ? who : '',
       phone: type === 'call' ? phone : '',
       fileName: isFile ? fileName : '',
     });
     setSaving(false);
-    setText(''); setDue(''); setWhen(''); setWho(''); setPhone(''); setFileName('');
+    setText(''); setDue(''); setRemindDate(''); setRemindHour(9);
+    setWho(''); setPhone(''); setFileName('');
     store.toast(`${minuteMeta[type].label} ثبت شد`, 'ok');
   }
 
@@ -111,7 +115,12 @@ export default function MinutesEditor({ meeting }: { meeting: Meeting }) {
         )}
         {type === 'reminder' && (
           <div className="extra">
-            <input className="field-in full" type="text" value={when} onChange={(e) => setWhen(e.target.value)} placeholder="زمان یادآوری (مثلاً فردا ۱۰:۰۰)" />
+            <div className="field"><label>تاریخ یادآوری</label>
+              <DatePicker value={remindDate || todayISO()} onChange={setRemindDate} min={todayISO()} />
+            </div>
+            <div className="field"><label>ساعت یادآوری</label>
+              <TimePicker value={remindHour} onChange={setRemindHour} />
+            </div>
           </div>
         )}
         {type === 'call' && (
@@ -184,7 +193,7 @@ function MinuteRow({ m, mid }: { m: Minute; mid: string }) {
           {m.done && <span className="done-tag">انجام شد</span>}
           {m.type === 'task' && m.assignee && <span><IconUsers size={12} />{store.people[m.assignee]?.name ?? m.assignee}</span>}
           {m.type === 'task' && m.due && <span><IconClock size={12} />مهلت: {faDate(m.due)}</span>}
-          {m.type === 'reminder' && m.when && <span><IconClock size={12} />{m.when}</span>}
+          {m.type === 'reminder' && remindLabel(m) && <span><IconClock size={12} />{remindLabel(m)}</span>}
           {m.type === 'call' && m.who && <span><IconCall size={12} />{m.who}</span>}
           {m.type === 'call' && m.phone && <span className="num">{m.phone}</span>}
         </div>

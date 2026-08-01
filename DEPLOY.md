@@ -21,7 +21,7 @@ ssh root@109.122.252.99 '/opt/greenpay/deploy.sh'
 
 ```
 /opt/greenpay/                 کد (clone از GitHub، شاخهٔ main)
-/etc/greenpay.env              SECRET_KEY، DEBUG=0، ALLOWED_HOSTS (دسترسی 600)
+/etc/greenpay.env              SECRET_KEY، DEBUG=0، ALLOWED_HOSTS، کلیدهای پیامک (دسترسی 600)
 /etc/systemd/system/greenpay-web.service    Next.js روی 127.0.0.1:3000
 /etc/systemd/system/greenpay-api.service    gunicorn روی 127.0.0.1:8001
 /etc/nginx/sites-available/greenpay         پروکسی معکوس روی پورت ۸۰
@@ -50,3 +50,31 @@ ssh root@109.122.252.99 'cd /opt/greenpay/backend && set -a && . /etc/greenpay.e
 - ورود با کلید SSH فعال است؛ برای سخت‌ترشدن می‌توان `PasswordAuthentication no` را در `/etc/ssh/sshd_config` گذاشت.
 - پسورد ادمین Django را بعد از اولین ورود از `/admin/password_change/` عوض کنید.
 - برای دامنه و HTTPS: `apt install certbot python3-certbot-nginx && certbot --nginx -d your-domain.ir`
+
+## پیامک
+
+دو سرویس برای دو کار — هر دو کلیدشان فقط در `/etc/greenpay.env` است و هرگز در مخزن نیست:
+
+| متغیر | کاربرد |
+|---|---|
+| `KAVENEGAR_API_KEY` | کد یک‌بارمصرف ورود (سرویس Lookup) |
+| `KAVENEGAR_OTP_TEMPLATE` | نام قالب کد ورود |
+| `PISHGAM_SMS_TOKEN` | یادآور جلسه (متن آزاد) |
+| `PISHGAM_SMS_SENDER` | شمارهٔ فرستنده — پیش‌فرض `5000391009557` |
+| `MEETING_REMINDER_LEAD_MINUTES` | پیش‌فرض یادآور بر حسب دقیقه (پیش‌فرض `60`) |
+
+### یادآور جلسه
+
+`greenpay-reminders.timer` هر ۵ دقیقه اجرا می‌شود و برای شرکت‌کنندگانی که زمان
+یادآورشان رسیده پیامک می‌فرستد. فاصلهٔ یادآور برای هر «جلسه × کاربر» جداگانه است؛
+هر کس از صفحهٔ جلسه می‌تواند فاصلهٔ خودش را عوض کند یا یادآور را خاموش کند.
+
+```bash
+# دیدن اینکه چه پیامکی می‌رفت، بدون ارسال
+ssh root@109.122.252.99 'cd /opt/greenpay/backend && set -a && . /etc/greenpay.env && set +a \
+  && ./.venv/bin/python manage.py send_reminders --dry-run'
+
+# وضعیت زمان‌بند و آخرین اجراها
+ssh root@109.122.252.99 'systemctl list-timers greenpay-reminders.timer --no-pager'
+ssh root@109.122.252.99 'journalctl -u greenpay-reminders -n 30 --no-pager'
+```

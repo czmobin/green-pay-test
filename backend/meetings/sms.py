@@ -1,9 +1,12 @@
 """
-ارسال پیامک از طریق کاوه‌نگار (سرویس Lookup برای کد یک‌بارمصرف).
+ارسال پیامک — دو سرویس برای دو کار:
 
-کلید API فقط از متغیر محیطی خوانده می‌شود — هرگز داخل کد یا مخزن قرار نگیرد.
-اگر کلید تنظیم نشده باشد، پیامکی ارسال نمی‌شود و تابع «حالت توسعه» را گزارش
-می‌کند تا جریان ورود در محیط محلی هم قابل تست باشد.
+* کد یک‌بارمصرفِ ورود  → کاوه‌نگار (سرویس Lookup با قالب تأییدشده)
+* یادآور جلسه و اعلان‌ها → پیشگام رایان (متن آزاد)
+
+کلیدها فقط از متغیرهای محیطی خوانده می‌شوند — هرگز داخل کد یا مخزن قرار نگیرند.
+اگر کلیدی تنظیم نشده باشد پیامکی ارسال نمی‌شود و تابع «حالت توسعه» را گزارش
+می‌کند تا جریان کار در محیط محلی هم قابل تست باشد.
 """
 from __future__ import annotations
 
@@ -18,6 +21,7 @@ from django.conf import settings
 logger = logging.getLogger(__name__)
 
 API_BASE = 'https://api.kavenegar.com/v1'
+PISHGAM_URL = 'https://api.pishgamrayan.com/send'
 TIMEOUT = 12
 
 
@@ -80,3 +84,47 @@ def send_otp(phone: str, code: str) -> SmsResult:
     message = (body.get('return') or {}).get('message', '')
     logger.error('کاوه‌نگار پیامک را نپذیرفت (%s): %s', status, message)
     return SmsResult(False, message or f'status-{status}')
+
+
+def send_text(phone: str, text: str, tag: str = 'greenpay') -> SmsResult:
+    """
+    پیامک متن‌آزاد از طریق پیشگام رایان — برای یادآور جلسه و اعلان‌ها.
+
+    برخلاف کد ورود، اینجا قالب از پیش تعریف‌شده لازم نیست و متن کامل فرستاده می‌شود.
+    """
+    token = settings.PISHGAM_SMS_TOKEN
+    sender = settings.PISHGAM_SMS_SENDER
+    if not token or not sender:
+        logger.warning('PISHGAM_SMS_TOKEN تنظیم نشده — پیامک ارسال نشد (حالت توسعه).')
+        return SmsResult(False, 'sms-disabled')
+
+    phone = normalize_phone(phone)
+    if not is_valid_phone(phone):
+        return SmsResult(False, 'bad-number')
+
+    payload = json.dumps({
+        'messageBodies': [text],
+        'recipientNumbers': [phone],
+        'userTag': tag,
+        'senderNumber': sender,
+    }).encode('utf-8')
+    req = urllib.request.Request(PISHGAM_URL, data=payload, method='POST', headers={
+        'Authorization': token,
+        'Content-Type': 'application/json',
+    })
+    try:
+        with urllib.request.urlopen(req, timeout=TIMEOUT) as resp:
+            body = resp.read().decode('utf-8', 'ignore')[:300]
+            code = resp.status
+    except urllib.error.HTTPError as exc:
+        detail = exc.read().decode('utf-8', 'ignore')[:300]
+        logger.error('پیشگام رایان خطا داد (%s): %s', exc.code, detail)
+        return SmsResult(False, f'http-{exc.code}')
+    except Exception as exc:                      # شبکه/تایم‌اوت
+        logger.error('ارسال پیامک ناموفق: %s', exc)
+        return SmsResult(False, 'network-error')
+
+    if 200 <= code < 300:
+        return SmsResult(True, 'sent')
+    logger.error('پیشگام رایان پیامک را نپذیرفت (%s): %s', code, body)
+    return SmsResult(False, f'status-{code}')

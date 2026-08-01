@@ -158,6 +158,9 @@ export interface NewMinute {
   text: string;
   assignee?: string | null;
   due?: string | null;
+  /** زمان یادآوری — تاریخ میلادی ISO و ساعت اعشاری (۹:۳۰ → ۹.۵) */
+  remindDate?: string | null;
+  remindHour?: number | null;
   when?: string;
   who?: string;
   phone?: string;
@@ -172,6 +175,19 @@ export interface OtpRequestResult {
   smsSent: boolean;
   isKnown: boolean;   // شماره از قبل ثبت شده؟ (ورود در برابر ثبت‌نام)
   devCode?: string;   // فقط وقتی سرویس پیامک خاموش است (محیط توسعه)
+}
+
+/** یادآور پیامکی جلسه — برای هر کاربر و هر جلسه جداگانه تنظیم می‌شود. */
+export interface MeetingReminder {
+  leadMinutes: number;
+  enabled: boolean;
+  sendDate: string;
+  sendHour: number;
+  sentAt: number | null;
+  error: string;
+  applies: boolean;
+  hasPhone: boolean;
+  choices: number[];
 }
 
 /* ---------- گزارش کامل (فقط ادمین و مدیرعامل) ---------- */
@@ -254,6 +270,9 @@ export const api = {
     request<AgendaItem>(`/agenda/${id}/`, { method: 'PATCH', body: JSON.stringify(a) }),
   deleteAgenda: (id: string) => request<void>(`/agenda/${id}/`, { method: 'DELETE' }),
   respondMeeting: (id: string, accept: boolean) => post<Meeting>(`/meetings/${id}/respond/`, { accept }),
+  getReminder: (id: string) => request<MeetingReminder>(`/meetings/${id}/reminder/`),
+  setReminder: (id: string, body: { leadMinutes?: number; enabled?: boolean }) =>
+    post<MeetingReminder>(`/meetings/${id}/reminder/`, body),
   syncMeeting: (id: string) => post<Meeting>(`/meetings/${id}/sync/`),
 
   createMinute: (m: NewMinute) => post<Minute>('/entries/', m),

@@ -162,3 +162,12 @@ export function meetPlatform(link?: string | null): string {
   if (!isUrl(link)) return '';
   try { return new URL(link).hostname.replace(/^www\./, ''); } catch { return ''; }
 }
+
+/** «۱۲ مرداد، ۰۹:۳۰» — زمان یادآوری از تاریخ ISO و ساعت اعشاری. */
+export function remindLabel(m: { remindDate?: string | null; remindHour?: number | null; when?: string }): string {
+  if (m.remindDate) {
+    const clock = m.remindHour == null ? '' : `، ${fmtTime(m.remindHour)}`;
+    return `${faDate(m.remindDate)}${clock}`;
+  }
+  return m.when ?? '';        // دادهٔ متنیِ قدیمی
+}

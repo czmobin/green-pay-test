@@ -9,7 +9,7 @@ import ConflictAlert from './ConflictAlert';
 import UserMenu from './UserMenu';
 import {
   IconDashboard, IconCalendar, IconList, IconPlus, IconReminder,
-  IconLeaf, IconSettings, IconLogout, IconReport,
+  IconSettings, IconLogout, IconReport,
 } from './Icons';
 import ScopeSwitch from './ScopeSwitch';
 import { initials } from '@/lib/data';
@@ -50,7 +50,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       {/* ---------- Sidebar (desktop) ---------- */}
       <aside className="sidebar">
         <Link href="/" className="brand">
-          <span className="logo"><IconLeaf size={23} /></span>
+          <span className="logo"><img src="/logo-mark.png" alt="گرین‌پی" /></span>
           <span><b>گرین‌پی</b><span style={{ display: 'block', fontSize: 11.5, color: 'var(--sb-muted)' }}>اتاق جلسات سازمانی</span></span>
         </Link>
 
@@ -99,7 +99,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       <div className="main">
         <header className="topbar">
           <Link href="/" className="tb-brand">
-            <span className="tb-logo"><IconLeaf size={19} /></span>
+            <span className="tb-logo"><img src="/logo-mark.png" alt="گرین‌پی" /></span>
             <span className="tb-title">گرین‌پی<small>اتاق جلسات</small></span>
           </Link>
           <ScopeSwitch />

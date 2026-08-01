@@ -1,6 +1,7 @@
 'use client';
 import React from 'react';
 import { useStore } from './store';
+import { toFa } from '@/lib/data';
 import { IconUser, IconUsers } from './Icons';
 
 /**
@@ -18,11 +19,13 @@ export default function ScopeSwitch() {
         onClick={() => store.setScope('mine')}
         title="فقط جلسه‌هایی که خودم سازنده یا شرکت‌کننده‌شان هستم">
         <IconUser size={15} /><span>جلسه‌های من</span>
+        <b className="num">{toFa(store.mineCount)}</b>
       </button>
       <button className={store.scope === 'all' ? 'on' : ''}
         onClick={() => store.setScope('all')}
         title="جلسه‌های همهٔ افراد سازمان">
         <IconUsers size={15} /><span>همه</span>
+        <b className="num">{toFa(store.meetings.length)}</b>
       </button>
     </div>
   );

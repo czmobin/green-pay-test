@@ -30,6 +30,35 @@ main() {
   ./.venv/bin/python manage.py init_data           # فقط داده‌های پایه (انواع سازمان و دسته‌ها)
   ./.venv/bin/python manage.py collectstatic --noinput --clear >/dev/null
 
+  # زمان‌بند یادآور پیامکی — هر ۵ دقیقه بررسی می‌کند چه کسی باید پیامک بگیرد
+  echo "▸ زمان‌بند یادآور…"
+  cat > /etc/systemd/system/greenpay-reminders.service <<'UNIT'
+[Unit]
+Description=GreenPay — ارسال پیامک یادآور جلسه
+After=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/greenpay/backend
+EnvironmentFile=/etc/greenpay.env
+ExecStart=/opt/greenpay/backend/.venv/bin/python manage.py send_reminders
+UNIT
+  cat > /etc/systemd/system/greenpay-reminders.timer <<'UNIT'
+[Unit]
+Description=GreenPay — بررسی هر ۵ دقیقهٔ یادآورهای جلسه
+
+[Timer]
+OnBootSec=3min
+OnUnitActiveSec=5min
+AccuracySec=30s
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+UNIT
+  systemctl daemon-reload
+  systemctl enable --now greenpay-reminders.timer >/dev/null
+
   echo "▸ راه‌اندازی مجدد سرویس‌ها…"
   systemctl restart greenpay-web greenpay-api
   sleep 3
@@ -42,6 +71,9 @@ main() {
     fi
   done
   [ "$failed" -eq 0 ] || exit 1
+  systemctl is-active --quiet greenpay-reminders.timer \
+    && echo "  ✓ greenpay-reminders.timer ($(systemctl show -p NextElapseUSecRealtime --value greenpay-reminders.timer))" \
+    || echo "  ✗ greenpay-reminders.timer" 
 
   echo "✅ استقرار کامل شد — http://${DEPLOY_HOST:-109.122.252.99}/"
 }

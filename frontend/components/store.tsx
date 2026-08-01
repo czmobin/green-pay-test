@@ -66,6 +66,8 @@ interface Store {
   /** دامنهٔ نمایش جلسات — «mine» فقط جلسه‌های خودم، «all» جلسه‌های همه */
   scope: Scope;
   setScope: (s: Scope) => void;
+  /** تعداد جلسه‌های خودِ کاربر — کنار کلید دامنه نشان داده می‌شود */
+  mineCount: number;
   /** فقط ادمین و مدیرعامل می‌توانند دامنه را عوض کنند */
   canSwitchScope: boolean;
   currentUser: string;
@@ -390,6 +392,8 @@ export default function Providers({ children }: { children: React.ReactNode }) {
     (m: Meeting) => m.organizer === currentUser || m.parts.includes(currentUser),
     [currentUser]);
 
+  const mineCount = useMemo(() => meetings.filter(mine).length, [meetings, mine]);
+
   const visibleMeetings = useMemo(() =>
     (!isManager || scope === 'mine') ? meetings.filter(mine) : meetings,
     [meetings, isManager, scope, mine]);
@@ -414,7 +418,7 @@ export default function Providers({ children }: { children: React.ReactNode }) {
     addPerson, addRoom, addOrg,
     deletePerson, deleteRoom, deleteOrg,
     isManager,
-    role, scope, setScope, canSwitchScope: isManager, currentUser, setRole, setCurrentUser,
+    role, scope, setScope, mineCount, canSwitchScope: isManager, currentUser, setRole, setCurrentUser,
     gcalConnected, connectGcal, smsEnabled, toggleSms,
     conflicts, dismissConflicts: () => setConflicts([]),
     createOpen, openCreate: () => setCreateOpen(true), closeCreate: () => setCreateOpen(false),
@@ -423,7 +427,7 @@ export default function Providers({ children }: { children: React.ReactNode }) {
     ready, error, reload, meetings, visibleMeetings, minutes, people, guests, rooms, orgs, orgKinds, categories,
     getMeeting, canEdit, createMeeting, updateMeeting, addAgenda, updateAgendaItem, deleteAgendaItem,
     respondMeeting, syncMeeting, addMinute, deleteMinute, toggleTask,
-    addPerson, addRoom, addOrg, deletePerson, deleteRoom, deleteOrg, role, isManager, scope, setScope,
+    addPerson, addRoom, addOrg, deletePerson, deleteRoom, deleteOrg, role, isManager, scope, setScope, mineCount,
     currentUser, gcalConnected, connectGcal, smsEnabled, toggleSms,
     createOpen, toast, toggleTheme]);
 

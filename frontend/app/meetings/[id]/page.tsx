@@ -5,6 +5,7 @@ import { useStore } from '@/components/store';
 import MinutesEditor from '@/components/MinutesEditor';
 import AgendaEditor from '@/components/AgendaEditor';
 import EditMeetingModal from '@/components/EditMeetingModal';
+import ReminderCard from '@/components/ReminderCard';
 import { useReveal } from '@/components/useReveal';
 import { typeLabels, statusLabels, fmtTime, initials, toFa, priorityLabels, priorityColor, faDate, isUrl, meetPlatform } from '@/lib/data';
 import {
@@ -94,6 +95,7 @@ export default function MeetingDetail() {
 
         {/* aside: details on demand */}
         <div className="d-aside">
+          <ReminderCard meetingId={m.id} />
           <details className="disclosure" open>
             <summary>
               <span className="lead-ic"><IconList size={17} /></span>

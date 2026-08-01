@@ -7,7 +7,7 @@ import { useStore } from '@/components/store';
 import LoginScene from '@/components/LoginScene';
 import { api } from '@/lib/api';
 import { toFa } from '@/lib/data';
-import { IconLeaf, IconBack, IconCheck, IconSun, IconMoon } from '@/components/Icons';
+import { IconBack, IconCheck, IconSun, IconMoon } from '@/components/Icons';
 
 const CODE_LEN = 5;
 type Step = 'phone' | 'code' | 'profile';
@@ -227,7 +227,7 @@ export default function LoginPage() {
 
         <main className="login-card lg-card">
           <div className="lg-brand">
-            <span className="lg-logo"><IconLeaf size={26} /></span>
+            <span className="lg-logo"><img src="/logo-mark.png" alt="گرین‌پی" /></span>
             <div><b>گرین‌پی</b><small>اتاق جلسات سازمانی</small></div>
           </div>
 

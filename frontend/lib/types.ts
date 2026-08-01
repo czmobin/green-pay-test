@@ -91,6 +91,8 @@ export interface Minute {
   doneAt?: number | null;
   // reminder
   when?: string;
+  remindDate?: string | null;
+  remindHour?: number | null;
   // call
   who?: string;
   phone?: string;

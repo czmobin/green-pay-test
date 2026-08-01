@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useStore } from './store';
-import { todayISO, nowHour, faDateLabel, fmtTime, toFa } from '@/lib/data';
+import { todayISO, nowHour, faDateLabel, fmtTime, toFa , remindLabel } from '@/lib/data';
 import {
   IconBell, IconCalendar, IconClock, IconTask, IconReminder, IconUsers, IconX,
 } from './Icons';
@@ -35,7 +35,7 @@ export default function NotificationBell() {
     notifs.push({ id: 'i' + m.id, kind: 'invite', title: `دعوت: ${short(m.title)}`, sub: `${faDateLabel(m.date)} · ${fmtTime(m.start)}`, mid: m.id });
   });
   store.visibleMeetings.forEach((m) => (store.minutes[m.id] ?? []).forEach((x) => {
-    if (x.type === 'reminder' && !x.done) notifs.push({ id: x.id, kind: 'reminder', title: x.text, sub: x.when || faDateLabel(m.date), mid: m.id });
+    if (x.type === 'reminder' && !x.done) notifs.push({ id: x.id, kind: 'reminder', title: x.text, sub: remindLabel(x) || faDateLabel(m.date), mid: m.id });
     if (x.type === 'task' && !x.done) notifs.push({ id: x.id, kind: 'task', title: x.text, sub: `مهلت: ${x.due || '—'}`, mid: m.id });
   }));
 

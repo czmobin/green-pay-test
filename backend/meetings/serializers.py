@@ -171,6 +171,8 @@ class MinuteEntrySerializer(serializers.ModelSerializer):
     due = serializers.DateField(source='due_date', required=False, allow_null=True)
     done = serializers.BooleanField(source='is_done', required=False)
     when = serializers.CharField(source='remind_text', required=False, allow_blank=True)
+    remindDate = serializers.SerializerMethodField()
+    remindHour = serializers.SerializerMethodField()
     who = serializers.CharField(source='call_with', required=False, allow_blank=True)
     phone = serializers.CharField(source='call_phone', required=False, allow_blank=True)
     fileName = serializers.SerializerMethodField()
@@ -179,10 +181,17 @@ class MinuteEntrySerializer(serializers.ModelSerializer):
     class Meta:
         model = MinuteEntry
         fields = ['id', 'meeting', 'type', 'text', 'createdAt', 'participant',
-                  'assignee', 'due', 'done', 'doneAt', 'when', 'who', 'phone', 'fileName']
+                  'assignee', 'due', 'done', 'doneAt', 'when', 'remindDate', 'remindHour',
+                  'who', 'phone', 'fileName']
 
     def get_doneAt(self, obj):
         return int(obj.done_at.timestamp() * 1000) if obj.done_at else None
+
+    def get_remindDate(self, obj):
+        return to_iso_date(obj.remind_at) if obj.remind_at else None
+
+    def get_remindHour(self, obj):
+        return to_float_hour(obj.remind_at) if obj.remind_at else None
 
     def get_createdAt(self, obj) -> int:
         return int(obj.created_at.timestamp() * 1000)
@@ -260,6 +269,8 @@ class MinuteEntryCreateSerializer(serializers.Serializer):
     assignee = serializers.PrimaryKeyRelatedField(
         queryset=User.objects.all(), required=False, allow_null=True)
     due = serializers.DateField(required=False, allow_null=True, default=None)
+    remindDate = serializers.DateField(required=False, allow_null=True, default=None)
+    remindHour = serializers.FloatField(required=False, allow_null=True, default=None)
     when = serializers.CharField(required=False, allow_blank=True, default='')
     who = serializers.CharField(required=False, allow_blank=True, default='')
     phone = serializers.CharField(required=False, allow_blank=True, default='')
@@ -268,12 +279,16 @@ class MinuteEntryCreateSerializer(serializers.Serializer):
     def create(self, validated):
         minutes, _ = Minutes.objects.get_or_create(
             meeting=validated['meeting'], participant=validated.get('participant'))
+        remind_at = None
+        if validated.get('remindDate') is not None:
+            remind_at = from_date_hour(validated['remindDate'], validated.get('remindHour') or 9)
         entry = MinuteEntry.objects.create(
             minutes=minutes,
             entry_type=validated['type'],
             text=validated.get('text', ''),
             assignee=validated.get('assignee'),
             due_date=validated.get('due'),
+            remind_at=remind_at,
             remind_text=validated.get('when', ''),
             call_with=validated.get('who', ''),
             call_phone=validated.get('phone', ''),

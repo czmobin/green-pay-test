@@ -5,11 +5,12 @@ from rest_framework.decorators import action, api_view
 from rest_framework.response import Response
 
 from django.utils import timezone
-from rest_framework.exceptions import PermissionDenied
+from django.conf import settings
+from rest_framework.exceptions import PermissionDenied, ValidationError
 
 from .models import (
     AgendaItem, Category, GoogleCalendarConnection, Location, Meeting, MeetingParticipant,
-    MinuteEntry, Organization, OrganizationKind, User,
+    MeetingReminder, MinuteEntry, Organization, OrganizationKind, User,
 )
 from .serializers import (
     AgendaItemSerializer, CategorySerializer, GuestSerializer, LocationCreateSerializer,
@@ -83,6 +84,35 @@ def find_conflicts(start, end, user_ids, exclude_meeting_id=None):
                 'room': meeting.location.name if meeting.location_id else '',
             })
     return conflicts
+
+
+def reminder_state(meeting, user):
+    """
+    تنظیم یادآور همین کاربر برای همین جلسه.
+
+    تا وقتی کاربر چیزی عوض نکرده ردیفی در دیتابیس نیست و پیش‌فرض سامانه
+    برگردانده می‌شود؛ فرانت هم همین را نشان می‌دهد.
+    """
+    from django.conf import settings as dj_settings
+    from datetime import timedelta
+
+    row = MeetingReminder.objects.filter(meeting=meeting, user=user).first()
+    lead = row.lead_minutes if row else dj_settings.MEETING_REMINDER_LEAD_MINUTES
+    enabled = row.enabled if row else True
+    send_at = meeting.start - timedelta(minutes=lead)
+    is_part = (meeting.organizer_id == user.id
+               or meeting.meeting_participants.filter(user_id=user.id).exists())
+    return {
+        'leadMinutes': lead,
+        'enabled': enabled,
+        'sendDate': to_iso(send_at),
+        'sendHour': hour_of(send_at),
+        'sentAt': int(row.sent_at.timestamp() * 1000) if row and row.sent_at else None,
+        'error': row.send_error if row else '',
+        'applies': is_part and bool(getattr(user, 'phone', '')),
+        'hasPhone': bool(getattr(user, 'phone', '')),
+        'choices': MeetingReminder.LEAD_CHOICES,
+    }
 
 
 def to_iso(dt):
@@ -249,6 +279,31 @@ class MeetingViewSet(viewsets.ModelViewSet):
         meeting.status = Meeting.Status.CONFIRMED if accept else Meeting.Status.CANCELLED
         meeting.save(update_fields=['status'])
         return Response(MeetingSerializer(meeting).data)
+
+    @action(detail=True, methods=['get', 'post'], url_path='reminder')
+    def reminder(self, request, pk=None):
+        """یادآور پیامکی همین کاربر برای همین جلسه — خواندن و تنظیم."""
+        meeting = self.get_object()
+        if request.method == 'POST':
+            data = request.data or {}
+            row, _ = MeetingReminder.objects.get_or_create(
+                meeting=meeting, user=request.user,
+                defaults={'lead_minutes': settings.MEETING_REMINDER_LEAD_MINUTES})
+            if 'leadMinutes' in data:
+                try:
+                    lead = int(data['leadMinutes'])
+                except (TypeError, ValueError):
+                    raise ValidationError({'leadMinutes': 'مقدار نامعتبر است.'})
+                if not 1 <= lead <= 10080:                    # از یک دقیقه تا یک هفته
+                    raise ValidationError({'leadMinutes': 'فاصله باید بین ۱ دقیقه تا ۷ روز باشد.'})
+                if lead != row.lead_minutes:
+                    row.sent_at = None                        # زمان عوض شد، دوباره باید برود
+                    row.send_error = ''
+                row.lead_minutes = lead
+            if 'enabled' in data:
+                row.enabled = bool(data['enabled'])
+            row.save()
+        return Response(reminder_state(meeting, request.user))
 
     @action(detail=True, methods=['post'])
     def sync(self, request, pk=None):

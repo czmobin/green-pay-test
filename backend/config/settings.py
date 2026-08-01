@@ -116,6 +116,13 @@ SIMPLE_JWT = {
 # --- ورود با کد یک‌بارمصرف (کاوه‌نگار) ---
 KAVENEGAR_API_KEY = os.environ.get('KAVENEGAR_API_KEY', '')
 KAVENEGAR_OTP_TEMPLATE = os.environ.get('KAVENEGAR_OTP_TEMPLATE', 'contractOtpLogin')
+
+# پیشگام رایان — پیامک متن‌آزاد برای یادآور جلسه (توکن فقط از محیط، هرگز در مخزن)
+PISHGAM_SMS_TOKEN = os.environ.get('PISHGAM_SMS_TOKEN', '')
+PISHGAM_SMS_SENDER = os.environ.get('PISHGAM_SMS_SENDER', '5000391009557')
+
+# فاصلهٔ پیش‌فرض یادآور جلسه (دقیقه پیش از شروع) — هر کاربر می‌تواند برای هر جلسه عوضش کند
+MEETING_REMINDER_LEAD_MINUTES = int(os.environ.get('MEETING_REMINDER_LEAD_MINUTES', '60'))
 OTP_TTL_SECONDS = int(os.environ.get('OTP_TTL_SECONDS', '120'))
 OTP_RESEND_SECONDS = int(os.environ.get('OTP_RESEND_SECONDS', '60'))
 # وقتی پیامک ارسال نشود (کلید تنظیم نشده)، کد در پاسخ برگردانده می‌شود تا

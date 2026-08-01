@@ -12,6 +12,7 @@
   User ─ GoogleCalendarConnection               (calendar موازی گوگل)
 """
 import re
+from datetime import timedelta
 
 from django.conf import settings
 from django.contrib.auth.models import AbstractUser
@@ -319,6 +320,48 @@ class Attachment(models.Model):
 
     def __str__(self):
         return self.name or self.file.name
+
+
+class MeetingReminder(models.Model):
+    """
+    یادآور پیامکی جلسه — برای هر شرکت‌کننده به‌صورت جداگانه.
+
+    پیش‌فرض یک ساعت پیش از شروع است، ولی هر کاربر می‌تواند این فاصله را برای
+    هر جلسه جداگانه عوض کند یا یادآور را برای همان جلسه خاموش کند.
+    ردیف تا وقتی کاربر تنظیمی ندهد ساخته نمی‌شود؛ فرمان ارسال خودش می‌سازدش
+    تا «فرستاده شد» هم همان‌جا ثبت شود.
+    """
+    LEAD_CHOICES = [15, 30, 60, 120, 180, 1440]
+
+    meeting = models.ForeignKey(Meeting, on_delete=models.CASCADE, related_name='reminders')
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
+                             related_name='meeting_reminders')
+    lead_minutes = models.PositiveIntegerField(
+        'فاصله تا شروع (دقیقه)', default=60,
+        help_text='چند دقیقه پیش از شروع جلسه پیامک برود')
+    enabled = models.BooleanField('فعال', default=True)
+
+    sent_at = models.DateTimeField('زمان ارسال', null=True, blank=True)
+    send_error = models.CharField('خطای ارسال', max_length=120, blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'یادآور جلسه'
+        verbose_name_plural = 'یادآورهای جلسه'
+        constraints = [
+            models.UniqueConstraint(fields=['meeting', 'user'], name='uniq_reminder_per_user'),
+        ]
+        indexes = [models.Index(fields=['sent_at'])]
+
+    def __str__(self):
+        return f'{self.user} — {self.meeting}'
+
+    @property
+    def send_at(self):
+        """لحظه‌ای که پیامک باید برود."""
+        return self.meeting.start - timedelta(minutes=self.lead_minutes)
 
 
 class Notification(models.Model):
