@@ -17,24 +17,30 @@ from django.utils import timezone
 from meetings.models import Meeting, MeetingReminder
 from meetings.sms import send_text
 
-# پیامکی که بیش از این مقدار از زمانش گذشته باشد دیگر فرستاده نمی‌شود
-# (سرویس خاموش بوده یا زمان‌بند اجرا نشده — یادآور کهنه بدتر از نفرستادن است)
-STALE_AFTER = timedelta(minutes=30)
-
-
 def fa_digits(text: str) -> str:
     return str(text).translate(str.maketrans('0123456789', '۰۱۲۳۴۵۶۷۸۹'))
 
 
-def compose(reminder: MeetingReminder) -> str:
-    """متن پیامک یادآور — کوتاه، چون هر ۷۰ نویسه یک پیامک حساب می‌شود."""
-    m = reminder.meeting
-    local = timezone.localtime(m.start)
+def humanize(minutes: int) -> str:
+    """۹۰ → «۱ ساعت و ۳۰ دقیقه»، ۴۵ → «۴۵ دقیقه»."""
+    if minutes < 60:
+        return f'{fa_digits(max(minutes, 1))} دقیقه'
+    h, m = divmod(minutes, 60)
+    return f'{fa_digits(h)} ساعت و {fa_digits(m)} دقیقه' if m else f'{fa_digits(h)} ساعت'
+
+
+def compose(meeting: Meeting, minutes_left: int) -> str:
+    """
+    متن پیامک یادآور — کوتاه، چون هر ۷۰ نویسه یک پیامک حساب می‌شود.
+
+    فاصله از روی زمانِ واقعیِ باقی‌مانده نوشته می‌شود، نه از روی تنظیم کاربر؛
+    اگر ارسال به هر دلیلی عقب افتاده باشد، پیام نباید عدد نادرست بگوید.
+    """
+    local = timezone.localtime(meeting.start)
     clock = fa_digits(f'{local.hour:02d}:{local.minute:02d}')
-    mins = reminder.lead_minutes
-    gap = f'{fa_digits(mins // 60)} ساعت' if mins >= 60 and mins % 60 == 0 else f'{fa_digits(mins)} دقیقه'
-    where = m.location.name if m.location_id else ('جلسهٔ آنلاین' if m.meeting_type == Meeting.Type.ONLINE else '')
-    lines = [f'یادآور جلسه — {gap} دیگر', m.title, f'ساعت {clock}']
+    where = (meeting.location.name if meeting.location_id
+             else ('جلسهٔ آنلاین' if meeting.meeting_type == Meeting.Type.ONLINE else ''))
+    lines = [f'یادآور جلسه — {humanize(minutes_left)} دیگر', meeting.title, f'ساعت {clock}']
     if where:
         lines.append(where)
     lines.append('گرین‌پی')
@@ -68,7 +74,10 @@ class Command(BaseCommand):
 
             for mp in meeting.meeting_participants.all():
                 user = mp.user
-                if mp.is_guest or not user.phone:
+                if mp.is_guest:
+                    continue
+                if not user.phone:
+                    skipped += 1               # شماره‌ای ثبت نشده — یادآور شدنی نیست
                     continue
                 checked += 1
 
@@ -82,12 +91,11 @@ class Command(BaseCommand):
                 due = meeting.start - timedelta(minutes=lead)
                 if due > now:
                     continue
-                if now - due > STALE_AFTER:
-                    skipped += 1
-                    continue
 
-                text = compose(reminder or MeetingReminder(meeting=meeting, user=user,
-                                                           lead_minutes=lead))
+                # تا وقتی جلسه شروع نشده، یادآورِ عقب‌افتاده هم ارزش فرستادن دارد؛
+                # فقط عددِ داخل پیام باید واقعیِ همین لحظه باشد.
+                minutes_left = int((meeting.start - now).total_seconds() // 60)
+                text = compose(meeting, minutes_left)
                 if opts['dry_run']:
                     self.stdout.write(f'→ {user.phone}\n{text}\n')
                     sent += 1
@@ -113,4 +121,4 @@ class Command(BaseCommand):
                 reminder.save(update_fields=['sent_at', 'send_error', 'provider_msg_id', 'updated_at'])
 
         self.stdout.write(self.style.SUCCESS(
-            f'بررسی‌شده: {checked} | ارسال: {sent} | ناموفق: {failed} | کهنه: {skipped}'))
+            f'بررسی‌شده: {checked} | ارسال: {sent} | ناموفق: {failed} | بدون شماره: {skipped}'))
