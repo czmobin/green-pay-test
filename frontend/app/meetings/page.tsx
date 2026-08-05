@@ -3,7 +3,7 @@ import React, { useMemo, useState } from 'react';
 import { useStore } from '@/components/store';
 import MeetingRow from '@/components/MeetingRow';
 import { useReveal } from '@/components/useReveal';
-import { categoryOf, toFa, normalizeFa, todayISO, faDate, faDateLabel } from '@/lib/data';
+import { categoryOf, toFa, normalizeFa, todayISO, addDaysISO, faDateShort, faWeekdayOf } from '@/lib/data';
 import type { Meeting } from '@/lib/types';
 import { IconSearch, IconX, IconList } from '@/components/Icons';
 
@@ -43,6 +43,7 @@ export default function MeetingsPage() {
     g.items.push(m);
   });
   const iso = todayISO();
+  const tomorrow = addDaysISO(iso, 1);
 
   const scope = useReveal(['.page-head', '.searchbar', '.filters', '.date-group', '.mrow']);
 
@@ -82,16 +83,18 @@ export default function MeetingsPage() {
         <div className="result-empty"><div><IconList size={40} /></div>جلسه‌ای با این فیلتر/جستجو پیدا نشد.</div>
       ) : (
         groups.map((g) => (
-          <div key={g.date}>
+          <section className={'day-block' + (g.date === iso ? ' is-today' : '')} key={g.date}>
             <div className="date-group">
-              <h3>{faDate(g.date)}</h3>
+              <span className="dg-day">{faWeekdayOf(g.date)}</span>
+              <h3>{faDateShort(g.date)}</h3>
               {g.date === iso && <span className="today-b">امروز</span>}
+              {g.date === tomorrow && <span className="tmr-b">فردا</span>}
               <span className="cnt num">{toFa(g.items.length)} جلسه</span>
             </div>
             <div className="mlist">
               {g.items.map((m) => <MeetingRow key={m.id} m={m} />)}
             </div>
-          </div>
+          </section>
         ))
       )}
     </div>

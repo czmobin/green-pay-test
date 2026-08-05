@@ -86,6 +86,13 @@ class Location(models.Model):
         Organization, on_delete=models.CASCADE, related_name='locations', verbose_name='سازمان',
     )
     is_online = models.BooleanField('آنلاین', default=False)
+    address = models.TextField('نشانی کامل', blank=True)
+    lat = models.FloatField('عرض جغرافیایی', null=True, blank=True)
+    lng = models.FloatField('طول جغرافیایی', null=True, blank=True)
+
+    @property
+    def has_map(self) -> bool:
+        return self.lat is not None and self.lng is not None
 
     class Meta:
         verbose_name = 'محل جلسه'
@@ -157,6 +164,13 @@ class Meeting(models.Model):
     google_event_id = models.CharField(max_length=255, blank=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
+
+    cancel_reason = models.TextField('دلیل لغو', blank=True)
+    cancelled_at = models.DateTimeField('زمان لغو', null=True, blank=True)
+    cancelled_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name='cancelled_meetings', verbose_name='لغوکننده',
+    )
 
     class Meta:
         verbose_name = 'جلسه'
@@ -260,12 +274,17 @@ class MinuteEntry(models.Model):
         FILE = 'file', 'فایل'
 
     minutes = models.ForeignKey(Minutes, on_delete=models.CASCADE, related_name='entries')
+    agenda_item = models.ForeignKey(
+        'AgendaItem', null=True, blank=True, on_delete=models.SET_NULL, related_name='entries',
+        verbose_name='بند دستور جلسه', help_text='اختیاری — این آیتم ذیل کدام بند مطرح شد',
+    )
     entry_type = models.CharField('نوع', max_length=12, choices=Type.choices)
     text = models.TextField('متن', blank=True)
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL, related_name='created_entries',
     )
     created_at = models.DateTimeField(auto_now_add=True)
+    edited_at = models.DateTimeField('آخرین ویرایش', null=True, blank=True)
 
     # تسک
     assignee = models.ForeignKey(

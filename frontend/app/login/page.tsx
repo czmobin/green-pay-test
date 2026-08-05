@@ -6,11 +6,12 @@ import { useGSAP } from '@gsap/react';
 import { useStore } from '@/components/store';
 import LoginScene from '@/components/LoginScene';
 import { api } from '@/lib/api';
+import type { Person } from '@/lib/types';
 import { toFa } from '@/lib/data';
 import { IconBack, IconCheck, IconSun, IconMoon } from '@/components/Icons';
 
 const CODE_LEN = 5;
-type Step = 'phone' | 'code' | 'profile';
+type Step = 'phone' | 'code' | 'profile' | 'password' | 'reset';
 
 export default function LoginPage() {
   const store = useStore();
@@ -18,6 +19,11 @@ export default function LoginPage() {
   const scope = useRef<HTMLDivElement>(null);
 
   const [step, setStep] = useState<Step>('phone');
+  const [password, setPassword] = useState('');
+  const [newPass, setNewPass] = useState('');
+  const [newPass2, setNewPass2] = useState('');
+  /** بعد از تأیید کد، به‌جای ورود مستقیم برویم سراغ تعیین رمز تازه */
+  const [resetting, setResetting] = useState(false);
   const [phone, setPhone] = useState('');
   const [digits, setDigits] = useState<string[]>(Array(CODE_LEN).fill(''));
   const [busy, setBusy] = useState(false);
@@ -149,19 +155,48 @@ export default function LoginPage() {
     void askCode();
   };
 
+  /** پس از هر ورود موفق (کد، رمز، یا بازیابی رمز) */
+  const enter = useCallback((res: { access: string; refresh: string; user: Person; isNew: boolean }) => {
+    store.signIn({ access: res.access, refresh: res.refresh }, res.user, res.isNew);
+    if (res.isNew) { setStep('profile'); return; }
+    gsap.to('.lg-card', { autoAlpha: 0, y: -14, duration: .35, ease: 'power2.in',
+      onComplete: () => router.replace('/') });
+  }, [router, store]);
+
+  /* ---------- ورود با رمز عبور ---------- */
+  const submitPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (phone.replace(/\D/g, '').length < 10) { setMsg('شمارهٔ موبایل را کامل وارد کنید.'); return; }
+    if (!password) { setMsg('رمز عبور را وارد کنید.'); return; }
+    setBusy(true); setMsg(null);
+    try {
+      enter(await api.loginPassword(phone, password));
+    } catch (e2) {
+      setMsg((e2 as Error).message || 'ورود ناموفق بود.');
+    } finally { setBusy(false); }
+  };
+
+  /* ---------- تعیین رمز تازه پس از فراموشی ---------- */
+  const submitReset = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (newPass.length < 8) { setMsg('رمز عبور باید دست‌کم ۸ نویسه باشد.'); return; }
+    if (newPass !== newPass2) { setMsg('دو رمز واردشده یکسان نیستند.'); return; }
+    setBusy(true); setMsg(null);
+    try {
+      enter(await api.resetPassword({ phone, code: digits.join(''), newPassword: newPass }));
+    } catch (e2) {
+      setMsg((e2 as Error).message || 'تغییر رمز ناموفق بود.');
+    } finally { setBusy(false); }
+  };
+
   /* ---------- بررسی کد ---------- */
   const verify = useCallback(async (code: string) => {
     setBusy(true);
     setMsg(null);
+    // در جریان «فراموشی رمز» کد را همین‌جا مصرف نمی‌کنیم؛ سرور موقع تعیین رمز بررسی‌اش می‌کند
+    if (resetting) { setBusy(false); setStep('reset'); return; }
     try {
-      const res = await api.verifyOtp(phone, code);
-      store.signIn({ access: res.access, refresh: res.refresh }, res.user, res.isNew);
-      if (res.isNew) {
-        setStep('profile');
-      } else {
-        gsap.to('.lg-card', { autoAlpha: 0, y: -14, duration: .35, ease: 'power2.in',
-          onComplete: () => router.replace('/') });
-      }
+      enter(await api.verifyOtp(phone, code));
     } catch (e) {
       setMsg((e as Error).message || 'کد نادرست است.');
       setDigits(Array(CODE_LEN).fill(''));
@@ -170,7 +205,7 @@ export default function LoginPage() {
     } finally {
       setBusy(false);
     }
-  }, [phone, router, store]);
+  }, [phone, resetting, enter]);
 
   const verifyRef = useRef(verify);
   useEffect(() => { verifyRef.current = verify; }, [verify]);
@@ -249,15 +284,91 @@ export default function LoginPage() {
               <button className="btn btn-primary btn-block btn-lg lg-action" type="submit" disabled={busy}>
                 {busy ? 'در حال ارسال…' : 'دریافت کد ورود'}
               </button>
+
+              <div className="lg-or"><span>یا</span></div>
+              <button type="button" className="btn btn-ghost btn-block"
+                onClick={() => { setMsg(null); setStep('password'); }}>
+                ورود با رمز عبور
+              </button>
+
               <p className="lg-note">با ورود، شرایط استفاده از سامانه را می‌پذیرید.</p>
+            </form>
+          )}
+
+          {/* ---------- ورود با رمز عبور ---------- */}
+          {step === 'password' && (
+            <form className="lg-step" onSubmit={submitPassword}>
+              <button type="button" className="lg-back"
+                onClick={() => { setStep('phone'); setMsg(null); setPassword(''); }}>
+                <IconBack size={16} />روش دیگر ورود
+              </button>
+              <h1 className="lg-title">ورود با رمز عبور</h1>
+              <p className="lg-sub">اگر برای حسابتان رمز تعیین کرده‌اید، از اینجا وارد شوید.</p>
+
+              <div className="field lg-field">
+                <label htmlFor="phone-pw">شمارهٔ موبایل</label>
+                <input id="phone-pw" className="field-in num" inputMode="numeric" autoComplete="tel"
+                  dir="ltr" placeholder="۰۹۱۲۳۴۵۶۷۸۹" value={phone} autoFocus
+                  onChange={(e) => setPhone(e.target.value)} />
+              </div>
+              <div className="field lg-field">
+                <label htmlFor="pw">رمز عبور</label>
+                <input id="pw" className="field-in" type="password" autoComplete="current-password"
+                  dir="ltr" value={password} onChange={(e) => setPassword(e.target.value)} />
+              </div>
+
+              {msg && <div className="lg-msg">{msg}</div>}
+
+              <button className="btn btn-primary btn-block btn-lg lg-action" type="submit" disabled={busy}>
+                {busy ? 'در حال ورود…' : 'ورود'}
+              </button>
+              <button type="button" className="lg-link"
+                onClick={() => {
+                  if (phone.replace(/\D/g, '').length < 10) { setMsg('اول شمارهٔ موبایل را وارد کنید.'); return; }
+                  setResetting(true); setMsg(null); void askCode();
+                }}>
+                رمز عبورم را فراموش کرده‌ام
+              </button>
+            </form>
+          )}
+
+          {/* ---------- تعیین رمز تازه ---------- */}
+          {step === 'reset' && (
+            <form className="lg-step" onSubmit={submitReset}>
+              <button type="button" className="lg-back"
+                onClick={() => { setStep('code'); setMsg(null); }}>
+                <IconBack size={16} />بازگشت
+              </button>
+              <h1 className="lg-title">رمز عبور تازه</h1>
+              <p className="lg-sub">کد تأیید شد؛ حالا رمز تازه‌ای برای حسابتان بگذارید.</p>
+
+              <div className="field lg-field">
+                <label htmlFor="np1">رمز عبور تازه</label>
+                <input id="np1" className="field-in" type="password" autoComplete="new-password" dir="ltr"
+                  value={newPass} autoFocus onChange={(e) => setNewPass(e.target.value)} />
+                <small className="lg-hint">دست‌کم ۸ نویسه، و فقط از رقم تشکیل نشده باشد.</small>
+              </div>
+              <div className="field lg-field">
+                <label htmlFor="np2">تکرار رمز عبور</label>
+                <input id="np2" className="field-in" type="password" autoComplete="new-password" dir="ltr"
+                  value={newPass2} onChange={(e) => setNewPass2(e.target.value)} />
+              </div>
+
+              {msg && <div className="lg-msg">{msg}</div>}
+
+              <button className="btn btn-primary btn-block btn-lg lg-action" type="submit" disabled={busy}>
+                {busy ? 'در حال ذخیره…' : 'ذخیرهٔ رمز و ورود'}
+              </button>
             </form>
           )}
 
           {/* ---------- مرحلهٔ ۲: کد ---------- */}
           {step === 'code' && (
             <div className="lg-step">
-              <button className="lg-back" onClick={() => { setStep('phone'); setMsg(null); setPasteHint(null); }}>
-                <IconBack size={16} />تغییر شماره
+              <button className="lg-back" onClick={() => {
+                setStep(resetting ? 'password' : 'phone'); setResetting(false); setMsg(null); setPasteHint(null);
+              }}>
+                <IconBack size={16} />{resetting ? 'بازگشت' : 'تغییر شماره'}
               </button>
 
               <h1 className="lg-title">{isKnown ? 'کد ورود' : 'تأیید شماره'}</h1>

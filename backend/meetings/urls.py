@@ -17,6 +17,9 @@ urlpatterns = [
     # ورود با کد یک‌بارمصرف
     path('auth/request-otp/', auth_views.request_otp, name='request-otp'),
     path('auth/verify-otp/', auth_views.verify_otp, name='verify-otp'),
+    path('auth/login/', auth_views.login_password, name='login-password'),
+    path('auth/password/', auth_views.password, name='password'),         # GET و POST
+    path('auth/reset-password/', auth_views.reset_password, name='reset-password'),
     path('auth/refresh/', TokenRefreshView.as_view(), name='token-refresh'),
     path('auth/me/', auth_views.profile, name='me'),          # GET و PATCH
     path('auth/logout/', auth_views.logout, name='logout'),

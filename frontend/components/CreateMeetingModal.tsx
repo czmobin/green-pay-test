@@ -36,12 +36,11 @@ export default function CreateMeetingModal() {
 
   // مقادیر پیش‌فرض پس از رسیدن داده از API
   const categoryIds = Object.keys(store.categories);
-  const roomIds = Object.keys(store.rooms);
   const defaultCat = categoryIds[0] ?? '';
-  const defaultRoom = roomIds[0] ?? '';   // خالی یعنی «بدون محل»
-  const onlineRoom = Object.values(store.rooms).find((r) => r.is_online)?.id ?? defaultRoom;
   const selectedCat = cat || defaultCat;
-  const selectedRoom = type === 'online' ? onlineRoom : (room || defaultRoom);
+  // جلسهٔ آنلاین محل فیزیکی ندارد؛ محل هم پیش‌فرض نمی‌گیرد تا ناخواسته
+  // اولین اتاق فهرست ثبت نشود — کاربر خودش انتخاب می‌کند.
+  const selectedRoom = type === 'online' ? '' : room;
   const selectedParts = parts.length ? parts : (store.currentUser ? [store.currentUser] : []);
   const today = todayISO();
   const selectedDate = date || today;
@@ -170,7 +169,7 @@ export default function CreateMeetingModal() {
             <div className="field">
               <label>محل جلسه</label>
               <select className="field-in" value={selectedRoom} disabled={type === 'online'} onChange={(e) => setRoom(e.target.value)}>
-                <option value="">— بدون محل —</option>
+                <option value="">{type === 'online' ? '— جلسهٔ آنلاین —' : '— بدون محل —'}</option>
                 {Object.values(store.rooms).map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
               </select>
             </div>

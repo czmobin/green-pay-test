@@ -55,6 +55,12 @@ export function faDateShort(iso: string): string {
 }
 
 /** برچسب نسبی: امروز / فردا / دیروز، وگرنه تاریخ */
+/** «سه‌شنبه» — نام روز هفتهٔ یک تاریخ ISO */
+export function faWeekdayOf(iso: string): string {
+  const j = isoToJ(iso);
+  return jWeekdays[faWeekday(j.jy, j.jm, j.jd)];
+}
+
 export function faDateLabel(iso: string): string {
   const t = todayISO();
   if (iso === t) return 'امروز';
@@ -76,10 +82,13 @@ export const statusLabels: Record<MeetingStatus, string> = {
   done: 'برگزارشده',
 };
 
-export const typeColor: Record<MeetingType, string> = {
-  in_person: '#0E9F6E',
-  online: '#D9930B',
-};
+/**
+ * رنگ جلسه از دسته‌بندی‌اش می‌آید (همان رنگی که در پنل ادمین تعریف شده)،
+ * نه از حضوری/آنلاین بودن. حضوری و آنلاین فقط یک برچسب‌اند.
+ */
+export function meetingColor(categories: Record<string, Category>, m: { category: string }): string {
+  return categories[m.category]?.color || 'var(--brand)';
+}
 
 export const priorityLabels: Record<Priority, string> = {
   low: 'کم', normal: 'عادی', high: 'زیاد', critical: 'خیلی زیاد',

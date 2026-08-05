@@ -5,7 +5,7 @@ import gsap from 'gsap';
 import { useGSAP } from '@gsap/react';
 import { useReveal } from './useReveal';
 import { useStore } from './store';
-import { typeColor, fmtTime, toFa, todayISO, nowHour, isoToJ } from '@/lib/data';
+import { meetingColor, fmtTime, toFa, todayISO, nowHour, isoToJ } from '@/lib/data';
 import type { Meeting } from '@/lib/types';
 import {
   jMonths, jWeekdays, jWeekdaysShort, jMonthLength, faWeekday, jToDate, dateToJ, addDays, sameJ,
@@ -34,6 +34,8 @@ export default function Calendar() {
     store.visibleMeetings.filter((m) => m.date === isoOf(j)).sort((a, b) => a.start - b.start);
 
   const open = (id: string) => router.push(`/meetings/${id}`);
+  // رنگ هر جلسه از دستهٔ خودش می‌آید، نه از حضوری/آنلاین بودن
+  const color = (m: Meeting) => meetingColor(store.categories, m);
 
   /* ---------- navigation ---------- */
   function nav(dir: number) {
@@ -50,12 +52,13 @@ export default function Calendar() {
   let title = '';
   if (view === 'day') title = `${jWeekdays[faWeekday(cur.jy, cur.jm, cur.jd)]} ${toFa(cur.jd)} ${jMonths[cur.jm - 1]} ${toFa(cur.jy)}`;
   else if (view === 'week') {
-    const c = jToDate(cur.jy, cur.jm, cur.jd);
-    const sat = dateToJ(addDays(c, -((c.getUTCDay() + 1) % 7)));
-    const fri = dateToJ(addDays(jToDate(sat.jy, sat.jm, sat.jd), 6));
-    title = sat.jm === fri.jm
-      ? `${toFa(sat.jd)} – ${toFa(fri.jd)} ${jMonths[sat.jm - 1]} ${toFa(sat.jy)}`
-      : `${toFa(sat.jd)} ${jMonths[sat.jm - 1]} – ${toFa(fri.jd)} ${jMonths[fri.jm - 1]}`;
+    // هفته از همان روزِ انتخاب‌شده شروع می‌شود (پیش‌فرض: امروز)، نه از شنبه —
+    // چیزی که کاربر لازم دارد «هفت روز پیشِ رو» است، نه هفتهٔ تقویمی.
+    const from = cur;
+    const to = dateToJ(addDays(jToDate(cur.jy, cur.jm, cur.jd), 6));
+    title = from.jm === to.jm
+      ? `${toFa(from.jd)} – ${toFa(to.jd)} ${jMonths[from.jm - 1]} ${toFa(from.jy)}`
+      : `${toFa(from.jd)} ${jMonths[from.jm - 1]} – ${toFa(to.jd)} ${jMonths[to.jm - 1]}`;
   }
   else if (view === 'month') title = `${jMonths[cur.jm - 1]} ${toFa(cur.jy)}`;
   else title = `سال ${toFa(cur.jy)}`;
@@ -93,9 +96,9 @@ export default function Calendar() {
       </div>
 
       <div className="cal-view">
-        {view === 'day' && <DayView j={cur} meetingsOn={meetingsOn} open={open} />}
-        {view === 'week' && <WeekView cur={cur} meetingsOn={meetingsOn} open={open} onDay={(j) => { setCur(j); setView('day'); }} />}
-        {view === 'month' && <MonthView cur={cur} meetingsOn={meetingsOn} onDay={(j) => { setCur(j); setView('day'); }} />}
+        {view === 'day' && <DayView j={cur} meetingsOn={meetingsOn} open={open} color={color} />}
+        {view === 'week' && <WeekView cur={cur} meetingsOn={meetingsOn} open={open} color={color} onDay={(j) => { setCur(j); setView('day'); }} />}
+        {view === 'month' && <MonthView cur={cur} meetingsOn={meetingsOn} color={color} onDay={(j) => { setCur(j); setView('day'); }} />}
         {view === 'year' && <YearView jy={cur.jy} meetingsOn={meetingsOn} onMonth={(jm) => { setCur({ jy: cur.jy, jm, jd: 1 }); setView('month'); }} />}
       </div>
     </div>
@@ -103,7 +106,7 @@ export default function Calendar() {
 }
 
 /* ===================== Day ===================== */
-function DayView({ j, meetingsOn, open }: { j: JDate; meetingsOn: (j: JDate) => Meeting[]; open: (id: string) => void }) {
+function DayView({ j, meetingsOn, open, color }: { j: JDate; meetingsOn: (j: JDate) => Meeting[]; open: (id: string) => void; color: (m: Meeting) => string }) {
   const { rooms } = useStore();
   const items = meetingsOn(j);
   const isToday = sameJ(j, todayJ());
@@ -118,7 +121,7 @@ function DayView({ j, meetingsOn, open }: { j: JDate; meetingsOn: (j: JDate) => 
           {isToday && <div className="now-line" style={{ top: (nowHour() - START) * HOUR }} />}
           {items.map((m) => (
             <button key={m.id} className="cev" onClick={() => open(m.id)}
-              style={{ top: (m.start - START) * HOUR, height: (m.end - m.start) * HOUR - 3, background: `color-mix(in srgb,${typeColor[m.type]} 15%,var(--panel))`, borderColor: typeColor[m.type], color: typeColor[m.type] }}>
+              style={{ top: (m.start - START) * HOUR, height: (m.end - m.start) * HOUR - 3, background: `color-mix(in srgb,${color(m)} 15%,var(--panel))`, borderColor: color(m), color: color(m) }}>
               <b>{m.title}</b>
               <small className="num">{fmtTime(m.start)} – {fmtTime(m.end)} · {rooms[m.room]?.name ?? ''}</small>
             </button>
@@ -131,10 +134,10 @@ function DayView({ j, meetingsOn, open }: { j: JDate; meetingsOn: (j: JDate) => 
 }
 
 /* ===================== Week ===================== */
-function WeekView({ cur, meetingsOn, open, onDay }: { cur: JDate; meetingsOn: (j: JDate) => Meeting[]; open: (id: string) => void; onDay: (j: JDate) => void }) {
-  const c = jToDate(cur.jy, cur.jm, cur.jd);
-  const sat = addDays(c, -((c.getUTCDay() + 1) % 7));
-  const days = Array.from({ length: 7 }, (_, i) => dateToJ(addDays(sat, i)));
+function WeekView({ cur, meetingsOn, open, onDay, color }: { cur: JDate; meetingsOn: (j: JDate) => Meeting[]; open: (id: string) => void; onDay: (j: JDate) => void; color: (m: Meeting) => string }) {
+  // هفت روز از همین روز به بعد — ستون اول همان روزی است که کاربر رویش ایستاده
+  const from = jToDate(cur.jy, cur.jm, cur.jd);
+  const days = Array.from({ length: 7 }, (_, i) => dateToJ(addDays(from, i)));
   return (
     <div className="cal-scroll">
       <div className="cal-time wk">
@@ -144,7 +147,7 @@ function WeekView({ cur, meetingsOn, open, onDay }: { cur: JDate; meetingsOn: (j
             const today = sameJ(j, todayJ());
             return (
               <button className={'dh' + (today ? ' today' : '')} key={i} onClick={() => onDay(j)}>
-                <small>{jWeekdaysShort[i]}</small><b className="num">{toFa(j.jd)}</b>
+                <small>{jWeekdaysShort[faWeekday(j.jy, j.jm, j.jd)]}</small><b className="num">{toFa(j.jd)}</b>
               </button>
             );
           })}
@@ -162,7 +165,7 @@ function WeekView({ cur, meetingsOn, open, onDay }: { cur: JDate; meetingsOn: (j
                 {today && <div className="now-line" style={{ top: (nowHour() - START) * HOUR }} />}
                 {items.map((m) => (
                   <button key={m.id} className="cev sm" onClick={() => open(m.id)}
-                    style={{ top: (m.start - START) * HOUR, height: (m.end - m.start) * HOUR - 3, background: `color-mix(in srgb,${typeColor[m.type]} 16%,var(--panel))`, borderColor: typeColor[m.type], color: typeColor[m.type] }}>
+                    style={{ top: (m.start - START) * HOUR, height: (m.end - m.start) * HOUR - 3, background: `color-mix(in srgb,${color(m)} 16%,var(--panel))`, borderColor: color(m), color: color(m) }}>
                     <b>{m.title}</b>
                     <small className="num">{fmtTime(m.start)}</small>
                   </button>
@@ -177,7 +180,7 @@ function WeekView({ cur, meetingsOn, open, onDay }: { cur: JDate; meetingsOn: (j
 }
 
 /* ===================== Month ===================== */
-function MonthView({ cur, meetingsOn, onDay }: { cur: JDate; meetingsOn: (j: JDate) => Meeting[]; onDay: (j: JDate) => void }) {
+function MonthView({ cur, meetingsOn, onDay, color }: { cur: JDate; meetingsOn: (j: JDate) => Meeting[]; onDay: (j: JDate) => void; color: (m: Meeting) => string }) {
   const offset = faWeekday(cur.jy, cur.jm, 1);
   const len = jMonthLength(cur.jy, cur.jm);
   const rows = Math.ceil((offset + len) / 7);
@@ -197,12 +200,12 @@ function MonthView({ cur, meetingsOn, onDay }: { cur: JDate; meetingsOn: (j: JDa
             <button className={'mcell' + (inMonth ? '' : ' out') + (today ? ' today' : '')} key={i} onClick={() => onDay(j)}>
               <span className="md num">{toFa(j.jd)}</span>
               <span className="mdots only-mobile">
-                {items.slice(0, 4).map((m) => <i key={m.id} style={{ background: typeColor[m.type] }} />)}
+                {items.slice(0, 4).map((m) => <i key={m.id} style={{ background: color(m) }} />)}
               </span>
               <span className="mchips only-desktop">
                 {items.slice(0, 3).map((m) => (
-                  <i key={m.id} className="chip" style={{ background: `color-mix(in srgb,${typeColor[m.type]} 15%,transparent)`, color: typeColor[m.type] }}>
-                    <em style={{ background: typeColor[m.type] }} />{m.title}
+                  <i key={m.id} className="chip" style={{ background: `color-mix(in srgb,${color(m)} 15%,transparent)`, color: color(m) }}>
+                    <em style={{ background: color(m) }} />{m.title}
                   </i>
                 ))}
                 {items.length > 3 && <i className="more num">+{toFa(items.length - 3)}</i>}

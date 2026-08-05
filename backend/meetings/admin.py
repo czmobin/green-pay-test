@@ -66,7 +66,24 @@ class MinuteEntryAdmin(admin.ModelAdmin):
     list_display = ('entry_type', 'text', 'assignee', 'is_done', 'done_at')
     list_filter = ('entry_type', 'is_done')
 
-admin.site.register(Location)
+@admin.register(Location)
+class LocationAdmin(admin.ModelAdmin):
+    list_display = ('name', 'organization', 'capacity', 'has_map')
+    list_filter = ('organization', 'is_online')
+    search_fields = ('name', 'address')
+    fieldsets = (
+        (None, {'fields': ('name', 'organization', 'capacity', 'is_online')}),
+        ('نشانی و نقشه', {
+            'fields': ('address', 'lat', 'lng'),
+            'description': 'مختصات را از نشان یا گوگل‌مپ کپی کنید؛ با داشتن آن، '
+                           'دکمهٔ مسیریابی در صفحهٔ جلسه فعال می‌شود.',
+        }),
+    )
+
+    @admin.display(boolean=True, description='روی نقشه')
+    def has_map(self, obj):
+        return obj.has_map
+
 admin.site.register(Category)
 admin.site.register(Attachment)
 admin.site.register(Notification)

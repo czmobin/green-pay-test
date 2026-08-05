@@ -2,8 +2,10 @@
 import React, { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useStore } from './store';
+import { api } from '@/lib/api';
+import PasswordDialog from './PasswordDialog';
 import { initials } from '@/lib/data';
-import { IconSun, IconMoon, IconLogout, IconCheck, IconReport, IconSettings } from './Icons';
+import { IconSun, IconMoon, IconLogout, IconCheck, IconReport, IconSettings, IconAlert } from './Icons';
 
 const roleLabels: Record<string, string> = {
   admin: 'ادمین', ceo: 'مدیرعامل', user: 'کاربر عادی', member: 'کاربر عادی',
@@ -17,6 +19,8 @@ export default function UserMenu() {
   const store = useStore();
   const [open, setOpen] = useState(false);
   const [dark, setDark] = useState(false);
+  const [pwOpen, setPwOpen] = useState(false);
+  const [hasPw, setHasPw] = useState<boolean | null>(null);
   const wrap = useRef<HTMLDivElement>(null);
   const me = store.me ?? store.people[store.currentUser];
 
@@ -24,6 +28,11 @@ export default function UserMenu() {
     const cur = document.documentElement.getAttribute('data-theme');
     setDark(cur ? cur === 'dark' : window.matchMedia('(prefers-color-scheme:dark)').matches);
   }, []);
+
+  useEffect(() => {
+    if (!open || hasPw !== null) return;
+    api.passwordState().then((d) => setHasPw(d.hasPassword)).catch(() => setHasPw(null));
+  }, [open, hasPw]);
 
   useEffect(() => {
     if (!open) return;
@@ -87,10 +96,20 @@ export default function UserMenu() {
             </button>
           </div>
 
+          <button className="um-item" onClick={() => { setOpen(false); setPwOpen(true); }}>
+            <IconAlert size={16} />{hasPw === false ? 'تعیین رمز عبور' : 'تغییر رمز عبور'}
+          </button>
+
           <button className="um-item danger" onClick={() => { setOpen(false); void store.signOut(); }}>
             <IconLogout size={16} />خروج از حساب
           </button>
         </div>
+      )}
+
+      {pwOpen && (
+        <PasswordDialog hasPassword={hasPw ?? false}
+          onDone={() => { setHasPw(true); setPwOpen(false); }}
+          onClose={() => setPwOpen(false)} />
       )}
     </div>
   );

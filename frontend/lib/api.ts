@@ -165,6 +165,20 @@ export interface NewMinute {
   who?: string;
   phone?: string;
   fileName?: string;
+  /** بند دستور جلسه‌ای که این آیتم ذیل آن مطرح شد (اختیاری) */
+  agendaItem?: string | null;
+}
+
+/** فیلدهای قابل ویرایش یک آیتم صورت‌جلسه (نوعش عوض نمی‌شود) */
+export interface MinutePatch {
+  text?: string;
+  assignee?: string | null;
+  due?: string | null;
+  remindDate?: string | null;
+  remindHour?: number | null;
+  who?: string;
+  phone?: string;
+  agendaItem?: string | null;
 }
 
 export interface OtpRequestResult {
@@ -260,6 +274,16 @@ export const api = {
     request<Person & { isNew?: boolean }>('/auth/me/', { method: 'PATCH', body: JSON.stringify(p) }),
   logout: () => post<{ ok: boolean }>('/auth/logout/'),
 
+  loginPassword: (phone: string, password: string) =>
+    post<{ access: string; refresh: string; user: Person; isNew: boolean }>(
+      '/auth/login/', { phone, password }),
+  passwordState: () => request<{ hasPassword: boolean }>('/auth/password/'),
+  setPassword: (p: { newPassword: string; currentPassword?: string }) =>
+    post<{ hasPassword: boolean; ok: boolean }>('/auth/password/', p),
+  resetPassword: (p: { phone: string; code: string; newPassword: string }) =>
+    post<{ access: string; refresh: string; user: Person; isNew: boolean }>(
+      '/auth/reset-password/', p),
+
   bootstrap: () => request<Bootstrap>('/bootstrap/'),
   report: (days: number) => request<FullReport>(`/reports/full/?days=${days}`),
 
@@ -275,6 +299,10 @@ export const api = {
     request<AgendaItem>(`/agenda/${id}/`, { method: 'PATCH', body: JSON.stringify(a) }),
   deleteAgenda: (id: string) => request<void>(`/agenda/${id}/`, { method: 'DELETE' }),
   respondMeeting: (id: string, accept: boolean) => post<Meeting>(`/meetings/${id}/respond/`, { accept }),
+  cancelMeeting: (id: string, reason: string) =>
+    post<Meeting & { smsSent: number; smsFailed: number }>(`/meetings/${id}/cancel/`, { reason }),
+  updateMinute: (id: string, patch: MinutePatch) =>
+    request<Minute>(`/entries/${id}/`, { method: 'PATCH', body: JSON.stringify(patch) }),
   getReminder: (id: string) => request<MeetingReminder>(`/meetings/${id}/reminder/`),
   setReminder: (id: string, body: { leadMinutes?: number; enabled?: boolean }) =>
     post<MeetingReminder>(`/meetings/${id}/reminder/`, body),
@@ -286,7 +314,8 @@ export const api = {
 
   createOrg: (o: { name: string; kind: string }) => post<Organization>('/organizations/', o),
   createPerson: (p: { name: string; role: string; orgId: string; color?: string }) => post<Person>('/people/', p),
-  createRoom: (r: { name: string; cap: string; orgId: string }) => post<Room>('/locations/', r),
+  createRoom: (r: { name: string; cap: string; orgId: string; address?: string; lat?: number | null; lng?: number | null }) =>
+    post<Room>('/locations/', r),
   deleteOrg: (id: string) => request<void>(`/organizations/${id}/`, { method: 'DELETE' }),
   deletePerson: (id: string) => request<void>(`/people/${id}/`, { method: 'DELETE' }),
   deleteRoom: (id: string) => request<void>(`/locations/${id}/`, { method: 'DELETE' }),

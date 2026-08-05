@@ -4,9 +4,20 @@ import { useStore } from '@/components/store';
 import { useReveal } from '@/components/useReveal';
 import { initials, avatarPalette, toFa } from '@/lib/data';
 
-import { IconBuilding, IconRoom, IconPlus, IconTrash } from '@/components/Icons';
+import { IconBuilding, IconRoom, IconPlus, IconTrash, IconMapPin } from '@/components/Icons';
 
 type Tab = 'orgs' | 'people' | 'locations';
+
+/** «۳۵.۷۱۵, ۵۱.۴۰۴» یا «35.715 51.404» → مختصات؛ در صورت نامعتبر بودن null */
+function parseCoord(raw: string): { lat: number; lng: number } | null {
+  const fa = raw.replace(/[۰-۹]/g, (d) => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(d)));
+  const nums = fa.match(/-?\d+(\.\d+)?/g);
+  if (!nums || nums.length < 2) return null;
+  const lat = Number(nums[0]), lng = Number(nums[1]);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  if (Math.abs(lat) > 90 || Math.abs(lng) > 180) return null;
+  return { lat, lng };
+}
 
 export default function Settings() {
   const store = useStore();
@@ -21,6 +32,8 @@ export default function Settings() {
   const [lName, setLName] = useState('');
   const [lCap, setLCap] = useState('۶ نفر');
   const [lOrg, setLOrg] = useState('');
+  const [lAddr, setLAddr] = useState('');
+  const [lCoord, setLCoord] = useState('');   // «35.7,51.4» — همان چیزی که از نشان یا گوگل‌مپ کپی می‌شود
 
   const orgList = Object.values(store.orgs);
   const kindList = Object.values(store.orgKinds);
@@ -52,10 +65,18 @@ export default function Settings() {
   async function addLoc(e: React.FormEvent) {
     e.preventDefault();
     if (!lName.trim()) { store.toast('نام محل را وارد کنید', 'info'); return; }
+    const coord = parseCoord(lCoord);
+    if (lCoord.trim() && !coord) {
+      store.toast('مختصات را به شکل «۳۵.۷۱۵, ۵۱.۴۰۴» بنویسید', 'info'); return;
+    }
     setBusy(true);
-    await store.addRoom({ name: lName.trim(), cap: lCap.trim() || '—', orgId: lOrg || defaultOrg });
+    await store.addRoom({
+      name: lName.trim(), cap: lCap.trim() || '—', orgId: lOrg || defaultOrg,
+      address: lAddr.trim(), lat: coord?.lat ?? null, lng: coord?.lng ?? null,
+    });
     setBusy(false);
-    store.toast('محل جلسه اضافه شد', 'ok'); setLName('');
+    store.toast('محل جلسه اضافه شد', 'ok');
+    setLName(''); setLAddr(''); setLCoord('');
   }
 
   const scope = useReveal(['.page-head', '.filters', '.def-form', '.def-item']);
@@ -145,6 +166,15 @@ export default function Settings() {
             <div className="card-head"><h3>محل جلسهٔ جدید</h3></div>
             <div className="def-form-body">
               <div className="field"><label>نام محل</label><input className="field-in" value={lName} onChange={(e) => setLName(e.target.value)} placeholder="مثلاً: اتاق جلسات طبقهٔ ۵" /></div>
+              <div className="field" style={{ width: '100%' }}><label>نشانی کامل <span className="opt">(اختیاری)</span></label>
+                <textarea className="field-in" rows={2} value={lAddr} onChange={(e) => setLAddr(e.target.value)}
+                  placeholder="مثلاً: تهران، خیابان ولیعصر، بالاتر از پارک ساعی، پلاک ۱۲۳، طبقهٔ ۵" />
+              </div>
+              <div className="field" style={{ width: '100%' }}><label>مختصات نقشه <span className="opt">(اختیاری)</span></label>
+                <input className="field-in num" dir="ltr" value={lCoord} onChange={(e) => setLCoord(e.target.value)}
+                  placeholder="35.7150, 51.4043" />
+                <small className="fhint">از نشان یا گوگل‌مپ کپی کنید — با داشتن آن، دکمهٔ مسیریابی در صفحهٔ جلسه فعال می‌شود.</small>
+              </div>
               <div className="field-row" style={{ width: '100%' }}>
                 <div className="field"><label>ظرفیت</label><input className="field-in" value={lCap} onChange={(e) => setLCap(e.target.value)} placeholder="مثلاً: ۸ نفر" /></div>
                 <div className="field"><label>سازمان</label>
@@ -160,7 +190,8 @@ export default function Settings() {
             {Object.values(store.rooms).map((r) => (
               <div className="def-item" key={r.id}>
                 <span className="di-ic" style={{ background: 'var(--violet-soft)', color: 'var(--violet)' }}><IconRoom size={18} /></span>
-                <div><b>{r.name}</b><small>{r.cap}</small></div>
+                <div><b>{r.name}</b><small>{r.address || r.cap}</small></div>
+                {r.hasMap && <span className="map-badge" title="مختصات دارد"><IconMapPin size={12} />نقشه</span>}
                 <span className="def-badge">{orgName(r.orgId)}</span>
                 {store.isManager && (
                   <button className="def-del" aria-label="حذف محل" title="حذف"

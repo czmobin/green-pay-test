@@ -4,8 +4,8 @@ import { useStore } from './store';
 import { minuteMeta, toFa, initials, faDate, todayISO, remindLabel } from '@/lib/data';
 import DatePicker from './DatePicker';
 import TimePicker from './TimePicker';
-import type { Meeting, Minute, MinuteType } from '@/lib/types';
-import { minuteIcon, IconDoc, IconPlus, IconTrash, IconCheck, IconClock, IconCall, IconUsers, IconPaperclip } from './Icons';
+import type { AgendaItem, Meeting, Minute, MinuteType } from '@/lib/types';
+import { minuteIcon, IconDoc, IconPlus, IconTrash, IconCheck, IconClock, IconCall, IconUsers, IconPaperclip, IconEdit, IconList } from './Icons';
 
 const order: MinuteType[] = ['note', 'decision', 'task', 'reminder', 'call', 'letter', 'file'];
 /** انواعی که وضعیت انجام دارند */
@@ -24,6 +24,7 @@ export default function MinutesEditor({ meeting }: { meeting: Meeting }) {
   const [who, setWho] = useState('');
   const [phone, setPhone] = useState('');
   const [fileName, setFileName] = useState('');
+  const [agendaItem, setAgendaItem] = useState('');   // اختیاری — این آیتم ذیل کدام بند مطرح شد
 
   const [saving, setSaving] = useState(false);
   const isFile = type === 'letter' || type === 'file';
@@ -48,10 +49,11 @@ export default function MinutesEditor({ meeting }: { meeting: Meeting }) {
       who: type === 'call' ? who : '',
       phone: type === 'call' ? phone : '',
       fileName: isFile ? fileName : '',
+      agendaItem: agendaItem || null,
     });
     setSaving(false);
     setText(''); setDue(''); setRemindDate(''); setRemindHour(9);
-    setWho(''); setPhone(''); setFileName('');
+    setWho(''); setPhone(''); setFileName(''); setAgendaItem('');
     store.toast(`${minuteMeta[type].label} ثبت شد`, 'ok');
   }
 
@@ -139,6 +141,16 @@ export default function MinutesEditor({ meeting }: { meeting: Meeting }) {
           </div>
         )}
 
+        {meeting.agenda.length > 0 && (
+          <div className="extra">
+            <select className="field-in full" value={agendaItem} onChange={(e) => setAgendaItem(e.target.value)}
+              aria-label="اتصال به دستور جلسه">
+              <option value="">— اتصال به دستور جلسه (اختیاری) —</option>
+              {meeting.agenda.map((a, i) => <option key={a.id} value={a.id}>{toFa(i + 1)}. {a.title}</option>)}
+            </select>
+          </div>
+        )}
+
         <div className="cta">
           <button className="btn btn-primary" onClick={add} type="button" disabled={saving}>
             <IconPlus size={16} />{saving ? 'در حال ذخیره…' : 'افزودن به صورت‌جلسه'}
@@ -156,17 +168,104 @@ export default function MinutesEditor({ meeting }: { meeting: Meeting }) {
         </div>
       ) : (
         <div className="minute-list">
-          {bucketList.map((m) => <MinuteRow key={m.id} m={m} mid={meeting.id} />)}
+          {bucketList.map((m) => <MinuteRow key={m.id} m={m} mid={meeting.id} agenda={meeting.agenda} />)}
         </div>
       )}
     </section>
   );
 }
 
-function MinuteRow({ m, mid }: { m: Minute; mid: string }) {
+function MinuteRow({ m, mid, agenda }: { m: Minute; mid: string; agenda: AgendaItem[] }) {
   const store = useStore();
   const meta = minuteMeta[m.type];
   const hasFile = m.type === 'letter' || m.type === 'file';
+
+  const [editing, setEditing] = useState(false);
+  const [text, setText] = useState(m.text);
+  const [assignee, setAssignee] = useState(m.assignee ?? '');
+  const [due, setDue] = useState(m.due ?? '');
+  const [rDate, setRDate] = useState(m.remindDate ?? '');
+  const [rHour, setRHour] = useState(m.remindHour ?? 9);
+  const [who, setWho] = useState(m.who ?? '');
+  const [phone, setPhone] = useState(m.phone ?? '');
+  const [item, setItem] = useState(m.agendaItem ?? '');
+  const [busy, setBusy] = useState(false);
+
+  function startEdit() {
+    setText(m.text); setAssignee(m.assignee ?? ''); setDue(m.due ?? '');
+    setRDate(m.remindDate ?? ''); setRHour(m.remindHour ?? 9);
+    setWho(m.who ?? ''); setPhone(m.phone ?? ''); setItem(m.agendaItem ?? '');
+    setEditing(true);
+  }
+
+  async function save() {
+    if (!text.trim() && !hasFile) { store.toast('متن نمی‌تواند خالی باشد', 'info'); return; }
+    setBusy(true);
+    await store.updateMinute(mid, m.id, {
+      text: text.trim(),
+      agendaItem: item || null,
+      ...(m.type === 'task' ? { assignee: assignee || null, due: due || null } : {}),
+      ...(m.type === 'reminder' ? { remindDate: rDate || null, remindHour: rHour } : {}),
+      ...(m.type === 'call' ? { who, phone } : {}),
+    });
+    setBusy(false); setEditing(false);
+    store.toast('صورت‌جلسه ویرایش شد', 'ok');
+  }
+
+  const linked = agenda.find((a) => a.id === m.agendaItem);
+
+  if (editing) {
+    return (
+      <div className="minute editing">
+        <span className="mi" style={{ background: `color-mix(in srgb,${meta.color} 15%,transparent)`, color: meta.color }}>
+          {minuteIcon(m.type, { size: 16 })}
+        </span>
+        <div className="mc">
+          <textarea className="field-in" rows={2} value={text} autoFocus
+            onChange={(e) => setText(e.target.value)} placeholder={meta.label} />
+
+          {m.type === 'task' && (
+            <div className="extra">
+              <select className="field-in" value={assignee} onChange={(e) => setAssignee(e.target.value)}>
+                <option value="">— بدون مسئول —</option>
+                {Object.values(store.people).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+              </select>
+              <DatePicker value={due || todayISO()} onChange={setDue} />
+            </div>
+          )}
+          {m.type === 'reminder' && (
+            <div className="extra">
+              <DatePicker value={rDate || todayISO()} onChange={setRDate} />
+              <TimePicker value={rHour} onChange={setRHour} />
+            </div>
+          )}
+          {m.type === 'call' && (
+            <div className="extra">
+              <input className="field-in" value={who} onChange={(e) => setWho(e.target.value)} placeholder="با چه کسی" />
+              <input className="field-in num" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="شمارهٔ تماس" />
+            </div>
+          )}
+
+          {agenda.length > 0 && (
+            <div className="extra">
+              <select className="field-in full" value={item} onChange={(e) => setItem(e.target.value)}>
+                <option value="">— بدون اتصال به دستور جلسه —</option>
+                {agenda.map((a, i) => <option key={a.id} value={a.id}>{toFa(i + 1)}. {a.title}</option>)}
+              </select>
+            </div>
+          )}
+
+          <div className="me-actions">
+            <button className="btn btn-primary" onClick={save} disabled={busy}>
+              <IconCheck size={15} />{busy ? 'در حال ذخیره…' : 'ذخیره'}
+            </button>
+            <button className="btn btn-ghost" onClick={() => setEditing(false)} disabled={busy}>انصراف</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className={'minute' + (m.done ? ' done' : '')}>
       {DONEABLE.has(m.type) ? (
@@ -196,9 +295,14 @@ function MinuteRow({ m, mid }: { m: Minute; mid: string }) {
           {m.type === 'reminder' && remindLabel(m) && <span><IconClock size={12} />{remindLabel(m)}</span>}
           {m.type === 'call' && m.who && <span><IconCall size={12} />{m.who}</span>}
           {m.type === 'call' && m.phone && <span className="num">{m.phone}</span>}
+          {linked && <span className="ag-link"><IconList size={12} />{linked.title}</span>}
+          {m.editedAt && <span className="edited">ویرایش‌شده</span>}
         </div>
       </div>
-      <button className="mdel" onClick={() => store.deleteMinute(mid, m.id)} aria-label="حذف"><IconTrash size={16} /></button>
+      <span className="mtools">
+        <button className="mdel" onClick={startEdit} aria-label="ویرایش"><IconEdit size={15} /></button>
+        <button className="mdel" onClick={() => store.deleteMinute(mid, m.id)} aria-label="حذف"><IconTrash size={16} /></button>
+      </span>
     </div>
   );
 }

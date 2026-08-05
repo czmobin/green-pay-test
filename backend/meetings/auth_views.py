@@ -58,6 +58,10 @@ def _get_or_create_user(phone: str):
         organization=Organization.objects.filter(kind__slug='internal').first(),
         color=color,
     )
+    # بدون این، رمز رشتهٔ خالی می‌ماند و جنگو آن را «رمز دارد» می‌شمارد؛
+    # آن‌وقت کاربر برای تعیین رمز، رمز فعلیِ ناموجود از او خواسته می‌شود.
+    user.set_unusable_password()
+    user.save(update_fields=['password'])
     return user, True
 
 
@@ -163,3 +167,129 @@ def profile(request):
 def logout(request):
     """با JWT بدون blacklist، خروج سمت کلاینت انجام می‌شود؛ این فقط تأیید است."""
     return Response({'ok': True})
+
+
+# ---------------------------------------------------------------- رمز عبور
+
+MIN_PASSWORD = 8
+
+
+def has_password(user) -> bool:
+    """رمز واقعی دارد؟ (رشتهٔ خالی هم یعنی ندارد، هرچند جنگو آن را قابل‌استفاده می‌داند)"""
+    return bool(user.password) and user.has_usable_password()
+
+
+def _password_ok(pw: str) -> str:
+    """پیام خطا برمی‌گرداند، یا رشتهٔ خالی اگر رمز قابل قبول باشد."""
+    from .jalali import fa_digits
+
+    if len(pw) < MIN_PASSWORD:
+        return f'رمز عبور باید دست‌کم {fa_digits(MIN_PASSWORD)} نویسه باشد.'
+    if pw.isdigit():
+        return 'رمز عبور نباید فقط از رقم تشکیل شده باشد.'
+    return ''
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def login_password(request):
+    """ورود با شمارهٔ موبایل و رمز عبور — جایگزینِ اختیاری کد یک‌بارمصرف."""
+    phone = normalize_phone(request.data.get('phone', ''))
+    password = str(request.data.get('password', ''))
+    if not is_valid_phone(phone) or not password:
+        return Response({'detail': 'شماره یا رمز عبور نامعتبر است.'},
+                        status=status.HTTP_400_BAD_REQUEST)
+
+    user = User.objects.filter(phone=phone).first()
+    # پیام یکسان برای «کاربر نیست» و «رمز غلط» تا شماره‌های ثبت‌شده لو نروند
+    if not user or not has_password(user) or not user.check_password(password):
+        return Response({'detail': 'شماره یا رمز عبور درست نیست.'},
+                        status=status.HTTP_400_BAD_REQUEST)
+    if not user.is_active:
+        return Response({'detail': 'این حساب غیرفعال است.'}, status=status.HTTP_403_FORBIDDEN)
+
+    return Response({
+        **_issue_tokens(user),
+        'user': PersonSerializer(user).data,
+        'isNew': not _profile_complete(user),
+    })
+
+
+@api_view(['GET', 'POST'])
+@permission_classes([IsAuthenticated])
+def password(request):
+    """
+    وضعیت رمز عبور کاربر جاری، و تعیین یا تغییر آن.
+
+    اگر کاربر رمزی داشته باشد، برای تغییر باید رمز فعلی را هم بفرستد؛ کسی که
+    فقط با کد یک‌بارمصرف وارد شده و هنوز رمزی ندارد، بدون رمز فعلی می‌تواند
+    یکی تعیین کند.
+    """
+    user = request.user
+    if request.method == 'GET':
+        return Response({'hasPassword': has_password(user)})
+
+    new = str(request.data.get('newPassword', ''))
+    err = _password_ok(new)
+    if err:
+        return Response({'detail': err}, status=status.HTTP_400_BAD_REQUEST)
+
+    if has_password(user):
+        current = str(request.data.get('currentPassword', ''))
+        if not user.check_password(current):
+            return Response({'detail': 'رمز عبور فعلی درست نیست.'},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+    user.set_password(new)
+    user.save(update_fields=['password'])
+    return Response({'hasPassword': True, 'ok': True})
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def reset_password(request):
+    """
+    فراموشی رمز — با همان کد یک‌بارمصرفی که به شماره فرستاده شده.
+
+    جریان کار: کاربر /auth/request-otp/ را صدا می‌زند، کد را می‌گیرد، و اینجا
+    کد و رمز تازه را می‌فرستد. پس از موفقیت مستقیم وارد حساب می‌شود.
+    """
+    phone = normalize_phone(request.data.get('phone', ''))
+    code = str(request.data.get('code', '')).strip()
+    new = str(request.data.get('newPassword', ''))
+    if not is_valid_phone(phone) or not code:
+        return Response({'detail': 'شماره یا کد نامعتبر است.'}, status=status.HTTP_400_BAD_REQUEST)
+    err = _password_ok(new)
+    if err:
+        return Response({'detail': err}, status=status.HTTP_400_BAD_REQUEST)
+
+    user = User.objects.filter(phone=phone).first()
+    if not user:
+        return Response({'detail': 'حسابی با این شماره ثبت نشده است.'},
+                        status=status.HTTP_400_BAD_REQUEST)
+
+    otp = OtpCode.objects.filter(phone=phone, is_used=False).first()
+    if not otp or otp.is_expired:
+        return Response({'detail': 'کد منقضی شده است؛ دوباره درخواست دهید.'},
+                        status=status.HTTP_400_BAD_REQUEST)
+    if otp.attempts >= OtpCode.MAX_ATTEMPTS:
+        return Response({'detail': 'تعداد تلاش‌ها بیش از حد مجاز است؛ کد جدید بگیرید.'},
+                        status=status.HTTP_429_TOO_MANY_REQUESTS)
+
+    otp.attempts += 1
+    if otp.code != code:
+        otp.save(update_fields=['attempts'])
+        left = OtpCode.MAX_ATTEMPTS - otp.attempts
+        return Response({'detail': f'کد نادرست است. {left} تلاش باقی مانده.'},
+                        status=status.HTTP_400_BAD_REQUEST)
+
+    otp.is_used = True
+    otp.save(update_fields=['attempts', 'is_used'])
+    user.set_password(new)
+    user.save(update_fields=['password'])
+
+    return Response({
+        **_issue_tokens(user),
+        'user': PersonSerializer(user).data,
+        'isNew': not _profile_complete(user),
+    })

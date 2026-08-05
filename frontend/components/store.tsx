@@ -5,7 +5,7 @@ import type {
 } from '@/lib/types';
 import {
   api, loadToken, setTokens, UnauthorizedError,
-  type Conflict, type MeetingPatch, type NewMeeting, type NewMinute,
+  type Conflict, type MeetingPatch, type MinutePatch, type NewMeeting, type NewMinute,
 } from '@/lib/api';
 import { IconCheck, IconX } from './Icons';
 
@@ -46,14 +46,16 @@ interface Store {
   updateAgenda: (meetingId: string, id: string, item: { title?: string; dur?: number }) => Promise<void>;
   deleteAgenda: (meetingId: string, id: string) => Promise<void>;
   respondMeeting: (id: string, accept: boolean) => Promise<void>;
+  cancelMeeting: (id: string, reason: string) => Promise<{ smsSent: number; smsFailed: number } | null>;
   syncMeeting: (id: string) => Promise<void>;
 
   addMinute: (m: NewMinute) => Promise<void>;
   deleteMinute: (meetingId: string, id: string) => Promise<void>;
   toggleTask: (meetingId: string, id: string) => Promise<void>;
+  updateMinute: (meetingId: string, id: string, patch: MinutePatch) => Promise<void>;
 
   addPerson: (p: { name: string; role: string; orgId: string; color?: string }) => Promise<void>;
-  addRoom: (r: { name: string; cap: string; orgId: string }) => Promise<void>;
+  addRoom: (r: { name: string; cap: string; orgId: string; address?: string; lat?: number | null; lng?: number | null }) => Promise<void>;
   addOrg: (o: { name: string; kind: string }) => Promise<void>;
   deletePerson: (id: string) => Promise<void>;
   deleteRoom: (id: string) => Promise<void>;
@@ -301,6 +303,16 @@ export default function Providers({ children }: { children: React.ReactNode }) {
     await guarded(async () => upsertMeeting(await api.respondMeeting(id, accept)));
   }, [guarded]);
 
+  const cancelMeeting = useCallback(async (id: string, reason: string) => {
+    let out: { smsSent: number; smsFailed: number } | null = null;
+    await guarded(async () => {
+      const m = await api.cancelMeeting(id, reason);
+      upsertMeeting(m);
+      out = { smsSent: m.smsSent, smsFailed: m.smsFailed };
+    });
+    return out;
+  }, [guarded]);
+
   const syncMeeting = useCallback(async (id: string) => {
     await guarded(async () => upsertMeeting(await api.syncMeeting(id)));
   }, [guarded]);
@@ -327,6 +339,13 @@ export default function Providers({ children }: { children: React.ReactNode }) {
     });
   }, [guarded]);
 
+  const updateMinute = useCallback(async (meetingId: string, id: string, patch: MinutePatch) => {
+    await guarded(async () => {
+      const updated = await api.updateMinute(id, patch);
+      setMinutes((s) => ({ ...s, [meetingId]: (s[meetingId] ?? []).map((x) => (x.id === id ? updated : x)) }));
+    });
+  }, [guarded]);
+
   /* ---------- تعریف‌ها ---------- */
   const addPerson = useCallback(async (p: { name: string; role: string; orgId: string; color?: string }) => {
     await guarded(async () => {
@@ -335,7 +354,7 @@ export default function Providers({ children }: { children: React.ReactNode }) {
     });
   }, [guarded]);
 
-  const addRoom = useCallback(async (r: { name: string; cap: string; orgId: string }) => {
+  const addRoom = useCallback(async (r: { name: string; cap: string; orgId: string; address?: string; lat?: number | null; lng?: number | null }) => {
     await guarded(async () => {
       const created = await api.createRoom(r);
       setRooms((s) => ({ ...s, [created.id]: created }));
@@ -413,8 +432,8 @@ export default function Providers({ children }: { children: React.ReactNode }) {
     meetings, visibleMeetings, minutes, people, guests, rooms, orgs, orgKinds, categories,
     getMeeting, canEdit, createMeeting, updateMeeting,
     addAgenda, updateAgenda: updateAgendaItem, deleteAgenda: deleteAgendaItem,
-    respondMeeting, syncMeeting,
-    addMinute, deleteMinute, toggleTask,
+    respondMeeting, cancelMeeting, syncMeeting,
+    addMinute, deleteMinute, toggleTask, updateMinute,
     addPerson, addRoom, addOrg,
     deletePerson, deleteRoom, deleteOrg,
     isManager,
@@ -426,7 +445,7 @@ export default function Providers({ children }: { children: React.ReactNode }) {
   }), [conflicts, authed, authChecked, needsProfile, me, signIn, completeProfile, signOut,
     ready, error, reload, meetings, visibleMeetings, minutes, people, guests, rooms, orgs, orgKinds, categories,
     getMeeting, canEdit, createMeeting, updateMeeting, addAgenda, updateAgendaItem, deleteAgendaItem,
-    respondMeeting, syncMeeting, addMinute, deleteMinute, toggleTask,
+    respondMeeting, cancelMeeting, syncMeeting, addMinute, deleteMinute, toggleTask, updateMinute,
     addPerson, addRoom, addOrg, deletePerson, deleteRoom, deleteOrg, role, isManager, scope, setScope, mineCount,
     currentUser, gcalConnected, connectGcal, smsEnabled, toggleSms,
     createOpen, toast, toggleTheme]);

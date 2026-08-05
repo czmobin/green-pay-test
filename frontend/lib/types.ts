@@ -47,6 +47,10 @@ export interface Room {
   cap: string;
   orgId: string; // سازمان صاحب محل
   is_online?: boolean;
+  address?: string;          // نشانی کامل برای نمایش
+  lat?: number | null;       // مختصات برای مسیریابی
+  lng?: number | null;
+  hasMap?: boolean;
 }
 
 export interface AgendaItem {
@@ -64,6 +68,9 @@ export interface Meeting {
   status: MeetingStatus;
   priority: Priority;
   meetLink?: string;
+  cancelReason?: string;
+  cancelledAt?: number | null;
+  cancelledBy?: string | null;
   date: string; // تاریخ میلادی ISO (YYYY-MM-DD)
   start: number; // hour, e.g. 9 or 13.5
   end: number;
@@ -93,6 +100,9 @@ export interface Minute {
   when?: string;
   remindDate?: string | null;
   remindHour?: number | null;
+  /** بند دستور جلسه‌ای که این آیتم ذیل آن مطرح شد (اختیاری) */
+  agendaItem?: string | null;
+  editedAt?: number | null;
   // call
   who?: string;
   phone?: string;

@@ -70,9 +70,11 @@ class LocationSerializer(serializers.ModelSerializer):
     cap = serializers.CharField(source='capacity', required=False, allow_blank=True)
     orgId = serializers.CharField(source='organization_id')
 
+    hasMap = serializers.BooleanField(source='has_map', read_only=True)
+
     class Meta:
         model = Location
-        fields = ['id', 'name', 'cap', 'orgId', 'is_online']
+        fields = ['id', 'name', 'cap', 'orgId', 'is_online', 'address', 'lat', 'lng', 'hasMap']
 
 
 class PersonSerializer(serializers.ModelSerializer):
@@ -135,11 +137,18 @@ class MeetingSerializer(serializers.ModelSerializer):
     agenda = AgendaItemSerializer(many=True, read_only=True)
 
     meetLink = serializers.CharField(source='meet_link', required=False, allow_blank=True)
+    cancelReason = serializers.CharField(source='cancel_reason', read_only=True)
+    cancelledAt = serializers.SerializerMethodField()
+    cancelledBy = serializers.CharField(source='cancelled_by_id', read_only=True)
 
     class Meta:
         model = Meeting
         fields = ['id', 'title', 'category', 'type', 'status', 'priority', 'date', 'start', 'end',
-                  'room', 'organizer', 'parts', 'guests', 'synced', 'meetLink', 'agenda']
+                  'room', 'organizer', 'parts', 'guests', 'synced', 'meetLink', 'agenda',
+                  'cancelReason', 'cancelledAt', 'cancelledBy']
+
+    def get_cancelledAt(self, obj):
+        return int(obj.cancelled_at.timestamp() * 1000) if obj.cancelled_at else None
 
     def get_date(self, obj) -> str:
         return to_iso_date(obj.start)
@@ -177,15 +186,20 @@ class MinuteEntrySerializer(serializers.ModelSerializer):
     phone = serializers.CharField(source='call_phone', required=False, allow_blank=True)
     fileName = serializers.SerializerMethodField()
     doneAt = serializers.SerializerMethodField()
+    agendaItem = serializers.CharField(source='agenda_item_id', read_only=True)
+    editedAt = serializers.SerializerMethodField()
 
     class Meta:
         model = MinuteEntry
         fields = ['id', 'meeting', 'type', 'text', 'createdAt', 'participant',
                   'assignee', 'due', 'done', 'doneAt', 'when', 'remindDate', 'remindHour',
-                  'who', 'phone', 'fileName']
+                  'who', 'phone', 'fileName', 'agendaItem', 'editedAt']
 
     def get_doneAt(self, obj):
         return int(obj.done_at.timestamp() * 1000) if obj.done_at else None
+
+    def get_editedAt(self, obj):
+        return int(obj.edited_at.timestamp() * 1000) if obj.edited_at else None
 
     def get_remindDate(self, obj):
         return to_iso_date(obj.remind_at) if obj.remind_at else None
@@ -275,6 +289,8 @@ class MinuteEntryCreateSerializer(serializers.Serializer):
     who = serializers.CharField(required=False, allow_blank=True, default='')
     phone = serializers.CharField(required=False, allow_blank=True, default='')
     fileName = serializers.CharField(required=False, allow_blank=True, default='')
+    agendaItem = serializers.PrimaryKeyRelatedField(
+        queryset=AgendaItem.objects.all(), required=False, allow_null=True, default=None)
 
     def create(self, validated):
         minutes, _ = Minutes.objects.get_or_create(
@@ -292,6 +308,7 @@ class MinuteEntryCreateSerializer(serializers.Serializer):
             remind_text=validated.get('when', ''),
             call_with=validated.get('who', ''),
             call_phone=validated.get('phone', ''),
+            agenda_item=validated.get('agendaItem'),
             is_done=False,
         )
         name = validated.get('fileName', '')
@@ -332,11 +349,16 @@ class LocationCreateSerializer(serializers.Serializer):
     name = serializers.CharField(max_length=120)
     cap = serializers.CharField(max_length=40, required=False, allow_blank=True, default='')
     orgId = serializers.PrimaryKeyRelatedField(queryset=Organization.objects.all())
+    address = serializers.CharField(required=False, allow_blank=True, default='')
+    lat = serializers.FloatField(required=False, allow_null=True, default=None)
+    lng = serializers.FloatField(required=False, allow_null=True, default=None)
 
     def create(self, validated):
         return Location.objects.create(
             name=validated['name'], capacity=validated.get('cap', ''),
             organization=validated['orgId'],
+            address=validated.get('address', ''),
+            lat=validated.get('lat'), lng=validated.get('lng'),
         )
 
 

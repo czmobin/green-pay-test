@@ -58,7 +58,8 @@ export default function EditMeetingModal(
     if (end <= start) { store.toast('ساعت پایان باید بعد از شروع باشد', 'info'); return; }
     setSaving(true);
     const updated = await store.updateMeeting(meeting.id, {
-      title: title.trim(), category: cat, type, date, start, end, room,
+      title: title.trim(), category: cat, type, date, start, end,
+      room: type === 'online' ? '' : room,
       priority, meetLink: type === 'online' ? meetLink.trim() : '', parts,
     });
     setSaving(false);
@@ -104,7 +105,8 @@ export default function EditMeetingModal(
             </div>
             <div className="field">
               <label>محل جلسه</label>
-              <select className="field-in" value={room ?? ''} onChange={(e) => setRoom(e.target.value)}>
+              <select className="field-in" value={type === 'online' ? '' : (room ?? '')}
+                disabled={type === 'online'} onChange={(e) => setRoom(e.target.value)}>
                 <option value="">— بدون محل —</option>
                 {Object.values(store.rooms).map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
               </select>

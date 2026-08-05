@@ -5,6 +5,7 @@ from rest_framework.decorators import action, api_view
 from rest_framework.response import Response
 
 from django.utils import timezone
+from django.utils.dateparse import parse_date
 from django.conf import settings
 from rest_framework.exceptions import PermissionDenied, ValidationError
 
@@ -84,6 +85,27 @@ def find_conflicts(start, end, user_ids, exclude_meeting_id=None):
                 'room': meeting.location.name if meeting.location_id else '',
             })
     return conflicts
+
+
+def notify_cancelled(meeting) -> tuple[int, int]:
+    """به همهٔ شرکت‌کنندگانِ دارای شماره خبر لغو را پیامک می‌کند."""
+    from .jalali import fa_date, fa_digits, fa_weekday
+    from .sms import send_text
+
+    local = timezone.localtime(meeting.start)
+    clock = fa_digits(f'{local.hour:02d}:{local.minute:02d}')
+    when = f'{fa_weekday(local.date())} {fa_date(local.date())} ساعت {clock}'
+    text = '\n'.join(['جلسه لغو شد', meeting.title, when, 'گرین‌پی'])
+
+    ok = bad = 0
+    for mp in meeting.meeting_participants.select_related('user'):
+        if mp.is_guest or not mp.user.phone:
+            continue
+        if send_text(mp.user.phone, text, tag='greenpay-meeting-cancelled').sent:
+            ok += 1
+        else:
+            bad += 1
+    return ok, bad
 
 
 def reminder_state(meeting, user):
@@ -285,6 +307,34 @@ class MeetingViewSet(viewsets.ModelViewSet):
         meeting.save(update_fields=['status'])
         return Response(MeetingSerializer(meeting).data)
 
+    @action(detail=True, methods=['post'])
+    def cancel(self, request, pk=None):
+        """
+        لغو جلسه — فقط سازنده، مدیرعامل یا ادمین.
+
+        دلیل لغو در سامانه ثبت می‌شود ولی داخل پیامک نمی‌رود؛ پیامک فقط خبر
+        لغو را می‌دهد تا کوتاه بماند و جزئیات در خود اپ دیده شود.
+        """
+        meeting = self.get_object()
+        assert_can_edit(request.user, meeting)
+        if meeting.status == Meeting.Status.CANCELLED:
+            raise ValidationError({'detail': 'این جلسه قبلاً لغو شده است.'})
+
+        meeting.status = Meeting.Status.CANCELLED
+        meeting.cancel_reason = (request.data or {}).get('reason', '').strip()[:2000]
+        meeting.cancelled_at = timezone.now()
+        meeting.cancelled_by = request.user
+        meeting.save(update_fields=['status', 'cancel_reason', 'cancelled_at', 'cancelled_by'])
+
+        # یادآورهای نفرستاده دیگر معنا ندارند
+        meeting.reminders.filter(sent_at__isnull=True).update(enabled=False)
+
+        notified, failed = notify_cancelled(meeting)
+        data = MeetingSerializer(meeting).data
+        data['smsSent'] = notified
+        data['smsFailed'] = failed
+        return Response(data)
+
     @action(detail=True, methods=['get', 'post'], url_path='reminder')
     def reminder(self, request, pk=None):
         """یادآور پیامکی همین کاربر برای همین جلسه — خواندن و تنظیم."""
@@ -319,6 +369,11 @@ class MeetingViewSet(viewsets.ModelViewSet):
         return Response(MeetingSerializer(meeting).data)
 
 
+def can_edit_entry(user, entry) -> bool:
+    """نویسندهٔ آیتم، سازندهٔ جلسه، مدیرعامل و ادمین می‌توانند ویرایش کنند."""
+    return entry.created_by_id == user.id or can_edit_meeting(user, entry.minutes.meeting)
+
+
 class MinuteEntryViewSet(viewsets.ModelViewSet):
     queryset = entries_queryset()
     serializer_class = MinuteEntrySerializer
@@ -330,7 +385,57 @@ class MinuteEntryViewSet(viewsets.ModelViewSet):
         write = MinuteEntryCreateSerializer(data=request.data)
         write.is_valid(raise_exception=True)
         entry = write.save()
+        entry.created_by = request.user
+        entry.save(update_fields=['created_by'])
         return Response(MinuteEntrySerializer(entry).data, status=status.HTTP_201_CREATED)
+
+    def update(self, request, *args, **kwargs):
+        return self._edit(request)
+
+    def partial_update(self, request, *args, **kwargs):
+        return self._edit(request)
+
+    def _edit(self, request):
+        """ویرایش آیتم صورت‌جلسه پس از ثبت — نوع آیتم عوض نمی‌شود."""
+        entry = self.get_object()
+        if not can_edit_entry(request.user, entry):
+            raise PermissionDenied('فقط نویسندهٔ این آیتم یا سازندهٔ جلسه می‌تواند ویرایشش کند.')
+
+        d = request.data or {}
+        fields = []
+        if 'text' in d:
+            entry.text = str(d['text']).strip()
+            fields.append('text')
+        if 'assignee' in d:
+            entry.assignee_id = d['assignee'] or None
+            fields.append('assignee')
+        if 'due' in d:
+            entry.due_date = parse_date(d['due']) if d['due'] else None
+            fields.append('due_date')
+        if 'remindDate' in d:
+            entry.remind_at = (from_date_hour(parse_date(d['remindDate']), d.get('remindHour') or 9)
+                               if d['remindDate'] else None)
+            fields.append('remind_at')
+        if 'who' in d:
+            entry.call_with = str(d['who'])
+            fields.append('call_with')
+        if 'phone' in d:
+            entry.call_phone = str(d['phone'])
+            fields.append('call_phone')
+        if 'agendaItem' in d:
+            entry.agenda_item_id = d['agendaItem'] or None
+            fields.append('agenda_item')
+
+        if not fields:
+            raise ValidationError({'detail': 'چیزی برای تغییر فرستاده نشده است.'})
+        entry.edited_at = timezone.now()
+        entry.save(update_fields=fields + ['edited_at'])
+        return Response(MinuteEntrySerializer(entry).data)
+
+    def perform_destroy(self, instance):
+        if not can_edit_entry(self.request.user, instance):
+            raise PermissionDenied('فقط نویسندهٔ این آیتم یا سازندهٔ جلسه می‌تواند حذفش کند.')
+        instance.delete()
 
     @action(detail=True, methods=['post'])
     def toggle(self, request, pk=None):
