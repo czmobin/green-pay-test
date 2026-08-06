@@ -241,7 +241,15 @@ input,select,textarea{font-family:inherit}
 .arrow svg{width:18px;height:18px}
 
 /* ===================== Detail page ===================== */
-.detail-top{display:flex;align-items:center;gap:10px;margin:4px 0 14px}
+.detail-top{display:flex;align-items:center;gap:8px;margin:4px 0 14px;flex-wrap:wrap}
+/* دکمه‌های ویرایش/لغو همیشه ته ردیف می‌مانند تا از کادر بیرون نزنند */
+.detail-top .edit-btn{margin-inline-start:0}
+.detail-top .edit-btn:first-of-type{margin-inline-start:auto}
+@media (max-width:560px){
+  .detail-top{gap:6px}
+  .detail-top .prio-chip,.detail-top .cat-chip{font-size:10.5px;padding:2px 8px}
+  .detail-top .pill{font-size:10.5px;padding:2px 8px}
+}
 .back-btn{width:38px;height:38px;border-radius:11px;border:1px solid var(--line-strong);background:var(--panel);
   display:grid;place-items:center;color:var(--ink-soft);flex:0 0 auto}
 .back-btn:hover{border-color:var(--brand);color:var(--brand)}
@@ -363,7 +371,7 @@ input,select,textarea{font-family:inherit}
   display:flex;align-items:flex-end;justify-content:center;opacity:0;visibility:hidden;pointer-events:none;
   transition:opacity .22s ease,visibility .22s ease}
 .modal-overlay.show{opacity:1;visibility:visible;pointer-events:auto}
-.modal{background:var(--bg);width:100%;max-width:560px;border-radius:22px 22px 0 0;max-height:92vh;display:flex;flex-direction:column;
+.modal{background:var(--bg);width:100%;max-width:560px;border-radius:22px 22px 0 0;max-height:min(92vh,92dvh);display:flex;flex-direction:column;
   transform:translateY(100%);transition:transform .3s cubic-bezier(.4,0,.1,1);box-shadow:var(--shadow-lg)}
 .modal-overlay.show .modal{transform:none}
 .modal-head{padding:16px 18px 12px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px}
@@ -371,7 +379,9 @@ input,select,textarea{font-family:inherit}
 .modal-head h2{margin:0;font-size:17px;font-weight:800}
 .modal-head .close{margin-inline-start:auto}
 .modal-body{padding:16px 18px;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;flex:1;display:flex;flex-direction:column;gap:14px}
-.modal-foot{padding:13px 18px;border-top:1px solid var(--line);display:flex;gap:10px;background:var(--panel)}
+.modal-foot{padding:13px 18px;border-top:1px solid var(--line);display:flex;gap:10px;background:var(--panel);
+  flex:0 0 auto;position:sticky;bottom:0;z-index:2;
+  padding-bottom:calc(13px + env(safe-area-inset-bottom))}
 .modal-foot .btn{flex:1}
 
 .field label{display:block;font-size:12px;font-weight:700;color:var(--ink-soft);margin-bottom:6px}
@@ -476,18 +486,24 @@ select.field-in{appearance:none;background-image:url("data:image/svg+xml;utf8,<s
 /* هر روز یک بلوک جداست تا چشم سریع مرز روزها را پیدا کند */
 .day-block{margin-bottom:26px}
 .day-block:last-child{margin-bottom:6px}
-.date-group{display:flex;align-items:center;gap:9px;margin:0 2px 10px;padding-bottom:9px;
-  border-bottom:2px solid var(--line);position:sticky;top:0;z-index:5;
-  background:var(--bg);padding-top:8px}
+/*
+ * سرصفحه چسبان است، پس باید کاملاً مات باشد و از دو طرف تا لبهٔ ناحیهٔ اسکرول
+ * کشیده شود؛ وگرنه کارت‌ها هنگام عبور از زیرش دیده می‌شوند.
+ */
+.date-group{display:flex;align-items:center;gap:9px;margin:0 0 12px;
+  position:sticky;top:-1px;z-index:8;background:var(--bg);
+  padding:10px 2px 9px;border-bottom:2px solid var(--line)}
+.date-group::before{content:'';position:absolute;inset:0 -15px;background:var(--bg);z-index:-1}
 .date-group .dg-day{font-size:13px;font-weight:800;color:var(--brand-strong);
   background:var(--mint-soft);border-radius:999px;padding:3px 11px;flex:0 0 auto}
 .date-group h3{margin:0;font-size:14.5px;font-weight:800;color:var(--ink-soft)}
-.date-group .dnum{color:var(--muted);font-weight:700;font-size:13px}
 .date-group .today-b{font-size:10.5px;font-weight:800;color:var(--ok);background:var(--ok-soft);padding:2px 9px;border-radius:999px}
 .date-group .tmr-b{font-size:10.5px;font-weight:800;color:var(--violet);background:var(--violet-soft);padding:2px 9px;border-radius:999px}
-.date-group .cnt{margin-inline-start:auto;color:var(--muted);font-size:12px;font-weight:600}
+/* شمارنده: ریز و کم‌رنگ، نه یک برچسب پررنگ کنار عنوان */
+.date-group .cnt{margin-inline-start:auto;color:var(--muted);font-size:11px;font-weight:600;opacity:.75}
 .day-block.is-today .date-group{border-bottom-color:var(--brand)}
 .day-block .mlist{display:flex;flex-direction:column;gap:8px}
+@media (min-width:900px){.date-group::before{inset:0 -26px}}
 
 .result-empty{text-align:center;color:var(--muted);font-size:13.5px;padding:40px 16px;
   background:var(--panel);border:1px solid var(--line);border-radius:var(--r)}
@@ -1114,7 +1130,8 @@ select.field-in{appearance:none;background-image:url("data:image/svg+xml;utf8,<s
 .btn-danger:hover{filter:brightness(1.06)}
 
 /* ===================== نشانی محل و مسیریابی ===================== */
-.mb-loc{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.mb-loc{display:inline-flex;align-items:center;gap:8px;flex-wrap:wrap;line-height:1.7}
+.loc-view{align-self:center}
 .loc-view{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:700;
   color:var(--brand-strong);background:var(--mint-soft);border-radius:999px;padding:3px 9px}
 .loc-view:hover{filter:brightness(.97)}

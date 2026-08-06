@@ -1,6 +1,6 @@
 'use client';
-import React, { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import React, { useEffect, useRef, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import gsap from 'gsap';
 import { useGSAP } from '@gsap/react';
 import { useReveal } from './useReveal';
@@ -14,7 +14,8 @@ import {
 import { IconChevron, IconBack } from './Icons';
 
 type View = 'day' | 'week' | 'month' | 'year';
-const START = 8, END = 19, HOUR = 48;
+// روز از ۶ صبح تا نیمه‌شب — جلسهٔ ۷ صبح هم باید دیده شود
+const START = 6, END = 24, HOUR = 48;
 
 /** امروز به تاریخ شمسی و ساعت جاری — واقعی، نه لنگر ثابت */
 const todayJ = (): JDate => isoToJ(todayISO());
@@ -26,7 +27,13 @@ const isoOf = (j: JDate): string => {
 export default function Calendar() {
   const store = useStore();
   const router = useRouter();
-  const [view, setView] = useState<View>('month');
+  // نمای اولیه از نشانی می‌آید (مثلاً لینک «تقویم هفته» در داشبورد)
+  const params = useSearchParams();
+  const initialView = ((): View => {
+    const v = params.get('view');
+    return v === 'day' || v === 'week' || v === 'month' || v === 'year' ? v : 'month';
+  })();
+  const [view, setView] = useState<View>(initialView);
   const [cur, setCur] = useState<JDate>(todayJ);
 
   /** جلسات یک روز — مقایسه بر اساس تاریخ میلادی ISO که از API می‌آید */
@@ -52,13 +59,12 @@ export default function Calendar() {
   let title = '';
   if (view === 'day') title = `${jWeekdays[faWeekday(cur.jy, cur.jm, cur.jd)]} ${toFa(cur.jd)} ${jMonths[cur.jm - 1]} ${toFa(cur.jy)}`;
   else if (view === 'week') {
-    // هفته از همان روزِ انتخاب‌شده شروع می‌شود (پیش‌فرض: امروز)، نه از شنبه —
-    // چیزی که کاربر لازم دارد «هفت روز پیشِ رو» است، نه هفتهٔ تقویمی.
-    const from = cur;
-    const to = dateToJ(addDays(jToDate(cur.jy, cur.jm, cur.jd), 6));
-    title = from.jm === to.jm
-      ? `${toFa(from.jd)} – ${toFa(to.jd)} ${jMonths[from.jm - 1]} ${toFa(from.jy)}`
-      : `${toFa(from.jd)} ${jMonths[from.jm - 1]} – ${toFa(to.jd)} ${jMonths[to.jm - 1]}`;
+    const c = jToDate(cur.jy, cur.jm, cur.jd);
+    const sat = dateToJ(addDays(c, -((c.getUTCDay() + 1) % 7)));
+    const fri = dateToJ(addDays(jToDate(sat.jy, sat.jm, sat.jd), 6));
+    title = sat.jm === fri.jm
+      ? `${toFa(sat.jd)} – ${toFa(fri.jd)} ${jMonths[sat.jm - 1]} ${toFa(sat.jy)}`
+      : `${toFa(sat.jd)} ${jMonths[sat.jm - 1]} – ${toFa(fri.jd)} ${jMonths[fri.jm - 1]}`;
   }
   else if (view === 'month') title = `${jMonths[cur.jm - 1]} ${toFa(cur.jy)}`;
   else title = `سال ${toFa(cur.jy)}`;
@@ -135,11 +141,25 @@ function DayView({ j, meetingsOn, open, color }: { j: JDate; meetingsOn: (j: JDa
 
 /* ===================== Week ===================== */
 function WeekView({ cur, meetingsOn, open, onDay, color }: { cur: JDate; meetingsOn: (j: JDate) => Meeting[]; open: (id: string) => void; onDay: (j: JDate) => void; color: (m: Meeting) => string }) {
-  // هفت روز از همین روز به بعد — ستون اول همان روزی است که کاربر رویش ایستاده
-  const from = jToDate(cur.jy, cur.jm, cur.jd);
-  const days = Array.from({ length: 7 }, (_, i) => dateToJ(addDays(from, i)));
+  // هفتهٔ تقویمی: شنبه تا جمعه. به‌جای جابه‌جا کردن روزها، بعد از رندر
+  // به ستون امروز اسکرول می‌کنیم تا هم ترتیب طبیعی بماند هم امروز پیدا باشد.
+  const c = jToDate(cur.jy, cur.jm, cur.jd);
+  const sat = addDays(c, -((c.getUTCDay() + 1) % 7));
+  const days = Array.from({ length: 7 }, (_, i) => dateToJ(addDays(sat, i)));
+  const todayCol = days.findIndex((j) => sameJ(j, todayJ()));
+  const gridRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const el = gridRef.current;
+    if (!el || todayCol < 0) return;
+    // فقط وقتی جدول از عرضِ دیدرس بیرون می‌زند (موبایل) معنا دارد
+    if (el.scrollWidth <= el.clientWidth + 4) return;
+    const colW = (el.scrollWidth - 52) / 7;
+    const target = 52 + colW * todayCol - (el.clientWidth - colW) / 2;
+    el.scrollTo({ left: -Math.max(0, target), behavior: 'smooth' });   // RTL: اسکرول منفی
+  }, [todayCol, days[0].jy, days[0].jm, days[0].jd]);
   return (
-    <div className="cal-scroll">
+    <div className="cal-scroll" ref={gridRef}>
       <div className="cal-time wk">
         <div className="wk-head" style={{ gridTemplateColumns: '52px repeat(7,1fr)' }}>
           <div className="corner" />

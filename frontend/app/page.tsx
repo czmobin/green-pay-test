@@ -6,7 +6,7 @@ import { useStore } from '@/components/store';
 import MeetingRow from '@/components/MeetingRow';
 import HeroCanvas from '@/components/HeroCanvas';
 import { useReveal, useCountUp } from '@/components/useReveal';
-import { fmtTime, toFa, todayISO, nowHour, faDate, faDateLabel, addDaysISO } from '@/lib/data';
+import { fmtTime, toFa, todayISO, nowHour, faDate, faDateLabel, addDaysISO, isUrl } from '@/lib/data';
 import {
   IconCalendar, IconClock, IconGuests, IconMapPin, IconVideo, IconCheck, IconX,
 } from '@/components/Icons';
@@ -43,7 +43,7 @@ export default function Dashboard() {
           <h2>{next.title}</h2>
           <div className="nm-meta">
             <span><IconClock size={14} /><span className="num">{fmtTime(next.start)} – {fmtTime(next.end)}</span></span>
-            <span>{next.type === 'online' ? <IconVideo size={14} /> : <IconMapPin size={14} />}{rooms[next.room]?.name ?? '—'}</span>
+            <span>{next.type === 'online' ? <IconVideo size={14} /> : <IconMapPin size={14} />}{next.type === 'online' ? 'جلسهٔ آنلاین' : (rooms[next.room]?.name ?? '—')}</span>
             {next.guests.length > 0 && <span><IconGuests size={14} />{toFa(next.guests.length)} مهمان خارجی</span>}
           </div>
           <div className="nm-actions">
@@ -51,7 +51,12 @@ export default function Dashboard() {
               باز کردن و نوشتن صورت‌جلسه
             </button>
             {next.type === 'online' && (
-              <button className="btn btn-join" onClick={(e) => { e.stopPropagation(); store.toast('در حال باز کردن Google Meet…', 'ok'); }}>
+              <button className="btn btn-join" onClick={(e) => {
+                e.stopPropagation();
+                store.toast('در حال رفتن به جلسهٔ آنلاین…', 'ok');
+                if (isUrl(next.meetLink)) window.open(next.meetLink, '_blank', 'noopener');
+                else router.push(`/meetings/${next.id}`);
+              }}>
                 <IconVideo size={16} />پیوستن
               </button>
             )}
@@ -66,14 +71,14 @@ export default function Dashboard() {
           <div className="val num"><span data-count={today.length}>{toFa(today.length)}</span> <small>جلسه</small></div>
         </div>
         <div className="kpi">
-          <div className="ic" style={{ background: 'var(--warn-soft)', color: 'var(--warn)' }}><IconClock size={18} /></div>
-          <div className="lbl">در انتظار تأیید</div>
-          <div className="val num"><span data-count={pending}>{toFa(pending)}</span> <small>دعوت</small></div>
-        </div>
-        <div className="kpi">
           <div className="ic" style={{ background: 'var(--info-soft)', color: 'var(--info)' }}><IconCalendar size={18} /></div>
           <div className="lbl">جلسات فردا</div>
           <div className="val num"><span data-count={tomorrowCount}>{toFa(tomorrowCount)}</span> <small>جلسه</small></div>
+        </div>
+        <div className="kpi">
+          <div className="ic" style={{ background: 'var(--warn-soft)', color: 'var(--warn)' }}><IconClock size={18} /></div>
+          <div className="lbl">در انتظار تأیید</div>
+          <div className="val num"><span data-count={pending}>{toFa(pending)}</span> <small>دعوت</small></div>
         </div>
       </div>
 
@@ -105,7 +110,7 @@ export default function Dashboard() {
 
       <div className="section-title">
         <h2>برنامهٔ امروز</h2>
-        <Link href="/calendar">تقویم هفته</Link>
+        <Link href="/calendar?view=week">تقویم هفته</Link>
       </div>
       <div className="mlist">
         {today.map((m) => <MeetingRow key={m.id} m={m} />)}
