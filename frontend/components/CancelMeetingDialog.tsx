@@ -1,6 +1,7 @@
 'use client';
 import React, { useState } from 'react';
 import { useStore } from './store';
+import Portal from './Portal';
 import { toFa } from '@/lib/data';
 import type { Meeting } from '@/lib/types';
 import { IconAlert, IconX } from './Icons';
@@ -32,7 +33,8 @@ export default function CancelMeetingDialog({ meeting, onClose }: { meeting: Mee
   }
 
   return (
-    <div className="modal-overlay show" onClick={onClose}>
+    <Portal>
+      <div className="modal-overlay show" onClick={onClose}>
       <div className="modal sm" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
         <div className="modal-head">
           <h2><span className="cm-ic"><IconAlert size={17} /></span>لغو جلسه</h2>
@@ -63,5 +65,6 @@ export default function CancelMeetingDialog({ meeting, onClose }: { meeting: Mee
         </div>
       </div>
     </div>
+    </Portal>
   );
 }

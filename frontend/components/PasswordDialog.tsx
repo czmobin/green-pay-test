@@ -1,6 +1,7 @@
 'use client';
 import React, { useState } from 'react';
 import { useStore } from './store';
+import Portal from './Portal';
 import { api } from '@/lib/api';
 import { IconX, IconCheck } from './Icons';
 
@@ -35,7 +36,8 @@ export default function PasswordDialog({
   }
 
   return (
-    <div className="modal-overlay show" onClick={onClose}>
+    <Portal>
+      <div className="modal-overlay show" onClick={onClose}>
       <form className="modal sm" onClick={(e) => e.stopPropagation()} onSubmit={submit}>
         <div className="modal-head">
           <h2>{hasPassword ? 'تغییر رمز عبور' : 'تعیین رمز عبور'}</h2>
@@ -79,5 +81,6 @@ export default function PasswordDialog({
         </div>
       </form>
     </div>
+    </Portal>
   );
 }

@@ -83,8 +83,11 @@ input,select,textarea{font-family:inherit}
 .shell{height:100vh;height:100dvh;display:flex;flex-direction:column;overflow:hidden}
 .sidebar{display:none}
 .main{flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden}
-.content{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;
-  padding:16px 15px 22px;max-width:1180px;width:100%;margin:0 auto}
+/* --content-pad: فاصلهٔ بالای ناحیهٔ اسکرول. مرورگر همین مقدار را از ناحیهٔ
+   چسبندگی کم می‌کند، پس سرصفحه‌های چسبان با همین متغیر جبرانش می‌کنند. */
+.content{--content-pad:16px;flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;
+  -webkit-overflow-scrolling:touch;
+  padding:var(--content-pad) 15px 22px;max-width:1180px;width:100%;margin:0 auto}
 
 /* Topbar */
 .topbar{flex:0 0 auto;z-index:30;height:var(--topbar-h);
@@ -367,11 +370,13 @@ input,select,textarea{font-family:inherit}
 .empty svg{width:34px;height:34px;opacity:.4;margin-bottom:8px}
 
 /* ===================== Modal ===================== */
-.modal-overlay{position:fixed;inset:0;z-index:80;background:rgba(6,20,15,.55);
+/* height از dvh می‌آید: روی موبایل، نوار آدرس مرورگر ارتفاع دیدرس را کم
+   می‌کند و با inset:0 پابرگ مودال زیر همان نوار می‌افتاد. */
+.modal-overlay{position:fixed;inset:0;height:100dvh;z-index:80;background:rgba(6,20,15,.55);
   display:flex;align-items:flex-end;justify-content:center;opacity:0;visibility:hidden;pointer-events:none;
   transition:opacity .22s ease,visibility .22s ease}
 .modal-overlay.show{opacity:1;visibility:visible;pointer-events:auto}
-.modal{background:var(--bg);width:100%;max-width:560px;border-radius:22px 22px 0 0;max-height:min(92vh,92dvh);display:flex;flex-direction:column;
+.modal{background:var(--bg);width:100%;max-width:560px;border-radius:22px 22px 0 0;max-height:100%;display:flex;flex-direction:column;
   transform:translateY(100%);transition:transform .3s cubic-bezier(.4,0,.1,1);box-shadow:var(--shadow-lg)}
 .modal-overlay.show .modal{transform:none}
 .modal-head{padding:16px 18px 12px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px}
@@ -412,7 +417,7 @@ select.field-in{appearance:none;background-image:url("data:image/svg+xml;utf8,<s
   :root{--topbar-h:64px}
   .shell{display:grid;grid-template-columns:250px 1fr;height:100vh;height:100dvh;overflow:hidden}
   .bottomnav{display:none}
-  .content{padding:24px 26px 48px}
+  .content{--content-pad:24px;padding:var(--content-pad) 26px 48px}
   .topbar .tb-brand{display:none}
 
   .sidebar{display:flex;flex-direction:column;gap:5px;background:var(--sb-bg);color:var(--sb-ink);
@@ -491,9 +496,12 @@ select.field-in{appearance:none;background-image:url("data:image/svg+xml;utf8,<s
  * کشیده شود؛ وگرنه کارت‌ها هنگام عبور از زیرش دیده می‌شوند.
  */
 .date-group{display:flex;align-items:center;gap:9px;margin:0 0 12px;
-  position:sticky;top:-1px;z-index:8;background:var(--bg);
+  position:sticky;top:calc(var(--content-pad, 16px) * -1);z-index:8;background:var(--bg);
   padding:10px 2px 9px;border-bottom:2px solid var(--line)}
-.date-group::before{content:'';position:absolute;inset:0 -15px;background:var(--bg);z-index:-1}
+/* پس‌زمینه تا لبهٔ افقی و تا بالای ناحیهٔ اسکرول کشیده می‌شود تا کارتی از
+   کنار یا بالای سرصفحه دیده نشود */
+.date-group::before{content:'';position:absolute;
+  inset:calc(var(--content-pad, 16px) * -1) -15px 0;background:var(--bg);z-index:-1}
 .date-group .dg-day{font-size:13px;font-weight:800;color:var(--brand-strong);
   background:var(--mint-soft);border-radius:999px;padding:3px 11px;flex:0 0 auto}
 .date-group h3{margin:0;font-size:14.5px;font-weight:800;color:var(--ink-soft)}
@@ -503,7 +511,7 @@ select.field-in{appearance:none;background-image:url("data:image/svg+xml;utf8,<s
 .date-group .cnt{margin-inline-start:auto;color:var(--muted);font-size:11px;font-weight:600;opacity:.75}
 .day-block.is-today .date-group{border-bottom-color:var(--brand)}
 .day-block .mlist{display:flex;flex-direction:column;gap:8px}
-@media (min-width:900px){.date-group::before{inset:0 -26px}}
+@media (min-width:900px){.date-group::before{inset:calc(var(--content-pad, 24px) * -1) -26px 0}}
 
 .result-empty{text-align:center;color:var(--muted);font-size:13.5px;padding:40px 16px;
   background:var(--panel);border:1px solid var(--line);border-radius:var(--r)}

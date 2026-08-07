@@ -1,6 +1,7 @@
 'use client';
 import React from 'react';
 import type { Room } from '@/lib/types';
+import Portal from './Portal';
 import { IconMapPin, IconX, IconVideo } from './Icons';
 
 /** لینک مسیریابی هر سرویس از روی مختصات. */
@@ -26,7 +27,8 @@ export default function LocationDialog({ room, onClose }: { room: Room; onClose:
   const links = routes(room);
 
   return (
-    <div className="modal-overlay show" onClick={onClose}>
+    <Portal>
+      <div className="modal-overlay show" onClick={onClose}>
       <div className="modal sm" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
         <div className="modal-head">
           <h2><span className="cm-ic ok"><IconMapPin size={17} /></span>{room.name}</h2>
@@ -62,5 +64,6 @@ export default function LocationDialog({ room, onClose }: { room: Room; onClose:
         </div>
       </div>
     </div>
+    </Portal>
   );
 }
