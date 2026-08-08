@@ -1207,9 +1207,11 @@ select.field-in option{direction:rtl;text-align:right}
 .btn-danger:hover{filter:brightness(1.06)}
 
 /* ===================== نشانی محل و مسیریابی ===================== */
-.mb-loc{display:flex;align-items:center;gap:8px;flex-wrap:nowrap;line-height:1.7}
+/* «.meta-box b» با ویژگی بالاتر display:block می‌دهد، پس اینجا هم با همان
+   ویژگی می‌نویسیم؛ وگرنه دکمه و نام محل در دو خط جدا می‌افتند. */
+.meta-box b.mb-loc{display:flex;align-items:center;gap:8px;flex-wrap:nowrap;line-height:1.7}
 .mb-loc .mb-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.loc-view{align-self:center;flex:0 0 auto;order:-1}
+.loc-view{align-self:center;flex:0 0 auto}
 .loc-view{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:700;
   color:var(--brand-strong);background:var(--mint-soft);border-radius:999px;padding:3px 9px}
 .loc-view:hover{filter:brightness(.97)}
