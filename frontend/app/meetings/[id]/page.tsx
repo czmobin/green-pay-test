@@ -88,13 +88,13 @@ export default function MeetingDetail() {
           <div className="meta-box">
             <small>{m.type === 'online' ? <IconVideo size={13} /> : <IconMapPin size={13} />}مکان</small>
             <b className="mb-loc">
-              {/* «مشاهده» جلوتر از نام محل می‌آید تا در موبایل زیر متن گم نشود */}
+              {/* در RTL اولین فرزند سمت راست می‌نشیند: نام محل راست، «مشاهده» چپِ آن */}
+              <span className="mb-name">{m.type === 'online' ? 'جلسهٔ آنلاین' : (room?.name ?? '—')}</span>
               {m.type !== 'online' && room && (
                 <button className="loc-view" onClick={() => setLocOpen(true)}>
                   <IconEye size={13} />مشاهده
                 </button>
               )}
-              <span className="mb-name">{m.type === 'online' ? 'جلسهٔ آنلاین' : (room?.name ?? '—')}</span>
             </b>
           </div>
           <div className="meta-box">
