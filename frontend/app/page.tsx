@@ -64,6 +64,8 @@ export default function Dashboard() {
           <div className="eyebrow"><span className="live" />جلسهٔ بعدی شما</div>
           <h2>{next.title}</h2>
           <div className="nm-meta">
+            {/* جلسهٔ بعدی لزوماً امروز نیست، پس روزش هم باید معلوم باشد */}
+            <span><IconCalendar size={14} />{faDateLabel(next.date)}</span>
             <span><IconClock size={14} /><span className="num">{fmtTime(next.start)} – {fmtTime(next.end)}</span></span>
             <span>{next.type === 'online' ? <IconVideo size={14} /> : <IconMapPin size={14} />}{next.type === 'online' ? 'جلسهٔ آنلاین' : (rooms[next.room]?.name ?? '—')}</span>
             {next.guests.length > 0 && <span><IconGuests size={14} />{toFa(next.guests.length)} مهمان خارجی</span>}
