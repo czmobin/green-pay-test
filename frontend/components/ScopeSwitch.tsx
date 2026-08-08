@@ -25,7 +25,7 @@ export default function ScopeSwitch() {
         onClick={() => store.setScope('all')}
         title="جلسه‌های همهٔ افراد سازمان">
         <IconUsers size={15} /><span>همه</span>
-        <b className="num">{toFa(store.meetings.length)}</b>
+        <b className="num">{toFa(store.liveCount)}</b>
       </button>
     </div>
   );

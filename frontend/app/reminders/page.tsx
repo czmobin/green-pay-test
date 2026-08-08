@@ -29,7 +29,14 @@ export default function RemindersPage() {
   const openTasks = items.filter((x) => !x.mn.done).length;
   const reminders = items.filter((x) => x.mn.type === 'reminder').length;
   const iso = todayISO();
-  const overdue = items.filter((x) => !x.mn.done && x.m.date < iso).length;
+  /** عقب‌افتاده یعنی مهلتِ خودِ آیتم گذشته باشد، نه اینکه جلسه‌اش قدیمی باشد. */
+  const isOverdue = ({ mn }: Item) => {
+    if (mn.done) return false;
+    if (mn.type === 'task') return !!mn.due && mn.due < iso;
+    if (mn.type === 'reminder') return !!mn.remindDate && mn.remindDate < iso;
+    return false;
+  };
+  const overdue = items.filter(isOverdue).length;
 
   const nq = normalizeFa(q);
   const rows = items
@@ -84,7 +91,7 @@ export default function RemindersPage() {
           {rows.map(({ mn, m }) => {
             const meta = minuteMeta[mn.type];
             return (
-              <div className={'rem' + (mn.done ? ' done' : '')} key={mn.id} onClick={() => router.push(`/meetings/${m.id}`)} style={{ cursor: 'pointer' }}>
+              <div className={'rem' + (mn.done ? ' done' : '') + (isOverdue({ mn, m }) ? ' late' : '')} key={mn.id} onClick={() => router.push(`/meetings/${m.id}`)} style={{ cursor: 'pointer' }}>
                 <button className={'rcheck' + (mn.done ? ' on' : '')}
                   onClick={(e) => { e.stopPropagation(); store.toggleTask(m.id, mn.id); }}
                   aria-label={mn.done ? 'برگرداندن به انجام‌نشده' : 'انجام شد'}>

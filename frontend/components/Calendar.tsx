@@ -1,6 +1,7 @@
 'use client';
 import React, { useEffect, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import Portal from './Portal';
 import gsap from 'gsap';
 import { useGSAP } from '@gsap/react';
 import { useReveal } from './useReveal';
@@ -11,7 +12,7 @@ import {
   jMonths, jWeekdays, jWeekdaysShort, jMonthLength, faWeekday, jToDate, dateToJ, addDays, sameJ,
   toGregorian, type JDate,
 } from '@/lib/jalali';
-import { IconChevron, IconBack } from './Icons';
+import { IconChevron, IconBack, IconX } from './Icons';
 
 type View = 'day' | 'week' | 'month' | 'year';
 // روز از ۶ صبح تا نیمه‌شب — جلسهٔ ۷ صبح هم باید دیده شود
@@ -41,6 +42,18 @@ export default function Calendar() {
     store.visibleMeetings.filter((m) => m.date === isoOf(j)).sort((a, b) => a.start - b.start);
 
   const open = (id: string) => router.push(`/meetings/${id}`);
+  const [overlap, setOverlap] = useState<Meeting[] | null>(null);
+
+  /**
+   * روی رویدادِ تقویم: اگر جلسهٔ دیگری با آن هم‌پوشانی زمانی دارد، به‌جای رفتن
+   * مستقیم، فهرست هم‌پوشان‌ها را نشان می‌دهیم — وگرنه کاربر نمی‌فهمد زیر آن
+   * کادر چند جلسهٔ دیگر پنهان است.
+   */
+  const openEvent = (m: Meeting, sameDay: Meeting[]) => {
+    const clash = sameDay.filter((x) => x.start < m.end && x.end > m.start);
+    if (clash.length > 1) setOverlap(clash.sort((a, b) => a.start - b.start));
+    else open(m.id);
+  };
   // رنگ هر جلسه از دستهٔ خودش می‌آید، نه از حضوری/آنلاین بودن
   const color = (m: Meeting) => meetingColor(store.categories, m);
 
@@ -102,9 +115,13 @@ export default function Calendar() {
       </div>
 
       <div className="cal-view">
-        {view === 'day' && <DayView j={cur} meetingsOn={meetingsOn} open={open} color={color} />}
-        {view === 'week' && <WeekView cur={cur} meetingsOn={meetingsOn} open={open} color={color} onDay={(j) => { setCur(j); setView('day'); }} />}
+        {view === 'day' && <DayView j={cur} meetingsOn={meetingsOn} open={openEvent} color={color} />}
+        {view === 'week' && <WeekView cur={cur} meetingsOn={meetingsOn} open={openEvent} color={color} onDay={(j) => { setCur(j); setView('day'); }} />}
         {view === 'month' && <MonthView cur={cur} meetingsOn={meetingsOn} color={color} onDay={(j) => { setCur(j); setView('day'); }} />}
+        {overlap && (
+          <OverlapDialog items={overlap} color={color} rooms={store.rooms}
+            onPick={(id) => { setOverlap(null); open(id); }} onClose={() => setOverlap(null)} />
+        )}
         {view === 'year' && <YearView jy={cur.jy} meetingsOn={meetingsOn} onMonth={(jm) => { setCur({ jy: cur.jy, jm, jd: 1 }); setView('month'); }} />}
       </div>
     </div>
@@ -112,7 +129,7 @@ export default function Calendar() {
 }
 
 /* ===================== Day ===================== */
-function DayView({ j, meetingsOn, open, color }: { j: JDate; meetingsOn: (j: JDate) => Meeting[]; open: (id: string) => void; color: (m: Meeting) => string }) {
+function DayView({ j, meetingsOn, open, color }: { j: JDate; meetingsOn: (j: JDate) => Meeting[]; open: (m: Meeting, sameDay: Meeting[]) => void; color: (m: Meeting) => string }) {
   const { rooms } = useStore();
   const items = meetingsOn(j);
   const isToday = sameJ(j, todayJ());
@@ -126,7 +143,8 @@ function DayView({ j, meetingsOn, open, color }: { j: JDate; meetingsOn: (j: JDa
           {Array.from({ length: END - START }, (_, i) => <div className="slot" key={i} />)}
           {isToday && <div className="now-line" style={{ top: (nowHour() - START) * HOUR }} />}
           {items.map((m) => (
-            <button key={m.id} className="cev" onClick={() => open(m.id)}
+            <button key={m.id} className={'cev' + (items.some((x) => x.id !== m.id && x.start < m.end && x.end > m.start) ? ' clash' : '')}
+              onClick={() => open(m, items)}
               style={{ top: (m.start - START) * HOUR, height: (m.end - m.start) * HOUR - 3, background: `color-mix(in srgb,${color(m)} 15%,var(--panel))`, borderColor: color(m), color: color(m) }}>
               <b>{m.title}</b>
               <small className="num">{fmtTime(m.start)} – {fmtTime(m.end)} · {rooms[m.room]?.name ?? ''}</small>
@@ -140,7 +158,7 @@ function DayView({ j, meetingsOn, open, color }: { j: JDate; meetingsOn: (j: JDa
 }
 
 /* ===================== Week ===================== */
-function WeekView({ cur, meetingsOn, open, onDay, color }: { cur: JDate; meetingsOn: (j: JDate) => Meeting[]; open: (id: string) => void; onDay: (j: JDate) => void; color: (m: Meeting) => string }) {
+function WeekView({ cur, meetingsOn, open, onDay, color }: { cur: JDate; meetingsOn: (j: JDate) => Meeting[]; open: (m: Meeting, sameDay: Meeting[]) => void; onDay: (j: JDate) => void; color: (m: Meeting) => string }) {
   // هفتهٔ تقویمی: شنبه تا جمعه. به‌جای جابه‌جا کردن روزها، بعد از رندر
   // به ستون امروز اسکرول می‌کنیم تا هم ترتیب طبیعی بماند هم امروز پیدا باشد.
   const c = jToDate(cur.jy, cur.jm, cur.jd);
@@ -184,7 +202,8 @@ function WeekView({ cur, meetingsOn, open, onDay, color }: { cur: JDate; meeting
                 {Array.from({ length: END - START }, (_, i) => <div className="slot" key={i} />)}
                 {today && <div className="now-line" style={{ top: (nowHour() - START) * HOUR }} />}
                 {items.map((m) => (
-                  <button key={m.id} className="cev sm" onClick={() => open(m.id)}
+                  <button key={m.id} className={'cev sm' + (items.some((x) => x.id !== m.id && x.start < m.end && x.end > m.start) ? ' clash' : '')}
+                    onClick={() => open(m, items)}
                     style={{ top: (m.start - START) * HOUR, height: (m.end - m.start) * HOUR - 3, background: `color-mix(in srgb,${color(m)} 16%,var(--panel))`, borderColor: color(m), color: color(m) }}>
                     <b>{m.title}</b>
                     <small className="num">{fmtTime(m.start)}</small>
@@ -240,15 +259,27 @@ function MonthView({ cur, meetingsOn, onDay, color }: { cur: JDate; meetingsOn: 
 
 /* ===================== Year ===================== */
 function YearView({ jy, meetingsOn, onMonth }: { jy: number; meetingsOn: (j: JDate) => Meeting[]; onMonth: (jm: number) => void }) {
+  const t = todayJ();
+  const currentMonth = t.jy === jy ? t.jm : 0;
+  const box = useRef<HTMLDivElement>(null);
+
+  // ماه جاری را وسط دید می‌آورد؛ در سال‌های دیگر کاری نمی‌کند
+  useEffect(() => {
+    if (!currentMonth) return;
+    const el = box.current?.querySelector<HTMLElement>(`[data-month="${currentMonth}"]`);
+    el?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  }, [currentMonth, jy]);
+
   return (
-    <div className="year">
+    <div className="year" ref={box}>
       {Array.from({ length: 12 }, (_, mi) => {
         const jm = mi + 1;
         const offset = faWeekday(jy, jm, 1);
         const len = jMonthLength(jy, jm);
         const cells = Array.from({ length: offset + len }, (_, i) => (i < offset ? null : i - offset + 1));
         return (
-          <button className="ymini" key={jm} onClick={() => onMonth(jm)}>
+          <button className={'ymini' + (jm === currentMonth ? ' now' : '')} key={jm}
+            data-month={jm} onClick={() => onMonth(jm)}>
             <div className="ym-name">{jMonths[mi]}</div>
             <div className="ym-wd">{jWeekdaysShort.map((w, i) => <span key={i}>{w}</span>)}</div>
             <div className="ym-days">
@@ -264,5 +295,46 @@ function YearView({ jy, meetingsOn, onMonth }: { jy: number; meetingsOn: (j: JDa
         );
       })}
     </div>
+  );
+}
+
+/* ===================== جلسه‌های هم‌پوشان ===================== */
+function OverlapDialog({
+  items, color, rooms, onPick, onClose,
+}: {
+  items: Meeting[];
+  color: (m: Meeting) => string;
+  rooms: Record<string, { name: string }>;
+  onPick: (id: string) => void;
+  onClose: () => void;
+}) {
+  return (
+    <Portal>
+      <div className="modal-overlay show" onClick={onClose}>
+        <div className="modal sm" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
+          <div className="modal-head">
+            <h2>{toFa(items.length)} جلسهٔ هم‌زمان</h2>
+            <button className="close" onClick={onClose} aria-label="بستن"><IconX size={17} /></button>
+          </div>
+          <div className="modal-body">
+            <p className="cm-lead">این جلسه‌ها با هم هم‌پوشانی زمانی دارند؛ یکی را برای دیدن انتخاب کنید.</p>
+            <ul className="ov-list">
+              {items.map((m) => (
+                <li key={m.id}>
+                  <button onClick={() => onPick(m.id)}>
+                    <span className="ov-bar" style={{ background: color(m) }} />
+                    <span className="ov-time num">{fmtTime(m.start)}<small>{fmtTime(m.end)}</small></span>
+                    <span className="ov-body">
+                      <b>{m.title}</b>
+                      <small>{m.type === 'online' ? 'جلسهٔ آنلاین' : (rooms[m.room]?.name ?? '—')}</small>
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      </div>
+    </Portal>
   );
 }

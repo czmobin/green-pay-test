@@ -319,6 +319,8 @@ export const api = {
   deleteOrg: (id: string) => request<void>(`/organizations/${id}/`, { method: 'DELETE' }),
   deletePerson: (id: string) => request<void>(`/people/${id}/`, { method: 'DELETE' }),
   deleteRoom: (id: string) => request<void>(`/locations/${id}/`, { method: 'DELETE' }),
+  updateRoom: (id: string, patch: { name?: string; cap?: string; address?: string; lat?: number | null; lng?: number | null }) =>
+    request<Room>(`/locations/${id}/`, { method: 'PATCH', body: JSON.stringify(patch) }),
 
   setGcal: (connected: boolean) => post<{ gcalConnected: boolean }>('/settings/gcal/', { connected }),
   setSms: (enabled: boolean) => post<{ smsEnabled: boolean }>('/settings/sms/', { enabled }),

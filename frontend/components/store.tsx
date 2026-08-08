@@ -59,6 +59,7 @@ interface Store {
   addOrg: (o: { name: string; kind: string }) => Promise<void>;
   deletePerson: (id: string) => Promise<void>;
   deleteRoom: (id: string) => Promise<void>;
+  updateRoom: (id: string, patch: { name?: string; cap?: string; address?: string; lat?: number | null; lng?: number | null }) => Promise<Room | null>;
   deleteOrg: (id: string) => Promise<void>;
   /** فقط ادمین و مدیرعامل می‌توانند تعریف‌های دیگران را حذف کنند */
   isManager: boolean;
@@ -70,6 +71,8 @@ interface Store {
   setScope: (s: Scope) => void;
   /** تعداد جلسه‌های خودِ کاربر — کنار کلید دامنه نشان داده می‌شود */
   mineCount: number;
+  /** تعداد کل جلسه‌های لغونشده */
+  liveCount: number;
   /** فقط ادمین و مدیرعامل می‌توانند دامنه را عوض کنند */
   canSwitchScope: boolean;
   currentUser: string;
@@ -405,17 +408,39 @@ export default function Providers({ children }: { children: React.ReactNode }) {
     });
   }, [smsEnabled, guarded, toast]);
 
+  const updateRoom = useCallback(async (
+    id: string,
+    patch: { name?: string; cap?: string; address?: string; lat?: number | null; lng?: number | null },
+  ) => {
+    let out: Room | null = null;
+    await guarded(async () => {
+      out = await api.updateRoom(id, patch);
+      setRooms((s) => ({ ...s, [id]: out as Room }));
+    });
+    return out;
+  }, [guarded]);
+
   /* ---------- دسترسی ---------- */
   const isManager = role === 'admin' || role === 'ceo';
   // «جلسه‌های من» یعنی جلسه‌هایی که در آن‌ها شرکت دارم — نه جلسه‌ای که فقط ساخته‌ام
   // و خودم در آن نیستم (مثلاً جلسه‌ای که برای دیگران تنظیم کرده‌ام).
   const mine = useCallback((m: Meeting) => m.parts.includes(currentUser), [currentUser]);
 
-  const mineCount = useMemo(() => meetings.filter(mine).length, [meetings, mine]);
+  const liveCount = useMemo(() => meetings.filter((m) => m.status !== 'cancelled').length, [meetings]);
 
-  const visibleMeetings = useMemo(() =>
-    (!isManager || scope === 'mine') ? meetings.filter(mine) : meetings,
-    [meetings, isManager, scope, mine]);
+  const mineCount = useMemo(
+    () => meetings.filter((m) => m.status !== 'cancelled' && mine(m)).length,
+    [meetings, mine]);
+
+  /**
+   * فهرست‌های اپ (داشبورد، جلسات، تقویم) جلسهٔ لغوشده را نشان نمی‌دهند؛
+   * صفحهٔ خودِ جلسه از store.getMeeting می‌آید و همچنان باز می‌شود تا لینک‌های
+   * قدیمی و پیامک لغو به بن‌بست نخورند.
+   */
+  const visibleMeetings = useMemo(() => {
+    const live = meetings.filter((m) => m.status !== 'cancelled');
+    return (!isManager || scope === 'mine') ? live.filter(mine) : live;
+  }, [meetings, isManager, scope, mine]);
 
   const toggleTheme = useCallback(() => {
     const root = document.documentElement;
@@ -435,9 +460,9 @@ export default function Providers({ children }: { children: React.ReactNode }) {
     respondMeeting, cancelMeeting, syncMeeting,
     addMinute, deleteMinute, toggleTask, updateMinute,
     addPerson, addRoom, addOrg,
-    deletePerson, deleteRoom, deleteOrg,
+    deletePerson, deleteRoom, deleteOrg, updateRoom,
     isManager,
-    role, scope, setScope, mineCount, canSwitchScope: isManager, currentUser, setRole, setCurrentUser,
+    role, scope, setScope, mineCount, liveCount, canSwitchScope: isManager, currentUser, setRole, setCurrentUser,
     gcalConnected, connectGcal, smsEnabled, toggleSms,
     conflicts, dismissConflicts: () => setConflicts([]),
     createOpen, openCreate: () => setCreateOpen(true), closeCreate: () => setCreateOpen(false),
@@ -446,7 +471,7 @@ export default function Providers({ children }: { children: React.ReactNode }) {
     ready, error, reload, meetings, visibleMeetings, minutes, people, guests, rooms, orgs, orgKinds, categories,
     getMeeting, canEdit, createMeeting, updateMeeting, addAgenda, updateAgendaItem, deleteAgendaItem,
     respondMeeting, cancelMeeting, syncMeeting, addMinute, deleteMinute, toggleTask, updateMinute,
-    addPerson, addRoom, addOrg, deletePerson, deleteRoom, deleteOrg, role, isManager, scope, setScope, mineCount,
+    addPerson, addRoom, addOrg, deletePerson, deleteRoom, deleteOrg, updateRoom, role, isManager, scope, setScope, mineCount, liveCount,
     currentUser, gcalConnected, connectGcal, smsEnabled, toggleSms,
     createOpen, toast, toggleTheme]);
 

@@ -503,6 +503,38 @@ class LocationViewSet(ManagerOnlyDeleteMixin, viewsets.ModelViewSet):
         write.is_valid(raise_exception=True)
         return Response(LocationSerializer(write.save()).data, status=status.HTTP_201_CREATED)
 
+    def update(self, request, *args, **kwargs):
+        return self._edit(request)
+
+    def partial_update(self, request, *args, **kwargs):
+        return self._edit(request)
+
+    def _edit(self, request):
+        """ویرایش نشانی و مختصات محل — فقط ادمین و مدیرعامل."""
+        if not is_manager(request.user):
+            raise PermissionDenied('فقط مدیرعامل یا ادمین می‌تواند محل‌ها را ویرایش کند.')
+        loc = self.get_object()
+        d = request.data or {}
+        fields = []
+        if 'name' in d and str(d['name']).strip():
+            loc.name = str(d['name']).strip()[:120]
+            fields.append('name')
+        if 'cap' in d:
+            loc.capacity = str(d['cap'])[:40]
+            fields.append('capacity')
+        if 'address' in d:
+            loc.address = str(d['address']).strip()
+            fields.append('address')
+        for key, field in (('lat', 'lat'), ('lng', 'lng')):
+            if key in d:
+                raw = d[key]
+                setattr(loc, field, None if raw in (None, '') else float(raw))
+                fields.append(field)
+        if not fields:
+            raise ValidationError({'detail': 'چیزی برای تغییر فرستاده نشده است.'})
+        loc.save(update_fields=fields)
+        return Response(LocationSerializer(loc).data)
+
 
 @api_view(['POST'])
 def set_gcal(request):

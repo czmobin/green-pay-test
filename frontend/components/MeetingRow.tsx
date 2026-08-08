@@ -2,7 +2,7 @@
 import React from 'react';
 import { useRouter } from 'next/navigation';
 import type { Meeting } from '@/lib/types';
-import { typeLabels, meetingColor, statusLabels, fmtTime, initials, toFa, faDateLabel, priorityLabels, priorityColor } from '@/lib/data';
+import { meetingColor, statusLabels, fmtTime, initials, toFa, faDateLabel, priorityLabels, priorityColor } from '@/lib/data';
 import { useStore } from './store';
 import { IconMapPin, IconChevron } from './Icons';
 
@@ -22,15 +22,18 @@ export default function MeetingRow({ m, showDate = false }: { m: Meeting; showDa
       </span>
       <span className="body">
         <span className="t">{m.title}</span>
+        {/* سطر محل: تنها چیزی که کنارش می‌آید تاریخ است */}
         <span className="meta">
           {showDate && <span className="num">{faDateLabel(m.date)}</span>}
-          <span><IconMapPin size={12} />{m.type === 'online' ? 'آنلاین' : (rooms[m.room]?.name ?? '—')}</span>
+          <span><IconMapPin size={12} />{m.type === 'online' ? 'جلسهٔ آنلاین' : (rooms[m.room]?.name ?? '—')}</span>
+        </span>
+        {/* تگ‌ها همیشه در سطر جدا، تا سطر محل شلوغ نشود */}
+        <span className="chips">
           {cat && (
             <span className="cat-chip" style={{ color, background: `color-mix(in srgb,${color} 14%,transparent)` }}>
               <i style={{ background: color }} />{cat.name}
             </span>
           )}
-          {m.type === 'online' && <span className="tag t-online">{typeLabels.online}</span>}
           <span className="prio-chip" style={{ color: priorityColor[m.priority ?? 'normal'], background: `color-mix(in srgb,${priorityColor[m.priority ?? 'normal']} 14%,transparent)` }}>
             اولویت {priorityLabels[m.priority ?? 'normal']}
           </span>

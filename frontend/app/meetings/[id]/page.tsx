@@ -9,7 +9,7 @@ import ReminderCard from '@/components/ReminderCard';
 import CancelMeetingDialog from '@/components/CancelMeetingDialog';
 import LocationDialog from '@/components/LocationDialog';
 import { useReveal } from '@/components/useReveal';
-import { typeLabels, statusLabels, fmtTime, initials, toFa, priorityLabels, priorityColor, faDate, faWeekdayOf, isUrl, meetPlatform, meetingColor } from '@/lib/data';
+import { statusLabels, fmtTime, initials, toFa, priorityLabels, priorityColor, faDate, faWeekdayOf, isUrl, meetPlatform, meetingColor } from '@/lib/data';
 import {
   IconBack, IconClock, IconMapPin, IconUsers, IconList, IconChevron, IconVideo, IconEdit,
   IconX, IconEye, IconAlert,
@@ -51,7 +51,6 @@ export default function MeetingDetail() {
             <i style={{ background: catColor }} />{cat.name}
           </span>
         )}
-        {m.type === 'online' && <span className="tag t-online">{typeLabels.online}</span>}
         <span className={'pill p-' + m.status}>{statusLabels[m.status]}</span>
         <span className="prio-chip" style={{ color: priorityColor[m.priority ?? 'normal'], background: `color-mix(in srgb,${priorityColor[m.priority ?? 'normal']} 14%,transparent)` }}>
           اولویت {priorityLabels[m.priority ?? 'normal']}
@@ -89,12 +88,13 @@ export default function MeetingDetail() {
           <div className="meta-box">
             <small>{m.type === 'online' ? <IconVideo size={13} /> : <IconMapPin size={13} />}مکان</small>
             <b className="mb-loc">
-              {m.type === 'online' ? 'جلسهٔ آنلاین' : (room?.name ?? '—')}
+              {/* «مشاهده» جلوتر از نام محل می‌آید تا در موبایل زیر متن گم نشود */}
               {m.type !== 'online' && room && (
                 <button className="loc-view" onClick={() => setLocOpen(true)}>
                   <IconEye size={13} />مشاهده
                 </button>
               )}
+              <span className="mb-name">{m.type === 'online' ? 'جلسهٔ آنلاین' : (room?.name ?? '—')}</span>
             </b>
           </div>
           <div className="meta-box">

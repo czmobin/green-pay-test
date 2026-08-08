@@ -1,5 +1,6 @@
 'use client';
 import React, { useMemo, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useStore } from '@/components/store';
 import MeetingRow from '@/components/MeetingRow';
 import { useReveal } from '@/components/useReveal';
@@ -9,7 +10,9 @@ import { IconSearch, IconX, IconList } from '@/components/Icons';
 
 export default function MeetingsPage() {
   const store = useStore();
-  const [q, setQ] = useState('');
+  const router = useRouter();
+  const params = useSearchParams();
+  const [q, setQ] = useState(() => params.get('q') ?? '');
   const [cat, setCat] = useState<string>('all');
 
   // searchable text per meeting (title, category, location, participants, guests, agenda, minutes)
@@ -31,8 +34,15 @@ export default function MeetingsPage() {
   }, [store.visibleMeetings, store.minutes, store.categories, store.rooms, store.people, store.guests]);
 
   const nq = normalizeFa(q);
+  // فیلترهای آمده از داشبورد: روز مشخص یا فقط دعوت‌های بی‌پاسخ
+  const dayFilter = params.get('day');
+  const statusFilter = params.get('status');
+
   const rows = store.visibleMeetings
-    .filter((m) => (cat === 'all' || m.category === cat) && (!nq || haystack[m.id].includes(nq)))
+    .filter((m) => (cat === 'all' || m.category === cat)
+      && (!dayFilter || m.date === dayFilter)
+      && (!statusFilter || m.status === statusFilter)
+      && (!nq || haystack[m.id].includes(nq)))
     .sort((a, b) => a.date.localeCompare(b.date) || a.start - b.start);
 
   // group by day
@@ -50,7 +60,11 @@ export default function MeetingsPage() {
   return (
     <div ref={scope}>
       <div className="page-head">
-        <h1>{store.canSwitchScope && store.scope === 'mine' ? 'جلسه‌های من' : 'همهٔ جلسات'}</h1>
+        <h1>{
+          statusFilter === 'pending' ? 'در انتظار تأیید'
+            : dayFilter ? `جلسه‌های ${faWeekdayOf(dayFilter)} ${faDateShort(dayFilter)}`
+              : store.canSwitchScope && store.scope === 'mine' ? 'جلسه‌های من' : 'همهٔ جلسات'
+        }</h1>
         <p>جستجو در عنوان، مهمان، محل، دستورجلسه و صورت‌جلسه — یا فیلتر بر اساس دسته.</p>
         {store.canSwitchScope && (
           <p className="scope-hint">
@@ -63,6 +77,12 @@ export default function MeetingsPage() {
           </p>
         )}
       </div>
+
+      {(dayFilter || statusFilter) && (
+        <button className="filter-clear" onClick={() => router.push('/meetings')}>
+          <IconX size={14} />برداشتن فیلتر و دیدن همهٔ جلسات
+        </button>
+      )}
 
       <div className="searchbar">
         <IconSearch size={17} />

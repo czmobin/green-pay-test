@@ -3,21 +3,13 @@ import React, { useState } from 'react';
 import { useStore } from '@/components/store';
 import { useReveal } from '@/components/useReveal';
 import { initials, avatarPalette, toFa } from '@/lib/data';
+import LocationDialog, { parseCoord } from '@/components/LocationDialog';
+import type { Room } from '@/lib/types';
 
 import { IconBuilding, IconRoom, IconPlus, IconTrash, IconMapPin } from '@/components/Icons';
 
 type Tab = 'orgs' | 'people' | 'locations';
 
-/** «۳۵.۷۱۵, ۵۱.۴۰۴» یا «35.715 51.404» → مختصات؛ در صورت نامعتبر بودن null */
-function parseCoord(raw: string): { lat: number; lng: number } | null {
-  const fa = raw.replace(/[۰-۹]/g, (d) => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(d)));
-  const nums = fa.match(/-?\d+(\.\d+)?/g);
-  if (!nums || nums.length < 2) return null;
-  const lat = Number(nums[0]), lng = Number(nums[1]);
-  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
-  if (Math.abs(lat) > 90 || Math.abs(lng) > 180) return null;
-  return { lat, lng };
-}
 
 export default function Settings() {
   const store = useStore();
@@ -34,6 +26,7 @@ export default function Settings() {
   const [lOrg, setLOrg] = useState('');
   const [lAddr, setLAddr] = useState('');
   const [lCoord, setLCoord] = useState('');   // «35.7,51.4» — همان چیزی که از نشان یا گوگل‌مپ کپی می‌شود
+  const [detail, setDetail] = useState<Room | null>(null);
 
   const orgList = Object.values(store.orgs);
   const kindList = Object.values(store.orgKinds);
@@ -192,6 +185,7 @@ export default function Settings() {
                 <span className="di-ic" style={{ background: 'var(--violet-soft)', color: 'var(--violet)' }}><IconRoom size={18} /></span>
                 <div><b>{r.name}</b><small>{r.address || r.cap}</small></div>
                 {r.hasMap && <span className="map-badge" title="مختصات دارد"><IconMapPin size={12} />نقشه</span>}
+                <button className="def-more" onClick={() => setDetail(r)}>جزئیات</button>
                 <span className="def-badge">{orgName(r.orgId)}</span>
                 {store.isManager && (
                   <button className="def-del" aria-label="حذف محل" title="حذف"
@@ -203,6 +197,7 @@ export default function Settings() {
         </>
       )}
 
+      {detail && <LocationDialog room={detail} editable onClose={() => setDetail(null)} />}
     </div>
   );
 }
