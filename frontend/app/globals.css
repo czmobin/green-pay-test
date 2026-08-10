@@ -1204,7 +1204,7 @@ select.field-in option{direction:rtl;text-align:right}
 /* کنترل بخش‌بندی‌شدهٔ زمان — یک ردیف، یک ضربه */
 .mf-seg{display:grid;grid-template-columns:repeat(5,1fr);gap:3px;padding:3px;
   background:var(--panel-2);border-radius:13px}
-.mf-seg button{height:38px;border-radius:10px;font-size:11.5px;font-weight:700;
+.mf-seg button{height:44px;border-radius:10px;font-size:11.5px;font-weight:700;   /* حداقل هدف لمسی */
   color:var(--muted);transition:.14s;white-space:nowrap;padding:0 2px}
 .mf-seg button:hover{color:var(--ink-soft)}
 .mf-seg button.on{background:var(--panel);color:var(--brand-strong);box-shadow:var(--shadow-sm)}
