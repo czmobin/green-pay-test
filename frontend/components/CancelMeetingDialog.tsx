@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { useStore } from './store';
 import Portal from './Portal';
+import { useSheet } from './useSheet';
 import { toFa } from '@/lib/data';
 import type { Meeting } from '@/lib/types';
 import { IconAlert, IconX } from './Icons';
@@ -16,6 +17,7 @@ export default function CancelMeetingDialog({ meeting, onClose }: { meeting: Mee
   const store = useStore();
   const [reason, setReason] = useState('');
   const [busy, setBusy] = useState(false);
+  const { setBox, dismiss } = useSheet(true, onClose);
 
   const receivers = meeting.parts.filter((id) => id !== store.currentUser).length;
 
@@ -34,11 +36,11 @@ export default function CancelMeetingDialog({ meeting, onClose }: { meeting: Mee
 
   return (
     <Portal>
-      <div className="modal-overlay show" onClick={onClose}>
-      <div className="modal sm" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
+      <div className="modal-overlay show" onClick={dismiss}>
+      <div className="modal sm" ref={setBox} role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
         <div className="modal-head">
           <h2><span className="cm-ic"><IconAlert size={17} /></span>لغو جلسه</h2>
-          <button className="close" onClick={onClose} aria-label="بستن"><IconX size={17} /></button>
+          <button className="close" onClick={dismiss} aria-label="بستن"><IconX size={17} /></button>
         </div>
 
         <div className="modal-body">
@@ -58,7 +60,7 @@ export default function CancelMeetingDialog({ meeting, onClose }: { meeting: Mee
         </div>
 
         <div className="modal-foot">
-          <button className="btn btn-ghost" onClick={onClose} disabled={busy}>انصراف</button>
+          <button className="btn btn-ghost" onClick={dismiss} disabled={busy}>انصراف</button>
           <button className="btn btn-danger" onClick={submit} disabled={busy}>
             {busy ? 'در حال لغو…' : 'لغو جلسه'}
           </button>

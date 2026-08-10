@@ -2,6 +2,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Portal from './Portal';
+import { useSheet } from './useSheet';
 import gsap from 'gsap';
 import { useGSAP } from '@gsap/react';
 import { useReveal } from './useReveal';
@@ -308,13 +309,14 @@ function OverlapDialog({
   onPick: (id: string) => void;
   onClose: () => void;
 }) {
+  const { setBox, dismiss } = useSheet(true, onClose);
   return (
     <Portal>
-      <div className="modal-overlay show" onClick={onClose}>
-        <div className="modal sm" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
+      <div className="modal-overlay show" onClick={dismiss}>
+        <div className="modal sm" ref={setBox} role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
           <div className="modal-head">
             <h2>{toFa(items.length)} جلسهٔ هم‌زمان</h2>
-            <button className="close" onClick={onClose} aria-label="بستن"><IconX size={17} /></button>
+            <button className="close" onClick={dismiss} aria-label="بستن"><IconX size={17} /></button>
           </div>
           <div className="modal-body">
             <p className="cm-lead">این جلسه‌ها با هم هم‌پوشانی زمانی دارند؛ یکی را برای دیدن انتخاب کنید.</p>

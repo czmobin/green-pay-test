@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { useStore } from './store';
 import Portal from './Portal';
+import { useSheet } from './useSheet';
 import type { Room } from '@/lib/types';
 import { IconMapPin, IconX, IconVideo, IconEdit, IconCheck } from './Icons';
 
@@ -46,6 +47,7 @@ export default function LocationDialog({
   const [coord, setCoord] = useState(
     room.lat != null && room.lng != null ? `${room.lat}, ${room.lng}` : '');
   const [busy, setBusy] = useState(false);
+  const { setBox, dismiss } = useSheet(true, onClose);
 
   const current = store.rooms[room.id] ?? room;
   const links = routes(current);
@@ -66,8 +68,8 @@ export default function LocationDialog({
 
   return (
     <Portal>
-      <div className="modal-overlay show" onClick={onClose}>
-        <div className="modal sm" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
+      <div className="modal-overlay show" onClick={dismiss}>
+        <div className="modal sm" ref={setBox} role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
           <div className="modal-head">
             <h2><span className="cm-ic ok"><IconMapPin size={17} /></span>{current.name}</h2>
             {canEdit && !edit && (
@@ -75,7 +77,7 @@ export default function LocationDialog({
                 <IconEdit size={16} />
               </button>
             )}
-            <button className="close" onClick={onClose} aria-label="بستن"><IconX size={17} /></button>
+            <button className="close" onClick={dismiss} aria-label="بستن"><IconX size={17} /></button>
           </div>
 
           <div className="modal-body">

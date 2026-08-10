@@ -1,11 +1,12 @@
 'use client';
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useStore } from './store';
 import { typeLabels, toFa, fmtTime, normalizeFa, priorityLabels, priorityColor, todayISO } from '@/lib/data';
 import type { MeetingType, Priority } from '@/lib/types';
 import { api, type Conflict } from '@/lib/api';
 import DatePicker from './DatePicker';
+import { useSheet } from './useSheet';
 import TimePicker from './TimePicker';
 import { IconX, IconPlus, IconRoom, IconVideo, IconSearch } from './Icons';
 
@@ -53,6 +54,14 @@ export default function CreateMeetingModal() {
   const [gBusy, setGBusy] = useState(false);
   const [liveConflicts, setLiveConflicts] = useState<Conflict[]>([]);
   const [confirmConflicts, setConfirmConflicts] = useState<Conflict[] | null>(null);
+  /* فرم فقط بعد از ساختِ موفق خالی می‌شود؛ بستنِ ساده پیش‌نویس را نگه می‌دارد.
+     خالی‌کردن به پایان انیمیشن موکول می‌شود تا وسط بسته‌شدن، فرم جلوی چشم
+     کاربر پاک نشود. */
+  const justCreated = useRef(false);
+  const { setBox, dismiss } = useSheet(store.createOpen, () => {
+    store.closeCreate();
+    if (justCreated.current) { justCreated.current = false; reset(); }
+  });
 
   // مقادیر پیش‌فرض پس از رسیدن داده از API
   const categoryIds = Object.keys(store.categories);
@@ -152,19 +161,19 @@ export default function CreateMeetingModal() {
     setSaving(false);
     if (!created) return;
 
-    store.closeCreate();
+    justCreated.current = true;
+    dismiss();
     store.toast('جلسهٔ جدید ساخته شد', 'ok');
-    reset();
     router.push(`/meetings/${created.id}`);
   }
 
   return (
-    <div className={'modal-overlay' + (store.createOpen ? ' show' : '')} onClick={store.closeCreate}>
-      <form className="modal" onClick={(e) => e.stopPropagation()} onSubmit={submit}>
+    <div className={'modal-overlay' + (store.createOpen ? ' show' : '')} onClick={dismiss}>
+      <form className="modal" ref={setBox} onClick={(e) => e.stopPropagation()} onSubmit={submit}>
         <div className="modal-head">
           <span className="grip" />
           <h2>جلسهٔ جدید</h2>
-          <button type="button" className="icon-btn close" onClick={store.closeCreate} aria-label="بستن"><IconX size={18} /></button>
+          <button type="button" className="icon-btn close" onClick={dismiss} aria-label="بستن"><IconX size={18} /></button>
         </div>
 
         <div className="modal-body">
@@ -375,7 +384,7 @@ export default function CreateMeetingModal() {
         )}
 
         <div className="modal-foot">
-          <button type="button" className="btn btn-ghost" onClick={store.closeCreate}>انصراف</button>
+          <button type="button" className="btn btn-ghost" onClick={dismiss}>انصراف</button>
           <button type="submit" className="btn btn-primary" disabled={saving}>
             <IconPlus size={16} />{saving ? 'در حال ذخیره…' : 'ساخت جلسه'}
           </button>

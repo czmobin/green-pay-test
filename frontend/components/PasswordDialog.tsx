@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { useStore } from './store';
 import Portal from './Portal';
 import PasswordField from './PasswordField';
+import { useSheet } from './useSheet';
 import { api } from '@/lib/api';
 import { IconX, IconCheck } from './Icons';
 
@@ -19,6 +20,7 @@ export default function PasswordDialog({
   const [again, setAgain] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
+  const { setBox, dismiss } = useSheet(true, onClose);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -38,11 +40,11 @@ export default function PasswordDialog({
 
   return (
     <Portal>
-      <div className="modal-overlay show" onClick={onClose}>
-      <form className="modal sm" onClick={(e) => e.stopPropagation()} onSubmit={submit}>
+      <div className="modal-overlay show" onClick={dismiss}>
+      <form className="modal sm" ref={setBox} onClick={(e) => e.stopPropagation()} onSubmit={submit}>
         <div className="modal-head">
           <h2>{hasPassword ? 'تغییر رمز عبور' : 'تعیین رمز عبور'}</h2>
-          <button type="button" className="close" onClick={onClose} aria-label="بستن"><IconX size={17} /></button>
+          <button type="button" className="close" onClick={dismiss} aria-label="بستن"><IconX size={17} /></button>
         </div>
 
         <div className="modal-body">
@@ -64,7 +66,7 @@ export default function PasswordDialog({
         </div>
 
         <div className="modal-foot">
-          <button type="button" className="btn btn-ghost" onClick={onClose} disabled={busy}>انصراف</button>
+          <button type="button" className="btn btn-ghost" onClick={dismiss} disabled={busy}>انصراف</button>
           <button className="btn btn-primary" type="submit" disabled={busy}>
             <IconCheck size={16} />{busy ? 'در حال ذخیره…' : 'ذخیره'}
           </button>

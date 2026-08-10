@@ -410,12 +410,13 @@ button.kpi:active{transform:scale(.985)}
 /* ===================== Modal ===================== */
 /* height از dvh می‌آید: روی موبایل، نوار آدرس مرورگر ارتفاع دیدرس را کم
    می‌کند و با inset:0 پابرگ مودال زیر همان نوار می‌افتاد. */
+/* حرکت باز و بستهٔ همهٔ پنجره‌ها را GSAP اداره می‌کند (useSheet)؛ transition
+   خودِ CSS با آن می‌جنگید. این قاعده‌ها فقط حالت پایه و نهایی را می‌گویند. */
 .modal-overlay{position:fixed;inset:0;height:100dvh;z-index:80;background:rgba(6,20,15,.55);
-  display:flex;align-items:flex-end;justify-content:center;opacity:0;visibility:hidden;pointer-events:none;
-  transition:opacity .22s ease,visibility .22s ease}
+  display:flex;align-items:flex-end;justify-content:center;opacity:0;visibility:hidden;pointer-events:none}
 .modal-overlay.show{opacity:1;visibility:visible;pointer-events:auto}
 .modal{background:var(--bg);width:100%;max-width:560px;border-radius:22px 22px 0 0;max-height:100%;display:flex;flex-direction:column;
-  transform:translateY(100%);transition:transform .3s cubic-bezier(.4,0,.1,1);box-shadow:var(--shadow-lg)}
+  transform:translateY(100%);box-shadow:var(--shadow-lg)}
 .modal-overlay.show .modal{transform:none}
 .modal-head{padding:16px 18px 12px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px}
 .modal-head .grip{position:absolute;top:8px;left:50%;transform:translateX(-50%);width:38px;height:4px;border-radius:999px;background:var(--line-strong)}
@@ -1459,9 +1460,11 @@ select.field-in option{direction:rtl;text-align:right}
 
 .fhint{display:block;font-size:11px;color:var(--muted);margin-top:5px;line-height:1.8}
 
-/* ورودی رمز با کلید چشم — دیدنِ آنچه تایپ شده جلوی خطای تایپی را می‌گیرد */
+/* ورودی رمز با کلید چشم — دیدنِ آنچه تایپ شده جلوی خطای تایپی را می‌گیرد.
+   ورودی dir=ltr است، پس `end` برایش یعنی راست: متن راست‌چین می‌شود و
+   جای خالیِ کلید چشم در سمت چپ باز می‌ماند. */
 .pw-wrap{position:relative;display:block}
-.pw-wrap .pw-in{width:100%;padding-inline-end:46px}
+.pw-wrap .pw-in{width:100%;text-align:end;padding-inline-start:46px;padding-inline-end:11px}
 .pw-eye{position:absolute;inset-inline-end:6px;top:50%;transform:translateY(-50%);
   width:36px;height:36px;border-radius:10px;display:grid;place-items:center;
   color:var(--muted);transition:.12s}

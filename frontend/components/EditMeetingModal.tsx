@@ -4,6 +4,7 @@ import { useStore } from './store';
 import { typeLabels, toFa, normalizeFa, priorityLabels, priorityColor } from '@/lib/data';
 import type { Meeting, MeetingType, Priority } from '@/lib/types';
 import DatePicker from './DatePicker';
+import { useSheet } from './useSheet';
 import TimePicker from './TimePicker';
 import { IconX, IconCheck, IconRoom, IconVideo, IconSearch } from './Icons';
 
@@ -30,6 +31,7 @@ export default function EditMeetingModal(
   const [parts, setParts] = useState<string[]>(meeting.parts);
   const [pq, setPq] = useState('');
   const [saving, setSaving] = useState(false);
+  const { setBox, dismiss } = useSheet(open, onClose);
 
   // با هر بار باز شدن، مقادیر از جلسهٔ فعلی خوانده می‌شوند
   useEffect(() => {
@@ -63,16 +65,16 @@ export default function EditMeetingModal(
       priority, meetLink: type === 'online' ? meetLink.trim() : '', parts,
     });
     setSaving(false);
-    if (updated) { store.toast('جلسه به‌روزرسانی شد', 'ok'); onClose(); }
+    if (updated) { store.toast('جلسه به‌روزرسانی شد', 'ok'); dismiss(); }
   }
 
   return (
-    <div className={'modal-overlay' + (open ? ' show' : '')} onClick={onClose}>
-      <form className="modal" onClick={(e) => e.stopPropagation()} onSubmit={submit}>
+    <div className={'modal-overlay' + (open ? ' show' : '')} onClick={dismiss}>
+      <form className="modal" ref={setBox} onClick={(e) => e.stopPropagation()} onSubmit={submit}>
         <div className="modal-head">
           <span className="grip" />
           <h2>ویرایش جلسه</h2>
-          <button type="button" className="icon-btn close" onClick={onClose} aria-label="بستن"><IconX size={18} /></button>
+          <button type="button" className="icon-btn close" onClick={dismiss} aria-label="بستن"><IconX size={18} /></button>
         </div>
 
         <div className="modal-body">
@@ -166,7 +168,7 @@ export default function EditMeetingModal(
         </div>
 
         <div className="modal-foot">
-          <button type="button" className="btn btn-ghost" onClick={onClose}>انصراف</button>
+          <button type="button" className="btn btn-ghost" onClick={dismiss}>انصراف</button>
           <button type="submit" className="btn btn-primary" disabled={saving}>
             <IconCheck size={16} />{saving ? 'در حال ذخیره…' : 'ذخیرهٔ تغییرات'}
           </button>

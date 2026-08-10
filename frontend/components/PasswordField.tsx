@@ -8,6 +8,10 @@ import { IconEye, IconEyeOff } from './Icons';
  * دیدنِ آنچه تایپ شده جلوی بیشترِ خطاهای تایپی را می‌گیرد — به‌خصوص روی
  * موبایل و روی صفحه‌کلیدی که فارسی/انگلیسی‌اش عوض می‌شود (قاعدهٔ
  * password-visibility). حالت پیش‌فرض همچنان پنهان است.
+ *
+ * جهتِ خودِ ورودی ltr می‌ماند (رمز معمولاً لاتین است و با rtl، علامت‌هایی
+ * مثل ! و @ سرِ جای اشتباه می‌افتند) ولی متن راست‌چین است تا مثل بقیهٔ
+ * فیلدهای فرم، تایپ از سمت راست شروع شود.
  */
 export default function PasswordField({
   id, label, value, onChange, autoComplete = 'new-password', autoFocus, hint,
