@@ -8,10 +8,10 @@ import TimePicker from './TimePicker';
 import type { AgendaItem, Meeting, Minute, MinuteType } from '@/lib/types';
 import { minuteIcon, IconDoc, IconPlus, IconTrash, IconCheck, IconClock, IconCall, IconUsers, IconPaperclip, IconEdit, IconList } from './Icons';
 
-// «تسک» فعلاً از اپ برداشته شده؛ آیتم‌های قدیمی همچنان نمایش داده می‌شوند
+// «اقدام» از اپ برداشته شده و ساخته نمی‌شود؛ آیتم‌های قدیمی همچنان دیده می‌شوند
 const order: MinuteType[] = ['note', 'decision', 'reminder', 'call', 'letter', 'file'];
 /** انواعی که وضعیت انجام دارند */
-const DONEABLE = new Set<MinuteType>(['task', 'reminder', 'call']);   // task فقط برای دادهٔ قدیمی
+const DONEABLE = new Set<MinuteType>(['action', 'reminder', 'call']);   // action فقط دادهٔ قدیمی
 
 export default function MinutesEditor({ meeting }: { meeting: Meeting }) {
   const store = useStore();
@@ -19,8 +19,6 @@ export default function MinutesEditor({ meeting }: { meeting: Meeting }) {
   const [activeP, setActiveP] = useState<string>('general');
   const [type, setType] = useState<MinuteType>('note');
   const [text, setText] = useState('');
-  const [assignee, setAssignee] = useState(meeting.parts[0] ?? 'ceo');
-  const [due, setDue] = useState('');   // تاریخ ISO مهلت
   const [remindDate, setRemindDate] = useState('');   // تاریخ ISO یادآوری
   const [remindHour, setRemindHour] = useState(9);    // ساعت اعشاری یادآوری
   const [who, setWho] = useState('');
@@ -44,8 +42,8 @@ export default function MinutesEditor({ meeting }: { meeting: Meeting }) {
       participant: activeP === 'general' ? null : activeP,
       type,
       text: text.trim() || fileName,
-      assignee: type === 'task' ? assignee : null,
-      due: type === 'task' ? (due || todayISO()) : null,
+      assignee: null,
+      due: null,
       remindDate: type === 'reminder' ? (remindDate || todayISO()) : null,
       remindHour: type === 'reminder' ? remindHour : null,
       who: type === 'call' ? who : '',
@@ -54,7 +52,7 @@ export default function MinutesEditor({ meeting }: { meeting: Meeting }) {
       agendaItem: agendaItem || null,
     });
     setSaving(false);
-    setText(''); setDue(''); setRemindDate(''); setRemindHour(9);
+    setText(''); setRemindDate(''); setRemindHour(9);
     setWho(''); setPhone(''); setFileName(''); setAgendaItem('');
     store.toast(`${minuteMeta[type].label} ثبت شد`, 'ok');
   }
@@ -109,14 +107,6 @@ export default function MinutesEditor({ meeting }: { meeting: Meeting }) {
           placeholder={placeholderFor(type)}
           onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) add(); }} />
 
-        {type === 'task' && (
-          <div className="extra">
-            <select className="field-in" value={assignee} onChange={(e) => setAssignee(e.target.value)}>
-              {meeting.parts.map((pid) => <option key={pid} value={pid}>{store.people[pid]?.name ?? pid}</option>)}
-            </select>
-            <DatePicker value={due || todayISO()} onChange={setDue} min={todayISO()} />
-          </div>
-        )}
         {type === 'reminder' && (
           <div className="extra">
             <div className="field"><label>تاریخ یادآوری</label>
@@ -165,7 +155,7 @@ export default function MinutesEditor({ meeting }: { meeting: Meeting }) {
         <div className="empty">
           <div><IconDoc size={34} /></div>
           {activeP === 'general'
-            ? 'صورت‌جلسهٔ عمومی خالی است — یادداشت، تصمیم، تسک، یادآور، تماس، نامه یا فایل اضافه کنید.'
+            ? 'صورت‌جلسهٔ عمومی خالی است — یادداشت، تصمیم، یادآور، تماس، نامه یا فایل اضافه کنید.'
             : `برای «${store.people[activeP]?.name}» هنوز موردی ثبت نشده.`}
         </div>
       ) : (
@@ -206,7 +196,7 @@ function MinuteRow({ m, mid, agenda }: { m: Minute; mid: string; agenda: AgendaI
     await store.updateMinute(mid, m.id, {
       text: text.trim(),
       agendaItem: item || null,
-      ...(m.type === 'task' ? { assignee: assignee || null, due: due || null } : {}),
+      ...(m.type === 'action' ? { assignee: assignee || null, due: due || null } : {}),
       ...(m.type === 'reminder' ? { remindDate: rDate || null, remindHour: rHour } : {}),
       ...(m.type === 'call' ? { who, phone } : {}),
     });
@@ -226,7 +216,7 @@ function MinuteRow({ m, mid, agenda }: { m: Minute; mid: string; agenda: AgendaI
           <textarea className="field-in" rows={2} value={text} autoFocus
             onChange={(e) => setText(e.target.value)} placeholder={meta.label} />
 
-          {m.type === 'task' && (
+          {m.type === 'action' && (
             <div className="extra">
               <select className="field-in" value={assignee} onChange={(e) => setAssignee(e.target.value)}>
                 <option value="">— بدون مسئول —</option>
@@ -271,7 +261,7 @@ function MinuteRow({ m, mid, agenda }: { m: Minute; mid: string; agenda: AgendaI
   return (
     <div className={'minute' + (m.done ? ' done' : '')}>
       {DONEABLE.has(m.type) ? (
-        <button className={'task-check' + (m.done ? ' on' : '')} onClick={() => store.toggleTask(mid, m.id)} aria-label="انجام شد">
+        <button className={'done-check' + (m.done ? ' on' : '')} onClick={() => store.toggleDone(mid, m.id)} aria-label="انجام شد">
           {m.done && <IconCheck size={13} />}
         </button>
       ) : (
@@ -292,8 +282,8 @@ function MinuteRow({ m, mid, agenda }: { m: Minute; mid: string; agenda: AgendaI
             </button>
           )}
           {m.done && <span className="done-tag">انجام شد</span>}
-          {m.type === 'task' && m.assignee && <span><IconUsers size={12} />{store.people[m.assignee]?.name ?? m.assignee}</span>}
-          {m.type === 'task' && m.due && <span><IconClock size={12} />مهلت: {faDate(m.due)}</span>}
+          {m.type === 'action' && m.assignee && <span><IconUsers size={12} />{store.people[m.assignee]?.name ?? m.assignee}</span>}
+          {m.type === 'action' && m.due && <span><IconClock size={12} />مهلت: {faDate(m.due)}</span>}
           {m.type === 'reminder' && remindLabel(m) && <span><IconClock size={12} />{remindLabel(m)}</span>}
           {m.type === 'reminder' && m.remindDate && !m.done && <DueBadge iso={m.remindDate} />}
           {m.type === 'call' && m.who && <span><IconCall size={12} />{m.who}</span>}
@@ -314,7 +304,6 @@ function placeholderFor(t: MinuteType): string {
   switch (t) {
     case 'note': return 'یادداشت آزاد از جلسه…';
     case 'decision': return 'تصمیم گرفته‌شده در جلسه را بنویسید…';
-    case 'task': return 'کاری که باید انجام شود…';
     case 'reminder': return 'چه چیزی را باید یادآوری کرد؟';
     case 'call': return 'موضوع تماس تلفنی…';
     case 'letter': return 'توضیح نامه (اختیاری)…';

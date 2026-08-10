@@ -8,7 +8,8 @@ import { IconMapPin, IconChevron, IconVideo, IconReminder } from './Icons';
 
 export default function MeetingRow({ m, showDate = false }: { m: Meeting; showDate?: boolean }) {
   const router = useRouter();
-  const { rooms, categories, minutes } = useStore();
+  const store = useStore();
+  const { rooms, categories, minutes } = store;
   const color = meetingColor(categories, m);
   const cat = categories[m.category];
   // «۳ روز مانده» گویاتر از فهرست آواتارهاست؛ همان جای شرکت‌کننده‌ها می‌نشیند
@@ -23,12 +24,18 @@ export default function MeetingRow({ m, showDate = false }: { m: Meeting; showDa
     .filter((x) => x.type === 'reminder' && !x.done && x.remindDate)
     .sort((a, b) => (a.remindDate! + String(a.remindHour ?? 0)).localeCompare(b.remindDate! + String(b.remindHour ?? 0)))[0];
 
+  // دعوت بی‌پاسخ خودِ کاربر — مهم‌تر از وضعیت کلی جلسه است
+  const waiting = store.myResponse(m) === 'pending';
+
   return (
     <button className="mrow" onClick={() => router.push(`/meetings/${m.id}`)}>
       <span className="bar" style={{ background: color }} />
+      {/* ستون راست: ساعت بالا، نشان آنلاین وسط، یادآور پایین */}
       <span className="time">
-        <b className="num">{fmtTime(m.start)}</b>
-        <small className="num">{fmtTime(m.end)}</small>
+        <span className="tt">
+          <b className="num">{fmtTime(m.start)}</b>
+          <small className="num">{fmtTime(m.end)}</small>
+        </span>
         {m.type === 'online' && (
           <span className="t-badge online" title="جلسهٔ آنلاین"><IconVideo size={12} /></span>
         )}
@@ -58,12 +65,14 @@ export default function MeetingRow({ m, showDate = false }: { m: Meeting; showDa
           </span>
         </span>
       </span>
+      {/* ستون چپ: وضعیتِ نیازمند توجه بالا، روزهای مانده پایین */}
       <span className="side">
-        {/* تگ «تأییدشده» حذف شد — حالت عادی است و ارزش فضا ندارد؛
-            فقط وضعیت‌های نیازمند توجه نشان داده می‌شوند */}
-        {m.status !== 'confirmed' && (
-          <span className={'pill p-' + m.status}>{statusLabels[m.status]}</span>
-        )}
+        {/* تگ «تأییدشده» حذف شد — حالت عادی است و ارزش فضا ندارد */}
+        {waiting
+          ? <span className="pill p-pending">در انتظار تأیید</span>
+          : m.status !== 'confirmed' && (
+            <span className={'pill p-' + m.status}>{statusLabels[m.status]}</span>
+          )}
         <span className={'rel-days' + (days < 0 ? ' past' : days <= 1 ? ' soon' : '')}>{rel}</span>
       </span>
       <span className="chev"><IconChevron size={18} /></span>

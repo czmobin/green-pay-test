@@ -222,10 +222,8 @@ class MeetingViewSet(viewsets.ModelViewSet):
         write.is_valid(raise_exception=True)
         meeting = write.save()
 
-        # جلسه‌ای که ادمین یا مدیرعامل می‌سازد، برای بقیه خودکار پذیرفته است
-        if is_manager(request.user):
-            meeting.meeting_participants.filter(is_guest=False).update(
-                response=MeetingParticipant.Response.ACCEPTED)
+        # دعوت هر شرکت‌کننده بی‌پاسخ می‌ماند تا خودش تأیید کند — حتی وقتی جلسه را
+        # ادمین یا مدیرعامل ساخته باشد؛ وگرنه «در انتظار تأیید من» همیشه خالی است.
 
         # هشدار تداخل: جلسه ساخته شده و افراد اضافه شده‌اند؛ این فقط اطلاع‌رسانی است.
         attendees = [str(p.user_id) for p in meeting.meeting_participants.all()]
@@ -268,9 +266,11 @@ class MeetingViewSet(viewsets.ModelViewSet):
             wanted = {str(x) for x in d['parts']}
             meeting.meeting_participants.filter(is_guest=False).exclude(user_id__in=wanted).delete()
             existing = {str(p.user_id) for p in meeting.meeting_participants.filter(is_guest=False)}
-            auto = MeetingParticipant.Response.ACCEPTED if is_manager(request.user) \
-                else MeetingParticipant.Response.PENDING
             for uid in wanted - existing:
+                # فردی که تازه اضافه می‌شود دعوت‌شده است، مگر خودِ برگزارکننده
+                auto = (MeetingParticipant.Response.ACCEPTED
+                        if str(uid) == str(meeting.organizer_id)
+                        else MeetingParticipant.Response.PENDING)
                 MeetingParticipant.objects.get_or_create(
                     meeting=meeting, user_id=uid,
                     defaults={'is_guest': False, 'response': auto})
@@ -300,11 +300,21 @@ class MeetingViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'])
     def respond(self, request, pk=None):
-        """پاسخ به دعوت‌نامه: پذیرش یا رد."""
+        """
+        پاسخ به دعوت‌نامه: پذیرش یا رد — فقط برای خودِ کاربر.
+
+        پیش‌تر این پاسخ روی وضعیت خودِ جلسه می‌نشست، یعنی «رد» یک نفر جلسه را
+        برای همه لغو می‌کرد. پاسخ هر کس فقط سطر خودش در شرکت‌کنندگان است.
+        """
         meeting = self.get_object()
         accept = bool(request.data.get('accept'))
-        meeting.status = Meeting.Status.CONFIRMED if accept else Meeting.Status.CANCELLED
-        meeting.save(update_fields=['status'])
+        row = meeting.meeting_participants.filter(user=request.user).first()
+        if not row:
+            raise ValidationError({'detail': 'شما در این جلسه شرکت‌کننده نیستید.'})
+        row.response = (MeetingParticipant.Response.ACCEPTED if accept
+                        else MeetingParticipant.Response.DECLINED)
+        row.save(update_fields=['response'])
+        meeting.refresh_from_db()
         return Response(MeetingSerializer(meeting).data)
 
     @action(detail=True, methods=['post'])
@@ -484,24 +494,19 @@ class OrganizationViewSet(ManagerOnlyDeleteMixin, viewsets.ModelViewSet):
         return Response(OrganizationSerializer(write.save()).data, status=status.HTTP_201_CREATED)
 
 
-def is_admin(user) -> bool:
-    """فقط ادمین اصلی — مدیرعامل هم اجازهٔ افزودن فرد به فهرست سازمان را ندارد."""
-    return getattr(user, 'role', None) == User.Role.ADMIN or user.is_superuser
-
-
 class PersonViewSet(ManagerOnlyDeleteMixin, viewsets.ModelViewSet):
     queryset = User.objects.filter(is_external=False).select_related('organization')
     serializer_class = PersonSerializer
 
     def create(self, request, *args, **kwargs):
         """
-        افزودن فرد به فهرست افراد سازمان — فقط ادمین.
+        افزودن فرد به فهرست افراد سازمان — ادمین و مدیرعامل.
 
         کاربر عادی برای دعوت افراد بیرونی به جلسه از /guests/ استفاده می‌کند؛
         آن‌ها مهمان‌اند و در فهرست افراد سازمان نمی‌آیند.
         """
-        if not is_admin(request.user):
-            raise PermissionDenied('افزودن فرد به فهرست افراد فقط از عهدهٔ ادمین برمی‌آید.')
+        if not is_manager(request.user):
+            raise PermissionDenied('افزودن فرد به فهرست افراد فقط از عهدهٔ ادمین و مدیرعامل برمی‌آید.')
         write = PersonCreateSerializer(data=request.data)
         write.is_valid(raise_exception=True)
         return Response(PersonSerializer(write.save()).data, status=status.HTTP_201_CREATED)
@@ -509,13 +514,13 @@ class PersonViewSet(ManagerOnlyDeleteMixin, viewsets.ModelViewSet):
     @action(detail=False, methods=['post'], url_path='import')
     def bulk_import(self, request):
         """
-        درون‌ریزی گروهی افراد از فایل اکسل یا CSV — فقط ادمین.
+        درون‌ریزی گروهی افراد از فایل اکسل یا CSV — ادمین و مدیرعامل.
 
         ستون‌ها بر پایهٔ سرصفحه تشخیص داده می‌شوند (نام، سمت، شماره، سازمان)؛
         ترتیبشان مهم نیست و سرصفحه‌های انگلیسی هم پذیرفته می‌شوند.
         """
-        if not is_admin(request.user):
-            raise PermissionDenied('درون‌ریزی افراد فقط از عهدهٔ ادمین برمی‌آید.')
+        if not is_manager(request.user):
+            raise PermissionDenied('درون‌ریزی افراد فقط از عهدهٔ ادمین و مدیرعامل برمی‌آید.')
 
         upload = request.FILES.get('file')
         if not upload:

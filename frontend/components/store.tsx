@@ -1,7 +1,8 @@
 'use client';
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import type {
-  AgendaItem, Category, Guest, Meeting, Minute, OrgKind, Organization, Person, Role, Room, Scope,
+  AgendaItem, Category, Guest, InviteResponse, Meeting, Minute, OrgKind, Organization, Person,
+  Role, Room, Scope,
 } from '@/lib/types';
 import {
   api, loadToken, setTokens, UnauthorizedError,
@@ -51,7 +52,7 @@ interface Store {
 
   addMinute: (m: NewMinute) => Promise<void>;
   deleteMinute: (meetingId: string, id: string) => Promise<void>;
-  toggleTask: (meetingId: string, id: string) => Promise<void>;
+  toggleDone: (meetingId: string, id: string) => Promise<void>;
   updateMinute: (meetingId: string, id: string, patch: MinutePatch) => Promise<void>;
 
   addPerson: (p: { name: string; role: string; orgId: string; color?: string }) => Promise<void>;
@@ -63,8 +64,12 @@ interface Store {
   deleteOrg: (id: string) => Promise<void>;
   /** فقط ادمین و مدیرعامل می‌توانند تعریف‌های دیگران را حذف کنند */
   isManager: boolean;
-  /** افزودن فرد به فهرست افراد سازمان فقط از عهدهٔ ادمین برمی‌آید */
+  /** ادمین اصلی */
   isAdmin: boolean;
+  /** پاسخ خودِ کاربر به دعوت این جلسه */
+  myResponse: (m: Meeting) => InviteResponse;
+  /** جلسه‌هایی که دعوتشان هنوز بی‌پاسخ مانده — به‌ترتیب نزدیک‌ترین */
+  myInvites: Meeting[];
   addGuest: (g: { name: string; role?: string; org?: string }) => Promise<Guest | null>;
   importPeople: (file: File) => Promise<{ created: number; skipped: number; messages: string[] } | null>;
 
@@ -339,7 +344,7 @@ export default function Providers({ children }: { children: React.ReactNode }) {
     });
   }, [guarded]);
 
-  const toggleTask = useCallback(async (meetingId: string, id: string) => {
+  const toggleDone = useCallback(async (meetingId: string, id: string) => {
     await guarded(async () => {
       const updated = await api.toggleMinute(id);
       setMinutes((s) => ({ ...s, [meetingId]: (s[meetingId] ?? []).map((x) => (x.id === id ? updated : x)) }));
@@ -465,6 +470,20 @@ export default function Providers({ children }: { children: React.ReactNode }) {
     return (!isManager || scope === 'mine') ? live.filter(mine) : live;
   }, [meetings, isManager, scope, mine]);
 
+  /**
+   * پاسخ خودِ کاربر به دعوت — پیش‌تر «در انتظار» روی وضعیت کل جلسه بود، یعنی
+   * پاسخ یک نفر برای همه تصمیم می‌گرفت. حالا هر کس سطر خودش را دارد.
+   */
+  const myResponse = useCallback(
+    (m: Meeting): InviteResponse => m.partStatus?.[currentUser] ?? 'accepted',
+    [currentUser]);
+
+  const myInvites = useMemo(
+    () => meetings
+      .filter((m) => m.status !== 'cancelled' && mine(m) && myResponse(m) === 'pending')
+      .sort((a, b) => a.date.localeCompare(b.date) || a.start - b.start),
+    [meetings, mine, myResponse]);
+
   const toggleTheme = useCallback(() => {
     const root = document.documentElement;
     const cur = root.getAttribute('data-theme');
@@ -481,11 +500,12 @@ export default function Providers({ children }: { children: React.ReactNode }) {
     getMeeting, canEdit, createMeeting, updateMeeting,
     addAgenda, updateAgenda: updateAgendaItem, deleteAgenda: deleteAgendaItem,
     respondMeeting, cancelMeeting, syncMeeting,
-    addMinute, deleteMinute, toggleTask, updateMinute,
+    addMinute, deleteMinute, toggleDone, updateMinute,
     addPerson, addRoom, addOrg,
     deletePerson, deleteRoom, deleteOrg, updateRoom,
     isManager,
     isAdmin: role === 'admin',
+    myResponse, myInvites,
     addGuest, importPeople,
     role, scope, setScope, mineCount, liveCount, canSwitchScope: isManager, currentUser, setRole, setCurrentUser,
     gcalConnected, connectGcal, smsEnabled, toggleSms,
@@ -495,8 +515,8 @@ export default function Providers({ children }: { children: React.ReactNode }) {
   }), [conflicts, authed, authChecked, needsProfile, me, signIn, completeProfile, signOut,
     ready, error, reload, meetings, visibleMeetings, minutes, people, guests, rooms, orgs, orgKinds, categories,
     getMeeting, canEdit, createMeeting, updateMeeting, addAgenda, updateAgendaItem, deleteAgendaItem,
-    respondMeeting, cancelMeeting, syncMeeting, addMinute, deleteMinute, toggleTask, updateMinute,
-    addPerson, addGuest, importPeople, addRoom, addOrg, deletePerson, deleteRoom, deleteOrg, updateRoom, role, isManager, scope, setScope, mineCount, liveCount,
+    respondMeeting, cancelMeeting, syncMeeting, addMinute, deleteMinute, toggleDone, updateMinute,
+    addPerson, addGuest, importPeople, addRoom, addOrg, deletePerson, deleteRoom, deleteOrg, updateRoom, role, isManager, myResponse, myInvites, scope, setScope, mineCount, liveCount,
     currentUser, gcalConnected, connectGcal, smsEnabled, toggleSms,
     createOpen, toast, toggleTheme]);
 

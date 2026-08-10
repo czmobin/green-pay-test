@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { useStore } from './store';
 import Portal from './Portal';
+import PasswordField from './PasswordField';
 import { api } from '@/lib/api';
 import { IconX, IconCheck } from './Icons';
 
@@ -52,25 +53,14 @@ export default function PasswordDialog({
           </p>
 
           {hasPassword && (
-            <div className="field">
-              <label htmlFor="pw-cur">رمز عبور فعلی</label>
-              <input id="pw-cur" className="field-in" type="password" dir="ltr"
-                autoComplete="current-password" value={current} onChange={(e) => setCurrent(e.target.value)} />
-            </div>
+            <PasswordField id="pw-cur" label="رمز عبور فعلی" value={current} onChange={setCurrent}
+              autoComplete="current-password" />
           )}
-          <div className="field">
-            <label htmlFor="pw-new">رمز عبور تازه</label>
-            <input id="pw-new" className="field-in" type="password" dir="ltr" autoFocus={!hasPassword}
-              autoComplete="new-password" value={next} onChange={(e) => setNext(e.target.value)} />
-            <small className="fhint">دست‌کم ۸ نویسه، و فقط از رقم تشکیل نشده باشد.</small>
-          </div>
-          <div className="field">
-            <label htmlFor="pw-again">تکرار رمز عبور</label>
-            <input id="pw-again" className="field-in" type="password" dir="ltr"
-              autoComplete="new-password" value={again} onChange={(e) => setAgain(e.target.value)} />
-          </div>
+          <PasswordField id="pw-new" label="رمز عبور تازه" value={next} onChange={setNext}
+            autoFocus={!hasPassword} hint="دست‌کم ۸ نویسه، و فقط از رقم تشکیل نشده باشد." />
+          <PasswordField id="pw-again" label="تکرار رمز عبور" value={again} onChange={setAgain} />
 
-          {err && <p className="rc-err">{err}</p>}
+          {err && <p className="rc-err" role="alert">{err}</p>}
         </div>
 
         <div className="modal-foot">

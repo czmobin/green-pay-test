@@ -79,7 +79,7 @@ export default function RemindersPage() {
             return (
               <div className={'rem' + (mn.done ? ' done' : '') + (isOverdue({ mn, m }) ? ' late' : '')} key={mn.id} onClick={() => router.push(`/meetings/${m.id}`)} style={{ cursor: 'pointer' }}>
                 <button className={'rcheck' + (mn.done ? ' on' : '')}
-                  onClick={(e) => { e.stopPropagation(); store.toggleTask(m.id, mn.id); }}
+                  onClick={(e) => { e.stopPropagation(); store.toggleDone(m.id, mn.id); }}
                   aria-label={mn.done ? 'برگرداندن به انجام‌نشده' : 'انجام شد'}>
                   {mn.done && <IconCheck size={13} />}
                 </button>

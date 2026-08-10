@@ -11,6 +11,18 @@ import { IconX, IconPlus, IconRoom, IconVideo, IconSearch } from './Icons';
 
 const PRIORITIES: Priority[] = ['low', 'normal', 'high', 'critical'];
 
+/** فاصله‌های آمادهٔ یادآور (دقیقه) */
+const LEADS = [0, 15, 30, 60, 120, 1440] as const;
+
+/** «۹۰» → «۱ ساعت و ۳۰ دقیقه قبل» */
+function leadLabel(min: number): string {
+  if (min <= 0) return 'بدون یادآور';
+  if (min % 1440 === 0) return `${toFa(min / 1440)} روز قبل`;
+  if (min % 60 === 0) return `${toFa(min / 60)} ساعت قبل`;
+  if (min < 60) return `${toFa(min)} دقیقه قبل`;
+  return `${toFa(Math.floor(min / 60))} ساعت و ${toFa(min % 60)} دقیقه قبل`;
+}
+
 const types: { id: MeetingType; icon: React.ReactNode }[] = [
   { id: 'in_person', icon: <IconRoom size={16} /> },
   { id: 'online', icon: <IconVideo size={16} /> },
@@ -32,6 +44,8 @@ export default function CreateMeetingModal() {
   const [priority, setPriority] = useState<Priority>('normal');
   const [meetLink, setMeetLink] = useState('');
   const [reminderLead, setReminderLead] = useState<number>(60);
+  const [leadCustom, setLeadCustom] = useState(false);   // فاصلهٔ دلخواه باز است؟
+  const [leadText, setLeadText] = useState('');
   const [guests, setGuests] = useState<string[]>([]);
   const [guestOpen, setGuestOpen] = useState(false);
   const [gName, setGName] = useState('');
@@ -51,8 +65,8 @@ export default function CreateMeetingModal() {
   const today = todayISO();
   const selectedDate = date || today;
 
-  /* پیشنهاد: ۱۰ نفری که کاربر جاری بیشترین جلسهٔ مشترک را با آن‌ها داشته
-     (به‌علاوهٔ کسانی که همین حالا انتخاب شده‌اند). بقیه با جستجو پیدا می‌شوند. */
+  /* پیشنهاد: ۱۰ نفری که کاربر جاری بیشترین جلسهٔ مشترک را با آن‌ها داشته،
+     به‌ترتیبِ همان تکرار. بقیه با جستجو پیدا می‌شوند. */
   const frequent = useMemo(() => {
     const count = new Map<string, number>();
     store.meetings
@@ -64,12 +78,18 @@ export default function CreateMeetingModal() {
       .map((p) => p.id);
   }, [store.meetings, store.people, store.currentUser]);
 
+  /**
+   * حداکثر ۱۰ نفر، به‌ترتیب پرتکرارترین. انتخاب‌شده‌ها اول می‌آیند تا هیچ‌وقت
+   * از فهرست بیرون نیفتند؛ بقیه با جستجو پیدا می‌شوند.
+   */
   const filteredPeople = useMemo(() => {
     const nq = normalizeFa(pq);
     const all = Object.values(store.people);
     if (nq) return all.filter((p) => normalizeFa(p.name + ' ' + p.role).includes(nq));
-    const show = new Set([...frequent, ...selectedParts]);
-    return all.filter((p) => show.has(p.id));
+    const ids = [...selectedParts, ...frequent.filter((id) => !selectedParts.includes(id))];
+    return ids.slice(0, 10)
+      .map((id) => store.people[id])
+      .filter((p): p is NonNullable<typeof p> => Boolean(p));
   }, [pq, store.people, frequent, selectedParts]);
 
   const hiddenCount = Object.keys(store.people).length - filteredPeople.length;
@@ -93,6 +113,7 @@ export default function CreateMeetingModal() {
     setTitle(''); setCat(''); setType('in_person'); setStart(10); setEnd(11);
     setRoom(''); setParts([]); setPq(''); setPriority('normal'); setMeetLink(''); setDate('');
     setGuests([]); setGuestOpen(false); setGName(''); setGOrg(''); setReminderLead(60);
+    setLeadCustom(false); setLeadText('');
     setLiveConflicts([]);
   }
   function onStart(v: number) { setStart(v); if (end <= v) setEnd(Math.min(v + 1, 23.75)); }
@@ -108,6 +129,9 @@ export default function CreateMeetingModal() {
     if (!title.trim()) { store.toast('عنوان جلسه را وارد کنید', 'info'); return; }
     if (end <= start) { store.toast('ساعت پایان باید بعد از شروع باشد', 'info'); return; }
     if (!selectedCat || !store.currentUser) { store.toast('داده‌ها هنوز آماده نیست', 'info'); return; }
+    if (leadCustom && (!leadText || Number(leadText) < 1 || Number(leadText) > 10080)) {
+      store.toast('فاصلهٔ یادآور را بین ۱ دقیقه تا ۷ روز بنویسید', 'info'); return;
+    }
 
     // اگر تداخلی هست، اول تأیید بگیر
     if (liveConflicts.length > 0 && !confirmConflicts) {
@@ -217,16 +241,36 @@ export default function CreateMeetingModal() {
           <div className="field">
             <label>یادآور پیامکی برای شرکت‌کنندگان</label>
             <div className="rl-picks">
-              {([0, 15, 30, 60, 120, 1440] as const).map((v) => (
+              {LEADS.map((v) => (
                 <button type="button" key={v}
                   className={'chip-btn' + (reminderLead === v ? ' active' : '')}
-                  onClick={() => setReminderLead(v)}>
-                  {v === 0 ? 'بدون یادآور'
-                    : v >= 1440 ? `${toFa(v / 1440)} روز قبل`
-                      : v >= 60 ? `${toFa(v / 60)} ساعت قبل` : `${toFa(v)} دقیقه قبل`}
+                  onClick={() => { setReminderLead(v); setLeadCustom(false); }}>
+                  {leadLabel(v)}
                 </button>
               ))}
+              {/* فاصلهٔ دلخواه: هر عددی بین ۱ دقیقه تا ۷ روز */}
+              <button type="button"
+                className={'chip-btn' + (leadCustom ? ' active' : '')}
+                onClick={() => setLeadCustom((v) => !v)}>دلخواه</button>
             </div>
+
+            {leadCustom && (
+              <div className="rl-custom">
+                <input className="field-in num" inputMode="numeric" value={leadText}
+                  placeholder="۹۰" aria-label="فاصلهٔ یادآور به دقیقه"
+                  onChange={(e) => {
+                    const raw = e.target.value.replace(/[^\d]/g, '');
+                    setLeadText(raw);
+                    const n = Number(raw);
+                    if (n >= 1 && n <= 10080) setReminderLead(n);
+                  }} />
+                <span>دقیقه پیش از جلسه</span>
+                {leadText && (Number(leadText) < 1 || Number(leadText) > 10080)
+                  ? <b className="rl-bad">بین ۱ دقیقه تا ۷ روز</b>
+                  : leadText && <b className="rl-ok">{leadLabel(Number(leadText))}</b>}
+              </div>
+            )}
+
             <small className="fhint">این تنظیم برای همه ثبت می‌شود؛ بعداً هر کس می‌تواند مالِ خودش را عوض کند.</small>
           </div>
 

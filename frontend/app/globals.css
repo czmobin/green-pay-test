@@ -248,7 +248,7 @@ button.kpi:active{transform:scale(.985)}
 .mrow .meta{display:flex;flex-wrap:wrap;gap:10px;color:var(--muted);font-size:11.5px;margin-top:6px;align-items:center}
 .mrow .meta span{display:flex;align-items:center;gap:4px}
 .mrow .meta svg{width:12px;height:12px}
-.mrow .side{display:flex;flex-direction:column;align-items:flex-end;justify-content:space-between;gap:8px}
+.mrow .side{display:flex;flex-direction:column;align-items:flex-end;justify-content:flex-start;gap:8px}
 .chev{color:var(--muted);flex:0 0 auto;align-self:center}
 .chev svg{width:18px;height:18px}
 
@@ -275,10 +275,13 @@ button.kpi:active{transform:scale(.985)}
 .arrow svg{width:18px;height:18px}
 
 /* ===================== Detail page ===================== */
-.detail-top{display:flex;align-items:center;gap:8px;margin:4px 0 14px;flex-wrap:wrap}
-/* دکمه‌های ویرایش/لغو همیشه ته ردیف می‌مانند تا از کادر بیرون نزنند */
-.detail-top .edit-btn{margin-inline-start:0}
-.detail-top .edit-btn:first-of-type{margin-inline-start:auto}
+/* تگ‌ها داخل ظرف خودشان می‌پیچند و دکمه‌ها ستون ثابتِ ته سطر می‌شوند؛
+   با wrap مستقیم روی همین سطر، جای دکمه‌ها به تعداد تگ‌ها وابسته می‌شد. */
+.detail-top{display:flex;align-items:flex-start;gap:8px;margin:4px 0 14px;flex-wrap:nowrap}
+.detail-top .back-btn{flex:0 0 auto}
+.dt-chips{flex:1 1 auto;min-width:0;display:flex;align-items:center;flex-wrap:wrap;gap:8px}
+.dt-actions{flex:0 0 auto;display:flex;align-items:center;gap:8px;margin-inline-start:auto}
+.dt-actions .edit-btn{margin-inline-start:0}
 @media (max-width:560px){
   .detail-top{gap:6px}
   .detail-top .prio-chip,.detail-top .cat-chip{font-size:10.5px;padding:2px 8px}
@@ -326,7 +329,11 @@ button.kpi:active{transform:scale(.985)}
 .part{display:flex;align-items:center;gap:11px;padding:9px 11px;background:var(--panel-2);border:1px solid var(--line);border-radius:11px}
 .part b{font-size:13px;font-weight:700}
 .part small{font-size:11.5px;color:var(--muted);display:block}
-.part .role{margin-inline-start:auto;font-size:11px;font-weight:700;color:var(--muted)}
+.part .role{margin-inline-start:auto;font-size:11px;font-weight:700;color:var(--muted);
+  white-space:nowrap;flex:0 0 auto}
+/* دعوت بی‌پاسخ برچسبِ دیدنی می‌گیرد؛ خاکستریِ ساده گم می‌شد */
+.part .role.waiting{color:var(--warn);background:var(--warn-soft);border-radius:999px;padding:3px 9px}
+.part .role.declined{color:var(--danger);background:var(--danger-soft);border-radius:999px;padding:3px 9px}
 .part.ext{border-color:color-mix(in srgb,var(--info) 35%,var(--line))}
 .part.ext .role{color:var(--info)}
 
@@ -392,11 +399,11 @@ button.kpi:active{transform:scale(.985)}
 .minute .mextra svg{width:12px;height:12px}
 .minute .mdel{opacity:.55;color:var(--muted);padding:2px;align-self:flex-start}
 .minute .mdel:hover{opacity:1;color:var(--danger)}
-.minute .task-check{width:20px;height:20px;border-radius:6px;border:2px solid var(--line-strong);flex:0 0 auto;
+.minute .done-check{width:20px;height:20px;border-radius:6px;border:2px solid var(--line-strong);flex:0 0 auto;
   display:inline-flex;align-items:center;justify-content:center;line-height:0;padding:0;
   margin-top:5px;transition:.12s;color:transparent}
-.minute .task-check.on{background:var(--brand);border-color:var(--brand);color:#fff}
-.minute .task-check svg{width:13px;height:13px;display:block}
+.minute .done-check.on{background:var(--brand);border-color:var(--brand);color:#fff}
+.minute .done-check svg{width:13px;height:13px;display:block}
 .empty{text-align:center;color:var(--muted);font-size:13px;padding:26px 16px}
 .empty svg{width:34px;height:34px;opacity:.4;margin-bottom:8px}
 
@@ -557,7 +564,7 @@ select.field-in option{direction:rtl;text-align:right}
   background:var(--panel);border:1px solid var(--line);border-radius:var(--r)}
 .result-empty svg{width:40px;height:40px;opacity:.4;margin-bottom:10px}
 
-/* ===================== Reminders / tasks list ===================== */
+/* ===================== فهرست یادآورها ===================== */
 .rem-count{display:flex;gap:9px;margin-bottom:12px;overflow-x:auto;padding-bottom:2px}
 .rem-stat{flex:0 0 auto;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 14px;box-shadow:var(--shadow-sm);min-width:104px}
 .rem-stat .rs-val{font-size:20px;font-weight:800;letter-spacing:-.5px;display:flex;align-items:center;gap:6px}
@@ -925,6 +932,22 @@ select.field-in option{direction:rtl;text-align:right}
 .def-item b{font-size:13.5px;font-weight:700;display:block}
 .def-item small{font-size:11.5px;color:var(--muted)}
 .def-item .def-badge{margin-inline-start:auto;font-size:11.5px;font-weight:700;color:var(--ink-soft);background:var(--panel-2);border:1px solid var(--line);padding:4px 11px;border-radius:8px;white-space:nowrap}
+
+/* فهرست افراد: هر ردیف ستون‌های یکسان دارد تا نام‌ها و سازمان‌ها زیر هم
+   بیفتند — با flex ساده، ردیفِ بدون دکمهٔ حذف از خط بقیه بیرون می‌زد.
+   عرضِ ستون سازمان ثابت است چون هر ردیف گریدِ جداگانه‌ای است و با `auto`
+   هر کارت اندازهٔ متنِ خودش را می‌گرفت. */
+.people-list .def-item.person{display:grid;grid-template-columns:38px minmax(0,1fr) var(--org-col,104px) 32px;
+  align-items:center;gap:12px}
+@media (max-width:380px){.people-list .def-item.person{--org-col:88px}}
+.people-list .di-txt{min-width:0}
+.people-list .di-txt b,.people-list .di-txt small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block}
+/* پیلِ سازمان کلِ ستون را می‌گیرد تا شروعِ متنِ همهٔ ردیف‌ها یکی باشد */
+.people-list .def-item.person .def-badge{margin-inline-start:0;justify-self:stretch;
+  text-align:start;overflow:hidden;text-overflow:ellipsis}
+/* جای خالیِ دکمهٔ حذف برای حساب خودِ کاربر */
+.def-del.ghost{color:var(--line-strong);cursor:default;font-size:13px;font-weight:700}
+.def-del.ghost:hover{background:transparent;border-color:transparent;color:var(--line-strong)}
 .role-grid{display:flex;flex-direction:column;gap:8px}
 .role-opt{text-align:start;border:1px solid var(--line-strong);border-radius:12px;padding:12px 14px;background:var(--panel);transition:.12s}
 .role-opt:hover{border-color:var(--brand)}
@@ -1251,11 +1274,13 @@ select.field-in option{direction:rtl;text-align:right}
 /* حرکت را GSAP اداره می‌کند؛ ترنزیشن CSS با آن می‌جنگد */
 .mf-scrim{transition:none}
 .mf-scrim .mf-sheet{transition:none}
-.mf-sheet .modal-head h2{display:flex;align-items:center;gap:8px}
-.mf-reset{margin-inline-start:auto;font-size:12px;font-weight:700;color:var(--brand-strong);
-  height:32px;padding:0 10px;border-radius:9px}
+/* عنوان سمت راست، و «بازنشانی» و ضربدر ته سطر (چپ) — با auto روی خودِ ضربدر،
+   نبودنِ «بازنشانی» جای ضربدر را عوض می‌کرد و می‌چسبید به عنوان. */
+.mf-sheet .modal-head h2{display:flex;align-items:center;gap:8px;margin-inline-end:auto}
+.mf-reset{font-size:12px;font-weight:700;color:var(--brand-strong);
+  height:32px;padding:0 10px;border-radius:9px;flex:0 0 auto}
 .mf-reset:hover{background:var(--mint-soft)}
-.mf-sheet .modal-head .close{margin-inline-start:6px}
+.mf-sheet .modal-head .close{margin-inline-start:6px;order:2}
 .mf-body{gap:20px}
 .mf-sec h3{margin:0 0 10px;font-size:12px;font-weight:800;color:var(--muted);
   display:flex;align-items:center;gap:8px}
@@ -1263,12 +1288,37 @@ select.field-in option{direction:rtl;text-align:right}
   background:var(--mint-soft);border-radius:999px;padding:2px 9px}
 
 /* کنترل بخش‌بندی‌شدهٔ زمان — یک ردیف، یک ضربه */
-.mf-seg{display:grid;grid-template-columns:repeat(5,1fr);gap:3px;padding:3px;
+.mf-seg{display:grid;grid-template-columns:repeat(3,1fr);gap:3px;padding:3px;
   background:var(--panel-2);border-radius:13px}
+/* شش گزینهٔ زمان در دو ردیفِ سه‌تایی جا می‌شوند؛ یک ردیفِ شش‌تایی روی موبایل
+   متن‌ها را می‌شکست */
+.mf-seg.wrap{grid-template-columns:repeat(3,1fr)}
 .mf-seg button{height:44px;border-radius:10px;font-size:11.5px;font-weight:700;   /* حداقل هدف لمسی */
   color:var(--muted);transition:.14s;white-space:nowrap;padding:0 2px}
 .mf-seg button:hover{color:var(--ink-soft)}
 .mf-seg button.on{background:var(--panel);color:var(--brand-strong);box-shadow:var(--shadow-sm)}
+
+/* بازهٔ دلخواه — دو تقویم شمسی، فقط وقتی «بازهٔ دلخواه» انتخاب شود */
+.mf-range{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:11px;
+  padding:12px;border:1px solid var(--line);border-radius:13px;background:var(--panel-2)}
+.mf-range .field{margin:0}
+.mf-range label{font-size:11.5px;font-weight:700;color:var(--muted);margin-bottom:6px;display:block}
+.mf-range .dp,.mf-range .dp-trigger{width:100%}
+.mf-warn{grid-column:1/-1;margin:0;font-size:11.5px;color:var(--danger)}
+@media (max-width:420px){.mf-range{grid-template-columns:1fr}}
+
+/* دراپ‌داون دسته‌بندی — بسته می‌ماند تا فهرست بلند شیت را پر نکند */
+.mf-dd{display:flex;align-items:center;gap:8px;width:100%;height:46px;padding:0 13px;
+  border:1px solid var(--line-strong);border-radius:13px;background:var(--panel);
+  font-size:13.5px;font-weight:700;color:var(--ink);text-align:start;transition:.14s}
+.mf-dd:hover{border-color:var(--brand)}
+.mf-dd.open{border-color:var(--brand);background:var(--mint-soft)}
+.mf-dd-val{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mf-dd-val.none{color:var(--muted);font-weight:600}
+.mf-dd svg{flex:0 0 auto;color:var(--muted);transition:transform .2s;transform:rotate(-90deg)}
+.mf-dd svg.up{transform:rotate(90deg)}
+.mf-dd-panel{margin-top:9px;padding:10px;border:1px solid var(--line);border-radius:13px;
+  background:var(--panel-2)}
 
 /* جستجوی دسته — برای فهرست‌های بلند */
 .mf-search{display:flex;align-items:center;gap:8px;height:44px;padding:0 12px;margin-bottom:9px;
@@ -1330,6 +1380,13 @@ select.field-in option{direction:rtl;text-align:right}
 /* فاصلهٔ یادآور هنگام ساخت جلسه */
 .rl-picks{display:flex;flex-wrap:wrap;gap:6px}
 .rl-picks .chip-btn{padding:6px 11px;font-size:12px}
+/* فاصلهٔ دلخواهِ یادآور — فقط با زدن «دلخواه» باز می‌شود */
+.rl-custom{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-top:9px;padding:10px 12px;
+  border:1px solid var(--line);border-radius:12px;background:var(--panel-2)}
+.rl-custom .field-in{width:86px;padding:9px 10px;font-size:13px;text-align:center}
+.rl-custom span{font-size:12px;color:var(--muted);white-space:nowrap}
+.rl-ok{margin-inline-start:auto;font-size:11.5px;font-weight:800;color:var(--brand-strong)}
+.rl-bad{margin-inline-start:auto;font-size:11.5px;font-weight:800;color:var(--danger)}
 
 /* ===================== درون‌ریزی افراد ===================== */
 .pimport .card-head h3{display:flex;align-items:center;gap:7px}
@@ -1401,6 +1458,15 @@ select.field-in option{direction:rtl;text-align:right}
 .lg-hint{display:block;font-size:11px;color:#8AA4C4;margin-top:6px;line-height:1.8}
 
 .fhint{display:block;font-size:11px;color:var(--muted);margin-top:5px;line-height:1.8}
+
+/* ورودی رمز با کلید چشم — دیدنِ آنچه تایپ شده جلوی خطای تایپی را می‌گیرد */
+.pw-wrap{position:relative;display:block}
+.pw-wrap .pw-in{width:100%;padding-inline-end:46px}
+.pw-eye{position:absolute;inset-inline-end:6px;top:50%;transform:translateY(-50%);
+  width:36px;height:36px;border-radius:10px;display:grid;place-items:center;
+  color:var(--muted);transition:.12s}
+.pw-eye:hover{color:var(--brand-strong);background:var(--mint-soft)}
+.pw-wrap.shown .pw-eye{color:var(--brand-strong)}
 .map-badge{display:inline-flex;align-items:center;gap:4px;font-size:10.5px;font-weight:700;
   color:var(--violet);background:var(--violet-soft);border-radius:999px;padding:2px 8px;flex:0 0 auto}
 
@@ -1464,17 +1530,23 @@ select.field-in option{direction:rtl;text-align:right}
    تگ بعدی چیدمان به‌هم نمی‌ریزد */
 .mrow .chips{display:flex;flex-direction:column;align-items:flex-start;gap:5px;margin-top:6px}
 
-/* نشان‌های زیر ساعت در کارت جلسه: آنلاین‌بودن و یادآور */
+/* ستون راستِ کارت جلسه: ساعت بالا، نشان آنلاین وسط، یادآور پایین.
+   جای هر نشان با margin خودکار تعیین می‌شود تا با کم و زیادشدنِ نشان‌ها
+   چیدمان جابه‌جا نشود. */
 .mrow .time{display:flex;flex-direction:column;align-items:center;gap:3px}
+.mrow .time .tt{display:block;text-align:center}
+.mrow .time .t-badge.online{margin-block:auto}
+.mrow .time .t-badge.remind{margin-top:auto}
 .t-badge{display:inline-flex;align-items:center;gap:4px;border-radius:999px;padding:2px 7px;
   font-size:10px;font-weight:800;line-height:1.6}
 .t-badge.online{background:var(--info-soft);color:var(--info)}
 .t-badge.remind{background:var(--warn-soft);color:var(--warn)}
 .t-badge em{font-style:normal}
 
-/* «۳ روز مانده» جای فهرست آواتارها — گویاتر و کم‌جاتر */
+/* «۳ روز مانده» جای فهرست آواتارها — گویاتر و کم‌جاتر.
+   همیشه ته ستون می‌نشیند، چه تگ وضعیت بالای سرش باشد چه نباشد. */
 .rel-days{font-size:11px;font-weight:800;color:var(--muted);white-space:nowrap;
-  background:var(--panel-2);border-radius:999px;padding:3px 10px}
+  background:var(--panel-2);border-radius:999px;padding:3px 10px;margin-top:auto}
 .rel-days.soon{background:var(--mint-soft);color:var(--brand-strong)}
 .rel-days.past{opacity:.7}
 

@@ -69,7 +69,7 @@ export const IconNote = ({ size, className }: P) => (
 export const IconDecision = ({ size, className }: P) => (
   <svg {...s(size)} className={className} viewBox="0 0 24 24" {...stroke}><path d="M12 3l2.5 5 5.5.8-4 3.9 1 5.5-5-2.6-5 2.6 1-5.5-4-3.9 5.5-.8z" /></svg>
 );
-export const IconTask = ({ size, className }: P) => (
+export const IconCheckbox = ({ size, className }: P) => (
   <svg {...s(size)} className={className} viewBox="0 0 24 24" {...stroke}><rect x="4" y="4" width="16" height="16" rx="3" /><path d="M8.5 12.5l2.2 2.2 4.8-5" /></svg>
 );
 export const IconReminder = ({ size, className }: P) => (
@@ -121,6 +121,9 @@ export const IconAlert = ({ size, className }: P) => (
 export const IconEye = ({ size, className }: P) => (
   <svg {...s(size)} className={className} viewBox="0 0 24 24" {...stroke}><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7Z" /><circle cx="12" cy="12" r="3" /></svg>
 );
+export const IconEyeOff = ({ size, className }: P) => (
+  <svg {...s(size)} className={className} viewBox="0 0 24 24" {...stroke}><path d="M4 4l16 16" /><path d="M9.9 5.2A9.8 9.8 0 0 1 12 5c6.4 0 10 7 10 7a17 17 0 0 1-3.3 4.2M6.6 7.1A17 17 0 0 0 2 12s3.6 7 10 7a9.7 9.7 0 0 0 4.2-.9" /><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2" /></svg>
+);
 export const IconUser = ({ size, className }: P) => (
   <svg {...s(size)} className={className} viewBox="0 0 24 24" {...stroke}><circle cx="12" cy="8" r="4" /><path d="M4 21c0-4 3.6-6 8-6s8 2 8 6" /></svg>
 );
@@ -133,7 +136,7 @@ export const minuteIcon = (name: string, p?: P) => {
   switch (name) {
     case 'note': return <IconNote {...p} />;
     case 'decision': return <IconDecision {...p} />;
-    case 'task': return <IconTask {...p} />;
+    case 'action': return <IconCheckbox {...p} />;
     case 'reminder': return <IconReminder {...p} />;
     case 'call': return <IconCall {...p} />;
     case 'letter': return <IconLetter {...p} />;

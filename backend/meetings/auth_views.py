@@ -11,6 +11,7 @@ import secrets
 from datetime import timedelta
 
 from django.conf import settings
+from django.core import signing
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
@@ -39,6 +40,49 @@ def _issue_tokens(user: User) -> dict:
 
 def _profile_complete(user: User) -> bool:
     return bool(user.first_name.strip() or user.last_name.strip())
+
+
+# بلیت بازیابی رمز: بعد از تأیید کد صادر می‌شود و جای خودِ کد را می‌گیرد.
+# بدون آن، کاربر باید کد ۲ دقیقه‌ای را تا پایان تایپِ رمز تازه زنده نگه دارد و
+# عملاً همیشه با «کد منقضی شده» روبه‌رو می‌شد.
+RESET_TICKET_SALT = 'greenpay.password-reset'
+RESET_TICKET_TTL = 15 * 60
+
+
+def _issue_reset_ticket(phone: str) -> str:
+    return signing.dumps({'phone': phone}, salt=RESET_TICKET_SALT)
+
+
+def _phone_from_ticket(ticket: str) -> str:
+    """شمارهٔ داخل بلیت، یا رشتهٔ خالی اگر بلیت جعلی یا منقضی باشد."""
+    try:
+        data = signing.loads(ticket, salt=RESET_TICKET_SALT, max_age=RESET_TICKET_TTL)
+    except signing.BadSignature:
+        return ''
+    return str(data.get('phone', ''))
+
+
+def _check_otp(phone: str, code: str):
+    """
+    کد یک‌بارمصرف را بررسی و مصرف می‌کند.
+
+    خروجی: (خطا، وضعیت HTTP) — اگر همه‌چیز درست بود (None, None).
+    """
+    otp = OtpCode.objects.filter(phone=phone, is_used=False).first()
+    if not otp or otp.is_expired:
+        return 'کد منقضی شده است؛ دوباره درخواست دهید.', status.HTTP_400_BAD_REQUEST
+    if otp.attempts >= OtpCode.MAX_ATTEMPTS:
+        return 'تعداد تلاش‌ها بیش از حد مجاز است؛ کد جدید بگیرید.', status.HTTP_429_TOO_MANY_REQUESTS
+
+    otp.attempts += 1
+    if otp.code != code:
+        otp.save(update_fields=['attempts'])
+        left = OtpCode.MAX_ATTEMPTS - otp.attempts
+        return f'کد نادرست است. {left} تلاش باقی مانده.', status.HTTP_400_BAD_REQUEST
+
+    otp.is_used = True
+    otp.save(update_fields=['attempts', 'is_used'])
+    return None, None
 
 
 def _get_or_create_user(phone: str):
@@ -114,23 +158,9 @@ def verify_otp(request):
     if not is_valid_phone(phone) or not code:
         return Response({'detail': 'شماره یا کد نامعتبر است.'}, status=status.HTTP_400_BAD_REQUEST)
 
-    otp = OtpCode.objects.filter(phone=phone, is_used=False).first()
-    if not otp or otp.is_expired:
-        return Response({'detail': 'کد منقضی شده است؛ دوباره درخواست دهید.'},
-                        status=status.HTTP_400_BAD_REQUEST)
-    if otp.attempts >= OtpCode.MAX_ATTEMPTS:
-        return Response({'detail': 'تعداد تلاش‌ها بیش از حد مجاز است؛ کد جدید بگیرید.'},
-                        status=status.HTTP_429_TOO_MANY_REQUESTS)
-
-    otp.attempts += 1
-    if otp.code != code:
-        otp.save(update_fields=['attempts'])
-        left = OtpCode.MAX_ATTEMPTS - otp.attempts
-        return Response({'detail': f'کد نادرست است. {left} تلاش باقی مانده.'},
-                        status=status.HTTP_400_BAD_REQUEST)
-
-    otp.is_used = True
-    otp.save(update_fields=['attempts', 'is_used'])
+    err, code_status = _check_otp(phone, code)
+    if err:
+        return Response({'detail': err}, status=code_status)
 
     user, created = _get_or_create_user(phone)
     return Response({
@@ -247,18 +277,51 @@ def password(request):
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
-def reset_password(request):
+def verify_reset(request):
     """
-    فراموشی رمز — با همان کد یک‌بارمصرفی که به شماره فرستاده شده.
+    گام اول فراموشی رمز: کد را همین‌جا بررسی و مصرف می‌کند و بلیت می‌دهد.
 
-    جریان کار: کاربر /auth/request-otp/ را صدا می‌زند، کد را می‌گیرد، و اینجا
-    کد و رمز تازه را می‌فرستد. پس از موفقیت مستقیم وارد حساب می‌شود.
+    کد یک‌بارمصرف عمر کوتاهی دارد؛ اگر تا لحظهٔ ذخیرهٔ رمز تازه نگهش داریم،
+    کاربر وسط تایپ رمز با «کد منقضی شده» روبه‌رو می‌شود. بلیت ۱۵ دقیقه اعتبار
+    دارد و فقط برای همین شماره کار می‌کند.
     """
     phone = normalize_phone(request.data.get('phone', ''))
     code = str(request.data.get('code', '')).strip()
-    new = str(request.data.get('newPassword', ''))
     if not is_valid_phone(phone) or not code:
         return Response({'detail': 'شماره یا کد نامعتبر است.'}, status=status.HTTP_400_BAD_REQUEST)
+    if not User.objects.filter(phone=phone).exists():
+        return Response({'detail': 'حسابی با این شماره ثبت نشده است.'},
+                        status=status.HTTP_400_BAD_REQUEST)
+
+    err, code_status = _check_otp(phone, code)
+    if err:
+        return Response({'detail': err}, status=code_status)
+
+    return Response({'ticket': _issue_reset_ticket(phone), 'expiresIn': RESET_TICKET_TTL})
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def reset_password(request):
+    """
+    فراموشی رمز — گام دوم.
+
+    ورودی معمول `ticket` است (خروجی /auth/verify-reset/). برای سازگاری با
+    نسخه‌های قدیمی‌ترِ فرانت، فرستادن خودِ `code` هم هنوز پذیرفته می‌شود.
+    """
+    phone = normalize_phone(request.data.get('phone', ''))
+    ticket = str(request.data.get('ticket', '')).strip()
+    code = str(request.data.get('code', '')).strip()
+    new = str(request.data.get('newPassword', ''))
+
+    if ticket:
+        phone = _phone_from_ticket(ticket)
+        if not phone:
+            return Response({'detail': 'اعتبار این مرحله تمام شد؛ دوباره کد بگیرید.'},
+                            status=status.HTTP_400_BAD_REQUEST)
+    elif not is_valid_phone(phone) or not code:
+        return Response({'detail': 'شماره یا کد نامعتبر است.'}, status=status.HTTP_400_BAD_REQUEST)
+
     err = _password_ok(new)
     if err:
         return Response({'detail': err}, status=status.HTTP_400_BAD_REQUEST)
@@ -268,23 +331,11 @@ def reset_password(request):
         return Response({'detail': 'حسابی با این شماره ثبت نشده است.'},
                         status=status.HTTP_400_BAD_REQUEST)
 
-    otp = OtpCode.objects.filter(phone=phone, is_used=False).first()
-    if not otp or otp.is_expired:
-        return Response({'detail': 'کد منقضی شده است؛ دوباره درخواست دهید.'},
-                        status=status.HTTP_400_BAD_REQUEST)
-    if otp.attempts >= OtpCode.MAX_ATTEMPTS:
-        return Response({'detail': 'تعداد تلاش‌ها بیش از حد مجاز است؛ کد جدید بگیرید.'},
-                        status=status.HTTP_429_TOO_MANY_REQUESTS)
+    if not ticket:
+        err, code_status = _check_otp(phone, code)
+        if err:
+            return Response({'detail': err}, status=code_status)
 
-    otp.attempts += 1
-    if otp.code != code:
-        otp.save(update_fields=['attempts'])
-        left = OtpCode.MAX_ATTEMPTS - otp.attempts
-        return Response({'detail': f'کد نادرست است. {left} تلاش باقی مانده.'},
-                        status=status.HTTP_400_BAD_REQUEST)
-
-    otp.is_used = True
-    otp.save(update_fields=['attempts', 'is_used'])
     user.set_password(new)
     user.save(update_fields=['password'])
 

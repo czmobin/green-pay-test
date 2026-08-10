@@ -134,6 +134,7 @@ class MeetingSerializer(serializers.ModelSerializer):
     end = serializers.SerializerMethodField()
     parts = serializers.SerializerMethodField()
     guests = serializers.SerializerMethodField()
+    partStatus = serializers.SerializerMethodField()
     agenda = AgendaItemSerializer(many=True, read_only=True)
 
     meetLink = serializers.CharField(source='meet_link', required=False, allow_blank=True)
@@ -144,8 +145,8 @@ class MeetingSerializer(serializers.ModelSerializer):
     class Meta:
         model = Meeting
         fields = ['id', 'title', 'category', 'type', 'status', 'priority', 'date', 'start', 'end',
-                  'room', 'organizer', 'parts', 'guests', 'synced', 'meetLink', 'agenda',
-                  'cancelReason', 'cancelledAt', 'cancelledBy']
+                  'room', 'organizer', 'parts', 'guests', 'partStatus', 'synced', 'meetLink',
+                  'agenda', 'cancelReason', 'cancelledAt', 'cancelledBy']
 
     def get_cancelledAt(self, obj):
         return int(obj.cancelled_at.timestamp() * 1000) if obj.cancelled_at else None
@@ -167,6 +168,10 @@ class MeetingSerializer(serializers.ModelSerializer):
 
     def get_guests(self, obj):
         return self._participants(obj, guests=True)
+
+    def get_partStatus(self, obj):
+        """پاسخ دعوت هر نفر — پایهٔ تگ «در انتظار تأیید» و فهرست دعوت‌های بی‌پاسخ."""
+        return {str(p.user_id): p.response for p in obj.meeting_participants.all()}
 
 
 class MinuteEntrySerializer(serializers.ModelSerializer):
@@ -264,10 +269,17 @@ class MeetingCreateSerializer(serializers.Serializer):
             end=from_date_hour(validated['date'], validated['end']),
             google_synced=validated.get('synced', False),
         )
-        for uid in set(validated.get('parts', [])) | {str(validated['organizer'].pk)}:
+        # برگزارکننده خودش پذیرفته حساب می‌شود؛ بقیه دعوت‌اند و باید پاسخ بدهند
+        # — بدون این، فهرست «دعوت‌های در انتظار پاسخ» هیچ‌وقت چیزی نشان نمی‌دهد.
+        organizer_id = str(validated['organizer'].pk)
+        for uid in set(validated.get('parts', [])) | {organizer_id}:
             MeetingParticipant.objects.get_or_create(
                 meeting=meeting, user_id=uid,
-                defaults={'is_guest': False, 'response': MeetingParticipant.Response.ACCEPTED},
+                defaults={
+                    'is_guest': False,
+                    'response': MeetingParticipant.Response.ACCEPTED
+                    if str(uid) == organizer_id else MeetingParticipant.Response.PENDING,
+                },
             )
         for uid in validated.get('guests', []):
             MeetingParticipant.objects.get_or_create(

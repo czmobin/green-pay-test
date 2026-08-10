@@ -44,26 +44,30 @@ export default function MeetingDetail() {
 
   return (
     <div ref={scope}>
+      {/* تگ‌ها در ظرف خودشان می‌پیچند تا دکمه‌های ویرایش و لغو همیشه سرِ جای
+          ثابتشان — گوشهٔ چپِ همین سطر — بمانند، هر تعداد تگ که باشد */}
       <div className="detail-top">
         <button className="back-btn" onClick={() => router.back()} aria-label="بازگشت"><IconBack size={18} /></button>
-        {cat && (
-          <span className="cat-chip" style={{ color: catColor, background: `color-mix(in srgb,${catColor} 14%,transparent)` }}>
-            <i style={{ background: catColor }} />{cat.name}
+        <div className="dt-chips">
+          {cat && (
+            <span className="cat-chip" style={{ color: catColor, background: `color-mix(in srgb,${catColor} 14%,transparent)` }}>
+              <i style={{ background: catColor }} />{cat.name}
+            </span>
+          )}
+          {/* «تأییدشده» حالت عادی است؛ فقط وضعیت‌های نیازمند توجه نشان داده می‌شوند */}
+          {m.status !== 'confirmed' && <span className={'pill p-' + m.status}>{statusLabels[m.status]}</span>}
+          <span className="prio-chip" style={{ color: priorityColor[m.priority ?? 'normal'], background: `color-mix(in srgb,${priorityColor[m.priority ?? 'normal']} 14%,transparent)` }}>
+            اولویت {priorityLabels[m.priority ?? 'normal']}
           </span>
-        )}
-        {/* «تأییدشده» حالت عادی است؛ فقط وضعیت‌های نیازمند توجه نشان داده می‌شوند */}
-        {m.status !== 'confirmed' && <span className={'pill p-' + m.status}>{statusLabels[m.status]}</span>}
-        <span className="prio-chip" style={{ color: priorityColor[m.priority ?? 'normal'], background: `color-mix(in srgb,${priorityColor[m.priority ?? 'normal']} 14%,transparent)` }}>
-          اولویت {priorityLabels[m.priority ?? 'normal']}
-        </span>
+        </div>
         {store.canEdit(m) && m.status !== 'cancelled' && (
-          <>
+          <div className="dt-actions">
             <button className="edit-btn" onClick={() => setEditOpen(true)} aria-label="ویرایش جلسه" title="ویرایش جلسه">
               <IconEdit size={17} />
             </button>
             <button className="edit-btn danger" onClick={() => setCancelOpen(true)}
               aria-label="لغو جلسه" title="لغو جلسه"><IconX size={17} /></button>
-          </>
+          </div>
         )}
       </div>
 
@@ -103,7 +107,7 @@ export default function MeetingDetail() {
             <b>{org?.name}</b>
           </div>
           {/* دعوت بی‌پاسخ کنار برگزارکننده می‌نشیند، همان‌جا که تصمیم گرفته می‌شود */}
-          {m.status === 'pending' && (
+          {store.myResponse(m) === 'pending' && m.status !== 'cancelled' && (
             <div className="meta-box pending-box">
               <small><IconClock size={13} />وضعیت دعوت</small>
               <b>در انتظار تأیید شما</b>
@@ -168,11 +172,18 @@ export default function MeetingDetail() {
                 {m.parts.map((pid) => {
                   const p = people[pid];
                   if (!p) return null;
+                  // تا وقتی دعوت بی‌پاسخ است، «در انتظار تأیید» جای «شرکت‌کننده» می‌نشیند
+                  const resp = m.partStatus?.[pid] ?? 'accepted';
+                  const role = pid === m.organizer ? 'برگزارکننده'
+                    : resp === 'pending' ? 'در انتظار تأیید'
+                      : resp === 'declined' ? 'دعوت را رد کرد' : 'شرکت‌کننده';
                   return (
                     <div className="part" key={pid}>
                       <span className="ava sm" style={{ background: `linear-gradient(145deg,${p.color})` }}>{initials(p.name)}</span>
                       <div><b>{p.name}</b><small>{p.role}</small></div>
-                      <span className="role">{pid === m.organizer ? 'برگزارکننده' : 'شرکت‌کننده'}</span>
+                      <span className={'role'
+                        + (pid !== m.organizer && resp === 'pending' ? ' waiting' : '')
+                        + (resp === 'declined' ? ' declined' : '')}>{role}</span>
                     </div>
                   );
                 })}

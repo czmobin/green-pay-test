@@ -5,6 +5,7 @@ import gsap from 'gsap';
 import { useGSAP } from '@gsap/react';
 import { useStore } from '@/components/store';
 import LoginScene from '@/components/LoginScene';
+import PasswordField from '@/components/PasswordField';
 import { api } from '@/lib/api';
 import type { Person } from '@/lib/types';
 import { toFa } from '@/lib/data';
@@ -24,6 +25,12 @@ export default function LoginPage() {
   const [newPass2, setNewPass2] = useState('');
   /** بعد از تأیید کد، به‌جای ورود مستقیم برویم سراغ تعیین رمز تازه */
   const [resetting, setResetting] = useState(false);
+  /**
+   * بلیت بازیابی که سرور پس از تأیید کد می‌دهد.
+   * پیش‌تر خودِ کد تا لحظهٔ ذخیرهٔ رمز نگه داشته می‌شد و چون عمرش ۲ دقیقه است،
+   * کاربر وسط تایپِ رمز تازه با «کد منقضی شده» روبه‌رو می‌شد.
+   */
+  const [resetTicket, setResetTicket] = useState('');
   const [phone, setPhone] = useState('');
   const [digits, setDigits] = useState<string[]>(Array(CODE_LEN).fill(''));
   const [busy, setBusy] = useState(false);
@@ -183,7 +190,7 @@ export default function LoginPage() {
     if (newPass !== newPass2) { setMsg('دو رمز واردشده یکسان نیستند.'); return; }
     setBusy(true); setMsg(null);
     try {
-      enter(await api.resetPassword({ phone, code: digits.join(''), newPassword: newPass }));
+      enter(await api.resetPassword({ ticket: resetTicket, newPassword: newPass }));
     } catch (e2) {
       setMsg((e2 as Error).message || 'تغییر رمز ناموفق بود.');
     } finally { setBusy(false); }
@@ -193,9 +200,15 @@ export default function LoginPage() {
   const verify = useCallback(async (code: string) => {
     setBusy(true);
     setMsg(null);
-    // در جریان «فراموشی رمز» کد را همین‌جا مصرف نمی‌کنیم؛ سرور موقع تعیین رمز بررسی‌اش می‌کند
-    if (resetting) { setBusy(false); setStep('reset'); return; }
     try {
+      if (resetting) {
+        // کد همین‌جا مصرف می‌شود و جایش بلیت ۱۵ دقیقه‌ای می‌گیریم؛ وگرنه تا
+        // پایان تایپِ رمز تازه منقضی می‌شد.
+        const { ticket } = await api.verifyReset(phone, code);
+        setResetTicket(ticket);
+        setStep('reset');
+        return;
+      }
       enter(await api.verifyOtp(phone, code));
     } catch (e) {
       setMsg((e as Error).message || 'کد نادرست است.');
@@ -311,13 +324,10 @@ export default function LoginPage() {
                   dir="ltr" placeholder="۰۹۱۲۳۴۵۶۷۸۹" value={phone} autoFocus
                   onChange={(e) => setPhone(e.target.value)} />
               </div>
-              <div className="field lg-field">
-                <label htmlFor="pw">رمز عبور</label>
-                <input id="pw" className="field-in" type="password" autoComplete="current-password"
-                  dir="ltr" value={password} onChange={(e) => setPassword(e.target.value)} />
-              </div>
+              <PasswordField id="pw" label="رمز عبور" value={password} onChange={setPassword}
+                autoComplete="current-password" />
 
-              {msg && <div className="lg-msg">{msg}</div>}
+              {msg && <div className="lg-msg" role="alert">{msg}</div>}
 
               <button className="btn btn-primary btn-block btn-lg lg-action" type="submit" disabled={busy}>
                 {busy ? 'در حال ورود…' : 'ورود'}
@@ -335,26 +345,19 @@ export default function LoginPage() {
           {/* ---------- تعیین رمز تازه ---------- */}
           {step === 'reset' && (
             <form className="lg-step" onSubmit={submitReset}>
+              {/* کد مصرف شده؛ بازگشت به مرحلهٔ کد بن‌بست است */}
               <button type="button" className="lg-back"
-                onClick={() => { setStep('code'); setMsg(null); }}>
+                onClick={() => { setStep('password'); setResetting(false); setResetTicket(''); setMsg(null); }}>
                 <IconBack size={16} />بازگشت
               </button>
               <h1 className="lg-title">رمز عبور تازه</h1>
               <p className="lg-sub">کد تأیید شد؛ حالا رمز تازه‌ای برای حسابتان بگذارید.</p>
 
-              <div className="field lg-field">
-                <label htmlFor="np1">رمز عبور تازه</label>
-                <input id="np1" className="field-in" type="password" autoComplete="new-password" dir="ltr"
-                  value={newPass} autoFocus onChange={(e) => setNewPass(e.target.value)} />
-                <small className="lg-hint">دست‌کم ۸ نویسه، و فقط از رقم تشکیل نشده باشد.</small>
-              </div>
-              <div className="field lg-field">
-                <label htmlFor="np2">تکرار رمز عبور</label>
-                <input id="np2" className="field-in" type="password" autoComplete="new-password" dir="ltr"
-                  value={newPass2} onChange={(e) => setNewPass2(e.target.value)} />
-              </div>
+              <PasswordField id="np1" label="رمز عبور تازه" value={newPass} onChange={setNewPass}
+                autoFocus hint="دست‌کم ۸ نویسه، و فقط از رقم تشکیل نشده باشد." />
+              <PasswordField id="np2" label="تکرار رمز عبور" value={newPass2} onChange={setNewPass2} />
 
-              {msg && <div className="lg-msg">{msg}</div>}
+              {msg && <div className="lg-msg" role="alert">{msg}</div>}
 
               <button className="btn btn-primary btn-block btn-lg lg-action" type="submit" disabled={busy}>
                 {busy ? 'در حال ذخیره…' : 'ذخیرهٔ رمز و ورود'}

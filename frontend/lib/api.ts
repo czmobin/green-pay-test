@@ -119,6 +119,18 @@ async function request<T>(path: string, init?: RequestInit, retry = true, isForm
 const post = <T,>(path: string, body?: unknown) =>
   request<T>(path, { method: 'POST', body: JSON.stringify(body ?? {}) });
 
+/**
+ * نوعِ قدیمیِ `task` را به `action` برمی‌گرداند.
+ *
+ * ساختِ این نوع از اپ برداشته شده، ولی رکوردهای قدیمی در دیتابیس مانده‌اند و
+ * بدون این نگاشت، `minuteMeta[type]` برایشان undefined می‌شود و سطر می‌ترکد.
+ */
+function normalizeMinute<T extends { type: string }>(m: T): T {
+  return m.type === 'task' ? { ...m, type: 'action' } : m;
+}
+
+const minute = async (p: Promise<Minute>) => normalizeMinute(await p);
+
 export interface NewMeeting {
   title: string;
   category: string;
@@ -226,10 +238,6 @@ export interface ReportMeeting {
   organizer: string; organizerName: string; people: number;
   category: string; categoryColor: string; entries?: number;
 }
-export interface ReportTask {
-  id: string; text: string; due: string; daysLate: number;
-  assignee: string | null; assigneeName: string; meeting: string; meetingTitle: string;
-}
 export interface ReportReminder {
   id: string; text: string; when: string; meeting: string; meetingTitle: string;
 }
@@ -240,26 +248,23 @@ export interface ReportPerson {
   id: string; name: string; role: string; color: string;
   meetings: number; hours: number;
   organized: number; organizedPast: number; organizedWithMinutes: number;
-  tasksOpen: number; tasksOverdue: number; tasksDone: number;
   pendingInvites: number; entriesWritten: number;
-  minuteRate: number; taskDoneRate: number;
+  minuteRate: number;
 }
 export interface ReportCategory {
   id: string; name: string; color: string;
-  meetings: number; past: number; hours: number; withAction: number; tasks: number; actionRate: number;
+  meetings: number; past: number; hours: number; withAction: number; actionRate: number;
 }
 export interface FullReport {
   days: number; from: string; to: string;
   totals: {
     meetings: number; past: number; hours: number; avgLength: number;
     minuteRate: number; actionRate: number;
-    tasks: number; tasksDone: number; taskDoneRate: number; tasksOverdue: number;
     reminders: number; remindersStale: number; wastedHours: number;
   };
   alerts: ReportAlert[];
   deadMeetings: ReportMeeting[];
   noActionMeetings: ReportMeeting[];
-  overdueTasks: ReportTask[];
   staleReminders: ReportReminder[];
   unanswered: ReportInvite[];
   silentOrganizers: ReportPerson[];
@@ -283,11 +288,21 @@ export const api = {
   passwordState: () => request<{ hasPassword: boolean }>('/auth/password/'),
   setPassword: (p: { newPassword: string; currentPassword?: string }) =>
     post<{ hasPassword: boolean; ok: boolean }>('/auth/password/', p),
-  resetPassword: (p: { phone: string; code: string; newPassword: string }) =>
+  /** گام اول فراموشی رمز: کد را مصرف می‌کند و بلیت ۱۵ دقیقه‌ای می‌دهد */
+  verifyReset: (phone: string, code: string) =>
+    post<{ ticket: string; expiresIn: number }>('/auth/verify-reset/', { phone, code }),
+  resetPassword: (p: { ticket: string; newPassword: string }) =>
     post<{ access: string; refresh: string; user: Person; isNew: boolean }>(
       '/auth/reset-password/', p),
 
-  bootstrap: () => request<Bootstrap>('/bootstrap/'),
+  bootstrap: async (): Promise<Bootstrap> => {
+    const d = await request<Bootstrap>('/bootstrap/');
+    return {
+      ...d,
+      minutes: Object.fromEntries(
+        Object.entries(d.minutes).map(([k, list]) => [k, list.map(normalizeMinute)])),
+    };
+  },
   report: (days: number) => request<FullReport>(`/reports/full/?days=${days}`),
 
   createMeeting: (m: NewMeeting) => post<CreatedMeeting>('/meetings/', m),
@@ -305,15 +320,15 @@ export const api = {
   cancelMeeting: (id: string, reason: string) =>
     post<Meeting & { smsSent: number; smsFailed: number }>(`/meetings/${id}/cancel/`, { reason }),
   updateMinute: (id: string, patch: MinutePatch) =>
-    request<Minute>(`/entries/${id}/`, { method: 'PATCH', body: JSON.stringify(patch) }),
+    minute(request<Minute>(`/entries/${id}/`, { method: 'PATCH', body: JSON.stringify(patch) })),
   getReminder: (id: string) => request<MeetingReminder>(`/meetings/${id}/reminder/`),
   setReminder: (id: string, body: { leadMinutes?: number; enabled?: boolean }) =>
     post<MeetingReminder>(`/meetings/${id}/reminder/`, body),
   syncMeeting: (id: string) => post<Meeting>(`/meetings/${id}/sync/`),
 
-  createMinute: (m: NewMinute) => post<Minute>('/entries/', m),
+  createMinute: (m: NewMinute) => minute(post<Minute>('/entries/', m)),
   deleteMinute: (id: string) => request<void>(`/entries/${id}/`, { method: 'DELETE' }),
-  toggleMinute: (id: string) => post<Minute>(`/entries/${id}/toggle/`),
+  toggleMinute: (id: string) => minute(post<Minute>(`/entries/${id}/toggle/`)),
 
   createOrg: (o: { name: string; kind: string }) => post<Organization>('/organizations/', o),
   createPerson: (p: { name: string; role: string; orgId: string; color?: string }) => post<Person>('/people/', p),

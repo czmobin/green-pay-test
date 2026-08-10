@@ -27,11 +27,12 @@ export default function Dashboard() {
   const next = vis
     .filter((m) => m.date > iso || (m.date === iso && m.end > hour))
     .sort((a, b) => a.date.localeCompare(b.date) || a.start - b.start)[0];
-  const pending = vis.filter((m) => m.status === 'pending').length;
+  // «در انتظار تأیید» یعنی دعوتی که خودِ من هنوز جوابش را نداده‌ام
+  const invites = store.myInvites;
+  const pending = invites.length;
   const tomorrowCount = vis.filter((m) => m.date === addDaysISO(iso, 1)).length;
   const openReminders = vis.reduce((n, m) =>
     n + (store.minutes[m.id] ?? []).filter((x) => x.type === 'reminder' && !x.done).length, 0);
-  const invites = vis.filter((m) => m.status === 'pending').sort((a, b) => a.date.localeCompare(b.date) || a.start - b.start);
 
   const [q, setQ] = useState('');
 
@@ -113,7 +114,7 @@ export default function Dashboard() {
       {invites.length > 0 && (
         <>
           <div className="section-title">
-            <h2>دعوت‌نامه‌های در انتظار پاسخ</h2>
+            <h2>در انتظار تأیید شما</h2>
             <span className="num" style={{ color: 'var(--muted)', fontSize: 12.5 }}>{toFa(invites.length)}</span>
           </div>
           <div className="mlist">
@@ -123,7 +124,8 @@ export default function Dashboard() {
                   <b>{m.title}</b>
                   <small>
                     <span className="num"><IconClock size={12} />{faDateLabel(m.date)} · {fmtTime(m.start)}</span>
-                    <span>{m.type === 'online' ? <IconVideo size={12} /> : <IconMapPin size={12} />}{rooms[m.room]?.name ?? '—'}</span>
+                    <span>{m.type === 'online' ? <IconVideo size={12} /> : <IconMapPin size={12} />}
+                      {m.type === 'online' ? 'جلسهٔ آنلاین' : (rooms[m.room]?.name ?? '—')}</span>
                   </small>
                 </div>
                 <div className="iacts">

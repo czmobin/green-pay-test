@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useStore } from './store';
 import { todayISO, nowHour, faDateLabel, fmtTime, toFa , remindLabel } from '@/lib/data';
 import {
-  IconBell, IconCalendar, IconClock, IconTask, IconReminder, IconUsers, IconX,
+  IconBell, IconCalendar, IconClock, IconReminder, IconUsers, IconX,
 } from './Icons';
 
 function human(mins: number): string {
@@ -31,7 +31,7 @@ export default function NotificationBell() {
       const mins = Math.round((m.start - hour) * 60);
       notifs.push({ id: 'm' + m.id, kind: 'meeting', title: m.title, sub: `شروع در ${human(mins)}`, urgent: mins <= 30, mid: m.id });
     });
-  store.visibleMeetings.filter((m) => m.status === 'pending').forEach((m) => {
+  store.myInvites.forEach((m) => {
     notifs.push({ id: 'i' + m.id, kind: 'invite', title: `دعوت: ${short(m.title)}`, sub: `${faDateLabel(m.date)} · ${fmtTime(m.start)}`, mid: m.id });
   });
   store.visibleMeetings.forEach((m) => (store.minutes[m.id] ?? []).forEach((x) => {
@@ -42,7 +42,6 @@ export default function NotificationBell() {
     meeting: { color: 'var(--brand)', bg: 'var(--mint-soft)', Icon: IconCalendar },
     invite: { color: 'var(--warn)', bg: 'var(--warn-soft)', Icon: IconUsers },
     reminder: { color: 'var(--warn)', bg: 'var(--warn-soft)', Icon: IconReminder },
-    task: { color: 'var(--info)', bg: 'var(--info-soft)', Icon: IconTask },
   } as const;
 
   const go = (mid: string) => { setOpen(false); router.push(`/meetings/${mid}`); };

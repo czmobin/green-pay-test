@@ -122,11 +122,11 @@ export default function Settings() {
       {/* PEOPLE */}
       {tab === 'people' && (
         <>
-          {!store.isAdmin ? (
+          {!store.isManager ? (
             <div className="card def-form locked-note">
               <span className="ln-ic"><IconAlert size={17} /></span>
               <div>
-                <b>افزودن فرد فقط از عهدهٔ ادمین برمی‌آید</b>
+                <b>افزودن فرد فقط از عهدهٔ ادمین و مدیرعامل برمی‌آید</b>
                 <p>برای دعوت افراد بیرون از سازمان به یک جلسه، هنگام ساخت جلسه از بخش «مهمان خارجی» استفاده کنید.</p>
               </div>
             </div>
@@ -150,18 +150,27 @@ export default function Settings() {
           </form>
           </>
           )}
-          <div className="def-list">
-            {Object.values(store.people).map((p) => (
-              <div className="def-item" key={p.id}>
-                <span className="ava" style={{ background: `linear-gradient(145deg,${p.color})` }}>{initials(p.name)}</span>
-                <div><b>{p.name}</b><small>{p.role}</small></div>
-                <span className="def-badge">{orgName(p.orgId)}</span>
-                {store.isManager && p.id !== store.currentUser && (
-                  <button className="def-del" aria-label="حذف فرد" title="حذف"
-                    onClick={() => store.deletePerson(p.id)}><IconTrash size={15} /></button>
-                )}
-              </div>
-            ))}
+          {/* ستون‌ها همیشه سرِ جای خودشان‌اند: ردیفی که دکمهٔ حذف ندارد به‌جایش
+              یک خط تیرهٔ هم‌اندازه می‌گیرد، وگرنه نام و سازمانِ آن ردیف
+              نسبت به بقیه جابه‌جا می‌شد. */}
+          <div className="def-list people-list">
+            {Object.values(store.people).map((p) => {
+              const self = p.id === store.currentUser;
+              return (
+                <div className="def-item person" key={p.id}>
+                  <span className="ava" style={{ background: `linear-gradient(145deg,${p.color})` }}>{initials(p.name)}</span>
+                  <div className="di-txt"><b>{p.name}</b><small>{p.role}</small></div>
+                  <span className="def-badge">{orgName(p.orgId)}</span>
+                  {store.isManager && !self ? (
+                    <button className="def-del" aria-label={`حذف ${p.name}`} title="حذف"
+                      onClick={() => store.deletePerson(p.id)}><IconTrash size={15} /></button>
+                  ) : (
+                    <span className="def-del ghost" aria-hidden="true"
+                      title={self ? 'حساب خودتان قابل حذف نیست' : undefined}>—</span>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </>
       )}

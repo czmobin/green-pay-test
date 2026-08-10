@@ -20,6 +20,7 @@ urlpatterns = [
     path('auth/verify-otp/', auth_views.verify_otp, name='verify-otp'),
     path('auth/login/', auth_views.login_password, name='login-password'),
     path('auth/password/', auth_views.password, name='password'),         # GET و POST
+    path('auth/verify-reset/', auth_views.verify_reset, name='verify-reset'),
     path('auth/reset-password/', auth_views.reset_password, name='reset-password'),
     path('auth/refresh/', TokenRefreshView.as_view(), name='token-refresh'),
     path('auth/me/', auth_views.profile, name='me'),          # GET و PATCH

@@ -4,9 +4,9 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useStore } from '@/components/store';
 import MeetingRow from '@/components/MeetingRow';
 import { useReveal } from '@/components/useReveal';
-import { categoryOf, toFa, normalizeFa, todayISO, addDaysISO, faDateShort, faWeekdayOf } from '@/lib/data';
+import { categoryOf, toFa, normalizeFa, todayISO, nowHour, addDaysISO, faDateShort, faWeekdayOf } from '@/lib/data';
 import type { Meeting } from '@/lib/types';
-import MeetingFilters, { type FilterState } from '@/components/MeetingFilters';
+import MeetingFilters, { EMPTY_FILTERS, activeCount, type FilterState } from '@/components/MeetingFilters';
 import { IconSearch, IconX, IconList } from '@/components/Icons';
 
 export default function MeetingsPage() {
@@ -14,7 +14,7 @@ export default function MeetingsPage() {
   const router = useRouter();
   const params = useSearchParams();
   const [q, setQ] = useState(() => params.get('q') ?? '');
-  const [filters, setFilters] = useState<FilterState>({ cats: [], time: 'all' });
+  const [filters, setFilters] = useState<FilterState>(EMPTY_FILTERS);
 
   /**
    * ارتفاع نوار ابزار به یک متغیر CSS می‌رود تا سرصفحهٔ هر روز دقیقاً زیرش
@@ -78,17 +78,25 @@ export default function MeetingsPage() {
       case 'week': return m.date >= iso0 && m.date < weekEnd;
       case 'upcoming': return m.date >= iso0;
       case 'past': return m.date < iso0;
+      case 'range': return (!filters.from || m.date >= filters.from)
+        && (!filters.to || m.date <= filters.to);
       default: return true;
     }
   };
 
+  /**
+   * ترتیب از جدید به قدیم: جلسه‌های دورترِ آینده بالا، گذشته پایین‌تر.
+   * چون نزدیک‌ترین جلسهٔ آینده وسطِ فهرست می‌افتد، پایین‌تر خودکار همان‌جا
+   * اسکرول می‌شود تا کاربر اول همان را ببیند.
+   */
   const rows = store.visibleMeetings
     .filter((m) => (filters.cats.length === 0 || filters.cats.includes(m.category))
+      && (filters.type === 'all' || m.type === filters.type)
       && (!dayFilter || m.date === dayFilter)
-      && (!statusFilter || m.status === statusFilter)
+      && (!statusFilter || store.myResponse(m) === statusFilter)
       && inTime(m)
       && (!nq || haystack[m.id].includes(nq)))
-    .sort((a, b) => a.date.localeCompare(b.date) || a.start - b.start);
+    .sort((a, b) => b.date.localeCompare(a.date) || a.start - b.start);
 
   // group by day
   const groups: { date: string; items: Meeting[] }[] = [];
@@ -99,6 +107,31 @@ export default function MeetingsPage() {
   });
   const iso = todayISO();
   const tomorrow = addDaysISO(iso, 1);
+
+  /** نزدیک‌ترین جلسهٔ پیشِ رو — لنگرِ اسکرول خودکار */
+  const nextId = useMemo(() => {
+    const hour = nowHour();
+    const upcoming = rows.filter((m) => m.date > iso || (m.date === iso && m.end > hour));
+    // آخرین عضو فهرستِ نزولی، نزدیک‌ترین جلسهٔ آینده است
+    return upcoming.length ? upcoming[upcoming.length - 1].id : '';
+  }, [rows, iso]);
+
+  /**
+   * یک‌بار در هر ورود به صفحه روی همان جلسه می‌رویم. با `block:'center'`
+   * سرصفحهٔ چسبانِ روز رویش نمی‌افتد.
+   *
+   * وقتی کاربر خودش جستجو یا فیلتری از داشبورد آورده، نتیجه باید از بالا
+   * دیده شود؛ پرش خودکار آنجا گیج‌کننده است.
+   */
+  const scrolledTo = useRef('');
+  const jump = !nq && !dayFilter && !statusFilter;
+  useEffect(() => {
+    if (!jump || !nextId || scrolledTo.current === nextId) return;
+    const el = document.querySelector(`[data-mid="${nextId}"]`);
+    if (!el) return;
+    scrolledTo.current = nextId;
+    el.scrollIntoView({ block: 'center', behavior: 'auto' });
+  }, [nextId, jump]);
 
   const scope = useReveal(['.page-head', '.searchbar', '.filters', '.date-group', '.mrow']);
 
@@ -152,9 +185,9 @@ export default function MeetingsPage() {
         <div className="result-empty">
           <div><IconList size={40} /></div>
           جلسه‌ای با این فیلتر پیدا نشد.
-          {(filters.cats.length > 0 || filters.time !== 'all' || q || dayFilter || statusFilter) && (
+          {(activeCount(filters) > 0 || q || dayFilter || statusFilter) && (
             <button className="btn btn-ghost re-clear" onClick={() => {
-              setFilters({ cats: [], time: 'all' }); setQ('');
+              setFilters(EMPTY_FILTERS); setQ('');
               if (dayFilter || statusFilter) router.push('/meetings');
             }}>پاک کردن فیلترها</button>
           )}
@@ -170,7 +203,9 @@ export default function MeetingsPage() {
               <span className="cnt num">{toFa(g.items.length)} جلسه</span>
             </div>
             <div className="mlist">
-              {g.items.map((m) => <MeetingRow key={m.id} m={m} />)}
+              {g.items.map((m) => (
+                <div key={m.id} data-mid={m.id}><MeetingRow m={m} /></div>
+              ))}
             </div>
           </section>
         ))

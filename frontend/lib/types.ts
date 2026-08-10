@@ -5,6 +5,8 @@ export type Scope = 'mine' | 'all';
 export type MeetingType = 'in_person' | 'online';
 export type MeetingStatus = 'confirmed' | 'pending' | 'cancelled' | 'done';
 export type Priority = 'low' | 'normal' | 'high' | 'critical';
+/** پاسخ یک نفر به دعوت جلسه */
+export type InviteResponse = 'accepted' | 'pending' | 'declined';
 
 export interface Person {
   id: string;
@@ -78,11 +80,14 @@ export interface Meeting {
   organizer: string; // person id
   parts: string[]; // person ids
   guests: string[]; // guest ids
+  /** پاسخ دعوت هر شرکت‌کننده — کلید: شناسهٔ فرد */
+  partStatus?: Record<string, InviteResponse>;
   synced: boolean;
   agenda: AgendaItem[];
 }
 
-export type MinuteType = 'note' | 'decision' | 'task' | 'reminder' | 'call' | 'letter' | 'file';
+/** «action» دیگر ساخته نمی‌شود و فقط در دادهٔ قدیمی دیده می‌شود. */
+export type MinuteType = 'note' | 'decision' | 'action' | 'reminder' | 'call' | 'letter' | 'file';
 
 export interface Minute {
   id: string;
@@ -91,7 +96,7 @@ export interface Minute {
   createdAt: number;
   participant?: string; // person id — صورت‌جلسهٔ کدام شرکت‌کننده؛ undefined = عمومی
   fileName?: string; // برای نامه/فایل
-  // task
+  // فقط «اقدام»های قدیمی
   assignee?: string;
   due?: string | null;   // تاریخ ISO مهلت
   done?: boolean;
