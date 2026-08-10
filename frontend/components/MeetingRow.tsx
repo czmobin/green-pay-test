@@ -2,23 +2,42 @@
 import React from 'react';
 import { useRouter } from 'next/navigation';
 import type { Meeting } from '@/lib/types';
-import { meetingColor, statusLabels, fmtTime, initials, toFa, faDateLabel, priorityLabels, priorityColor } from '@/lib/data';
+import { meetingColor, statusLabels, fmtTime, toFa, faDateLabel, faDateShort, daysUntil, priorityLabels, priorityColor } from '@/lib/data';
 import { useStore } from './store';
-import { IconMapPin, IconChevron } from './Icons';
+import { IconMapPin, IconChevron, IconVideo, IconReminder } from './Icons';
 
 export default function MeetingRow({ m, showDate = false }: { m: Meeting; showDate?: boolean }) {
   const router = useRouter();
-  const { people, rooms, categories } = useStore();
+  const { rooms, categories, minutes } = useStore();
   const color = meetingColor(categories, m);
   const cat = categories[m.category];
-  const shown = m.parts.slice(0, 3);
-  const extra = m.parts.length + m.guests.length - shown.length;
+  // «۳ روز مانده» گویاتر از فهرست آواتارهاست؛ همان جای شرکت‌کننده‌ها می‌نشیند
+  const days = daysUntil(m.date);
+  const rel = days === 0 ? 'امروز'
+    : days === 1 ? 'فردا'
+      : days === -1 ? 'دیروز'
+        : days > 0 ? `${toFa(days)} روز مانده` : `${toFa(-days)} روز پیش`;
+
+  // نزدیک‌ترین یادآورِ ثبت‌شده در صورت‌جلسهٔ همین جلسه
+  const remind = (minutes[m.id] ?? [])
+    .filter((x) => x.type === 'reminder' && !x.done && x.remindDate)
+    .sort((a, b) => (a.remindDate! + String(a.remindHour ?? 0)).localeCompare(b.remindDate! + String(b.remindHour ?? 0)))[0];
+
   return (
     <button className="mrow" onClick={() => router.push(`/meetings/${m.id}`)}>
       <span className="bar" style={{ background: color }} />
       <span className="time">
         <b className="num">{fmtTime(m.start)}</b>
         <small className="num">{fmtTime(m.end)}</small>
+        {m.type === 'online' && (
+          <span className="t-badge online" title="جلسهٔ آنلاین"><IconVideo size={12} /></span>
+        )}
+        {remind && (
+          <span className="t-badge remind" title={`یادآور: ${faDateShort(remind.remindDate!)}`}>
+            <IconReminder size={12} />
+            <em className="num">{remind.remindHour != null ? fmtTime(remind.remindHour) : faDateShort(remind.remindDate!)}</em>
+          </span>
+        )}
       </span>
       <span className="body">
         <span className="t">{m.title}</span>
@@ -40,15 +59,12 @@ export default function MeetingRow({ m, showDate = false }: { m: Meeting; showDa
         </span>
       </span>
       <span className="side">
-        <span className={'pill p-' + m.status}>{statusLabels[m.status]}</span>
-        <span className="avstack">
-          {shown.map((pid) => {
-            const p = people[pid];
-            if (!p) return null;
-            return <span className="ava sm" key={pid} style={{ background: `linear-gradient(145deg,${p.color})` }}>{initials(p.name)}</span>;
-          })}
-          {extra > 0 && <span className="more num">+{toFa(extra)}</span>}
-        </span>
+        {/* تگ «تأییدشده» حذف شد — حالت عادی است و ارزش فضا ندارد؛
+            فقط وضعیت‌های نیازمند توجه نشان داده می‌شوند */}
+        {m.status !== 'confirmed' && (
+          <span className={'pill p-' + m.status}>{statusLabels[m.status]}</span>
+        )}
+        <span className={'rel-days' + (days < 0 ? ' past' : days <= 1 ? ' soon' : '')}>{rel}</span>
       </span>
       <span className="chev"><IconChevron size={18} /></span>
     </button>

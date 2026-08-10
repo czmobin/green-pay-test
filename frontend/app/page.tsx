@@ -76,7 +76,7 @@ export default function Dashboard() {
           </div>
           <div className="nm-actions">
             <button className="btn btn-primary" onClick={(e) => { e.stopPropagation(); router.push(`/meetings/${next.id}`); }}>
-              باز کردن و نوشتن صورت‌جلسه
+              صورت‌جلسه
             </button>
             {next.type === 'online' && (
               <button className="btn btn-join" onClick={(e) => {

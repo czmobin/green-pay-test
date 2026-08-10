@@ -7,7 +7,7 @@ import { api, type FullReport } from '@/lib/api';
 import { toFa, faDate, initials } from '@/lib/data';
 import {
   IconAlert, IconCheck, IconChevron, IconClock, IconDoc, IconList,
-  IconReminder, IconReport, IconTask, IconUsers,
+  IconReminder, IconReport, IconUsers,
 } from '@/components/Icons';
 
 type Tab = 'alerts' | 'meetings' | 'people' | 'cats';
@@ -15,6 +15,13 @@ type Tab = 'alerts' | 'meetings' | 'people' | 'cats';
 const RANGES: [number, string][] = [[30, '۳۰ روز'], [90, '۹۰ روز'], [180, '۶ ماه']];
 
 const levelLabel: Record<string, string> = { high: 'بحرانی', mid: 'قابل‌توجه', low: 'برای اطلاع' };
+
+/** هر هشدار به تبی می‌رود که جزئیاتش آنجاست */
+const ALERT_TAB: Record<string, Tab> = {
+  'no-minutes': 'meetings', 'no-action': 'meetings', 'stale-reminder': 'meetings',
+  'no-response': 'meetings', overdue: 'meetings',
+  silent: 'people', overload: 'people', 'weak-category': 'cats',
+};
 
 /** نوار درصد — سبز بالای ۷۰، کهربایی ۴۰ تا ۷۰، قرمز زیر ۴۰ */
 function Rate({ value }: { value: number }) {
@@ -68,7 +75,7 @@ export default function ReportsPage() {
         <h1>گزارش کامل</h1>
         <p>
           این گزارش جلسه نمی‌شمارد؛ نشان می‌دهد کجای فرایند می‌لنگد — جلسه‌ای که صورت‌جلسه ندارد،
-          جلسه‌ای که هیچ اقدامی از دلش بیرون نیامده، و تسکی که از مهلتش گذشته.
+          جلسه‌ای که هیچ اقدامی از دلش بیرون نیامده، و یادآوری که رها شده.
         </p>
       </div>
 
@@ -93,9 +100,7 @@ export default function ReportsPage() {
             <div className="rep-kpi"><span className="rk-lbl">نرخ صورت‌جلسه</span>
               <b className="num">{toFa(t.minuteRate)}٪</b><small>جلسه‌هایی که چیزی برایشان ثبت شده</small></div>
             <div className="rep-kpi"><span className="rk-lbl">نرخ خروجی عملی</span>
-              <b className="num">{toFa(t.actionRate)}٪</b><small>جلسه‌هایی که تسک/یادآور/تماس داده‌اند</small></div>
-            <div className={'rep-kpi' + (t.tasksOverdue ? ' bad' : '')}><span className="rk-lbl">تسک عقب‌افتاده</span>
-              <b className="num">{toFa(t.tasksOverdue)}</b><small>از {toFa(t.tasks)} تسک ثبت‌شده</small></div>
+              <b className="num">{toFa(t.actionRate)}٪</b><small>جلسه‌هایی که یادآور یا تماس داده‌اند</small></div>
             <div className={'rep-kpi' + (t.wastedHours > t.hours / 2 ? ' bad' : '')}><span className="rk-lbl">ساعت بی‌خروجی</span>
               <b className="num">{toFa(t.wastedHours)}</b><small>ساعتی که هیچ اقدامی از آن درنیامده</small></div>
           </div>
@@ -115,7 +120,8 @@ export default function ReportsPage() {
             ) : (
               <div className="alert-list">
                 {data.alerts.map((a) => (
-                  <div className={`alert-card lv-${a.level}`} key={a.kind}>
+                  <button className={`alert-card lv-${a.level} clickable`} key={a.kind}
+                    onClick={() => setTab(ALERT_TAB[a.kind] ?? 'meetings')}>
                     <span className="ac-ic"><IconAlert size={17} /></span>
                     <div className="ac-body">
                       <div className="ac-top">
@@ -126,7 +132,8 @@ export default function ReportsPage() {
                       <p className="ac-detail">{a.detail}</p>
                       <p className="ac-hint">{a.hint}</p>
                     </div>
-                  </div>
+                    <span className="ac-go"><IconChevron size={17} /></span>
+                  </button>
                 ))}
               </div>
             )
@@ -156,7 +163,7 @@ export default function ReportsPage() {
               <section className="card rep-card">
                 <div className="card-head"><h3><IconList size={17} /> بدون خروجی عملی</h3>
                   <span className="cnt num">{toFa(data.noActionMeetings.length)}</span></div>
-                <p className="rep-note">صورت‌جلسه دارند ولی هیچ تسک، یادآور یا تماسی از آن‌ها بیرون نیامده.</p>
+                <p className="rep-note">صورت‌جلسه دارند ولی هیچ یادآور یا تماسی از آن‌ها بیرون نیامده.</p>
                 {data.noActionMeetings.length === 0 ? <div className="rep-empty">موردی نیست.</div> : (
                   <ul className="rep-list">
                     {data.noActionMeetings.map((m) => (
@@ -164,23 +171,6 @@ export default function ReportsPage() {
                         <span className="rl-dot" style={{ background: m.categoryColor }} />
                         <div><b>{m.title}</b>
                           <small>{faDate(m.date)} · {toFa(m.entries ?? 0)} یادداشت · {toFa(m.hours)} ساعت</small></div>
-                        <IconChevron size={16} />
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </section>
-
-              <section className="card rep-card">
-                <div className="card-head"><h3><IconTask size={17} /> تسک‌های عقب‌افتاده</h3>
-                  <span className="cnt num">{toFa(data.overdueTasks.length)}</span></div>
-                <p className="rep-note">مهلتشان گذشته و هنوز بسته نشده‌اند — دیرترین‌ها بالا.</p>
-                {data.overdueTasks.length === 0 ? <div className="rep-empty">موردی نیست.</div> : (
-                  <ul className="rep-list">
-                    {data.overdueTasks.map((x) => (
-                      <li key={x.id} onClick={() => go(x.meeting)}>
-                        <span className="rl-late num">{toFa(x.daysLate)} روز</span>
-                        <div><b>{x.text}</b><small>{x.assigneeName} · {x.meetingTitle}</small></div>
                         <IconChevron size={16} />
                       </li>
                     ))}
@@ -247,8 +237,7 @@ export default function ReportsPage() {
                   <table className="rep-table">
                     <thead>
                       <tr>
-                        <th>فرد</th><th>جلسه</th><th>ساعت</th>
-                        <th>نرخ صورت‌جلسه</th><th>تسک باز</th><th>عقب‌افتاده</th><th>نرخ انجام</th>
+                        <th>فرد</th><th>جلسه</th><th>ساعت</th><th>نرخ صورت‌جلسه</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -265,9 +254,6 @@ export default function ReportsPage() {
                           <td className="num">{toFa(p.meetings)}</td>
                           <td className="num">{toFa(p.hours)}</td>
                           <td>{p.organizedPast ? <Rate value={p.minuteRate} /> : <span className="dash">—</span>}</td>
-                          <td className="num">{toFa(p.tasksOpen)}</td>
-                          <td className={'num' + (p.tasksOverdue ? ' bad' : '')}>{toFa(p.tasksOverdue)}</td>
-                          <td>{p.tasksOpen + p.tasksDone ? <Rate value={p.taskDoneRate} /> : <span className="dash">—</span>}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -282,12 +268,12 @@ export default function ReportsPage() {
             <div className="card rep-card rep-table-card">
               <div className="card-head"><h3><IconClock size={17} /> بازدهی هر دسته</h3></div>
               <p className="rep-note">
-                «نرخ خروجی» یعنی چند درصد از جلسه‌های برگزارشدهٔ آن دسته حداقل یک تسک، یادآور یا تماس تولید کرده‌اند.
+                «نرخ خروجی» یعنی چند درصد از جلسه‌های برگزارشدهٔ آن دسته حداقل یک یادآور یا تماس تولید کرده‌اند.
               </p>
               <div className="rep-scroll">
                 <table className="rep-table">
                   <thead>
-                    <tr><th>دسته</th><th>جلسه</th><th>ساعت</th><th>تسک</th><th>نرخ خروجی</th></tr>
+                    <tr><th>دسته</th><th>جلسه</th><th>ساعت</th><th>نرخ خروجی</th></tr>
                   </thead>
                   <tbody>
                     {data.categories.map((c) => (
@@ -295,7 +281,6 @@ export default function ReportsPage() {
                         <td><span className="tp-person"><span className="rl-dot" style={{ background: c.color }} /><b>{c.name}</b></span></td>
                         <td className="num">{toFa(c.meetings)}</td>
                         <td className="num">{toFa(c.hours)}</td>
-                        <td className="num">{toFa(c.tasks)}</td>
                         <td>{c.past ? <Rate value={c.actionRate} /> : <span className="dash">—</span>}</td>
                       </tr>
                     ))}

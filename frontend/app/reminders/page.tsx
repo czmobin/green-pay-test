@@ -88,9 +88,10 @@ export default function RemindersPage() {
                   <div className="rtitle">{mn.text}</div>
                   <div className="rmeta">
                     <span className="mlink"><IconList size={12} />{m.title.replace(/—.*/, '').trim()}</span>
+                    {/* تاریخ جلسه برداشته شد؛ چیزی که اهمیت دارد زمانِ خودِ
+                        یادآور و فاصله تا آن است */}
                     {remindLabel(mn) && <span><IconClock size={12} />{remindLabel(mn)}</span>}
                     {mn.remindDate && !mn.done && <DueBadge iso={mn.remindDate} />}
-                    <span className="num">{faDateLabel(m.date)}</span>
                   </div>
                 </div>
                 <span className="chev"><IconChevron size={18} /></span>

@@ -6,7 +6,7 @@ import { initials, avatarPalette, toFa } from '@/lib/data';
 import LocationDialog, { parseCoord } from '@/components/LocationDialog';
 import type { Room } from '@/lib/types';
 
-import { IconBuilding, IconRoom, IconPlus, IconTrash, IconMapPin, IconAlert } from '@/components/Icons';
+import { IconBuilding, IconRoom, IconPlus, IconTrash, IconAlert } from '@/components/Icons';
 import PeopleImport from '@/components/PeopleImport';
 
 type Tab = 'orgs' | 'people' | 'locations';
@@ -194,17 +194,22 @@ export default function Settings() {
             </div>
           </form>
           <div className="def-list">
+            {/* عنوان بالای کارت؛ ظرفیت و مختصات داخل «جزئیات» می‌مانند تا کارت
+                شلوغ نشود و چیزی از آن بیرون نزند */}
             {Object.values(store.rooms).map((r) => (
-              <div className="def-item" key={r.id}>
-                <span className="di-ic" style={{ background: 'var(--violet-soft)', color: 'var(--violet)' }}><IconRoom size={18} /></span>
-                <div><b>{r.name}</b><small>{r.cap}</small></div>
-                {r.hasMap && <span className="map-badge" title="مختصات دارد"><IconMapPin size={12} />نقشه</span>}
-                <button className="def-more" onClick={() => setDetail(r)}>جزئیات</button>
-                <span className="def-badge">{orgName(r.orgId)}</span>
-                {store.isManager && (
-                  <button className="def-del" aria-label="حذف محل" title="حذف"
-                    onClick={() => store.deleteRoom(r.id)}><IconTrash size={15} /></button>
-                )}
+              <div className="loc-card" key={r.id}>
+                <div className="lc-top">
+                  <span className="di-ic" style={{ background: 'var(--violet-soft)', color: 'var(--violet)' }}><IconRoom size={17} /></span>
+                  <b className="lc-name">{r.name}</b>
+                  {store.isManager && (
+                    <button className="def-del" aria-label="حذف محل" title="حذف"
+                      onClick={() => store.deleteRoom(r.id)}><IconTrash size={15} /></button>
+                  )}
+                </div>
+                <div className="lc-foot">
+                  <span className="def-badge">{orgName(r.orgId)}</span>
+                  <button className="def-more" onClick={() => setDetail(r)}>جزئیات</button>
+                </div>
               </div>
             ))}
           </div>

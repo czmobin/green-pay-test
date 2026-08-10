@@ -250,11 +250,7 @@ def full_report(request):
             f'{fa(len(no_action_meetings))} جلسه صورت‌جلسه دارد ولی هیچ تسک، یادآور یا تماسی از آن بیرون نیامده.',
             len(no_action_meetings),
             'جلسهٔ بدون اقدام معمولاً می‌توانست یک پیام باشد؛ تکرارشونده‌هایشان را بازبینی کنید.')
-    if totals['tasks_overdue']:
-        add('high', 'overdue', 'تسک‌های عقب‌افتاده',
-            f"{fa(totals['tasks_overdue'])} تسک از مهلتش گذشته و هنوز انجام نشده.",
-            totals['tasks_overdue'],
-            'بیشترین تأخیر بالای فهرست است — همان‌ها را اول پیگیری کنید.')
+    # «تسک» از اپ برداشته شده؛ هشدار و کارتش هم نباید بماند
     if silent:
         names = '، '.join(p['name'] for p in silent[:3])
         add('mid', 'silent', 'افرادی که صورت‌جلسه نمی‌نویسند',

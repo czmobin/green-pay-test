@@ -18,7 +18,7 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
-  themeColor: '#0E9F6E',
+  themeColor: '#2563EB',
 };
 
 // پیش‌فرض اپ حالت روشن است؛ فقط اگر کاربر تیره را انتخاب کرده باشد تیره می‌شود.

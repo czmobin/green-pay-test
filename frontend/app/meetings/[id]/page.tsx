@@ -12,7 +12,7 @@ import { useReveal } from '@/components/useReveal';
 import { statusLabels, fmtTime, initials, toFa, priorityLabels, priorityColor, faDate, faWeekdayOf, isUrl, meetPlatform, meetingColor } from '@/lib/data';
 import {
   IconBack, IconClock, IconMapPin, IconUsers, IconList, IconChevron, IconVideo, IconEdit,
-  IconX, IconEye, IconAlert,
+  IconX, IconEye, IconAlert, IconCheck,
 } from '@/components/Icons';
 
 export default function MeetingDetail() {
@@ -51,7 +51,8 @@ export default function MeetingDetail() {
             <i style={{ background: catColor }} />{cat.name}
           </span>
         )}
-        <span className={'pill p-' + m.status}>{statusLabels[m.status]}</span>
+        {/* «تأییدشده» حالت عادی است؛ فقط وضعیت‌های نیازمند توجه نشان داده می‌شوند */}
+        {m.status !== 'confirmed' && <span className={'pill p-' + m.status}>{statusLabels[m.status]}</span>}
         <span className="prio-chip" style={{ color: priorityColor[m.priority ?? 'normal'], background: `color-mix(in srgb,${priorityColor[m.priority ?? 'normal']} 14%,transparent)` }}>
           اولویت {priorityLabels[m.priority ?? 'normal']}
         </span>
@@ -85,22 +86,35 @@ export default function MeetingDetail() {
             <small><IconClock size={13} />زمان</small>
             <b className="num">{faDate(m.date)} · {fmtTime(m.start)} تا {fmtTime(m.end)}</b>
           </div>
+          {/* «مکان» بالا-راست، «مشاهده» بالا-چپ، و نام محل در سطر پایین */}
           <div className="meta-box">
-            <small>{m.type === 'online' ? <IconVideo size={13} /> : <IconMapPin size={13} />}مکان</small>
-            <b className="mb-loc">
-              {/* در RTL اولین فرزند سمت راست می‌نشیند: نام محل راست، «مشاهده» چپِ آن */}
-              <span className="mb-name">{m.type === 'online' ? 'جلسهٔ آنلاین' : (room?.name ?? '—')}</span>
+            <div className="mb-head">
+              <small>{m.type === 'online' ? <IconVideo size={13} /> : <IconMapPin size={13} />}مکان</small>
               {m.type !== 'online' && room && (
                 <button className="loc-view" onClick={() => setLocOpen(true)}>
                   <IconEye size={13} />مشاهده
                 </button>
               )}
-            </b>
+            </div>
+            <b className="mb-name">{m.type === 'online' ? 'جلسهٔ آنلاین' : (room?.name ?? '—')}</b>
           </div>
           <div className="meta-box">
             <small><IconUsers size={13} />برگزارکننده</small>
             <b>{org?.name}</b>
           </div>
+          {/* دعوت بی‌پاسخ کنار برگزارکننده می‌نشیند، همان‌جا که تصمیم گرفته می‌شود */}
+          {m.status === 'pending' && (
+            <div className="meta-box pending-box">
+              <small><IconClock size={13} />وضعیت دعوت</small>
+              <b>در انتظار تأیید شما</b>
+              <div className="pb-actions">
+                <button className="btn btn-primary" onClick={() => store.respondMeeting(m.id, true)}>
+                  <IconCheck size={15} />تأیید
+                </button>
+                <button className="btn btn-ghost" onClick={() => store.respondMeeting(m.id, false)}>رد</button>
+              </div>
+            </div>
+          )}
         </div>
         {m.type === 'online' && (m.meetLink ? (
           <>

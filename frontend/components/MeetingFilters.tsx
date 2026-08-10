@@ -17,8 +17,6 @@ export const TIME_LABELS: Record<TimeF, string> = {
   past: 'گذشته',
 };
 
-/** چند دستهٔ پرکاربرد بدون باز کردن پنل هم در دسترس باشند */
-const QUICK_CATS = 4;
 /** بالای این تعداد، جستجو لازم می‌شود (قاعدهٔ Autocomplete) */
 const SEARCH_THRESHOLD = 8;
 
@@ -128,11 +126,11 @@ export default function MeetingFilters({
     onChange({ ...value, cats: value.cats.includes(id)
       ? value.cats.filter((x) => x !== id) : [...value.cats, id] });
 
-  const quick = used.slice(0, QUICK_CATS);
-
   return (
     <>
-      {/* ---------- ردیف میان‌بر: پرکاربردترین دسته‌ها بدون باز کردن پنل ---------- */}
+      {/* دکمهٔ فیلتر و — در صورت فعال‌بودن — پاک‌کردن همه. چیپ‌های دسته
+          برداشته شدند: انتخاب واقعی داخل شیت انجام می‌شود و آن ردیف فقط
+          یک سطر افقی می‌خواست. */}
       <div className="mf-bar">
         <button className={'mf-open' + (active > 0 ? ' on' : '')}
           onClick={() => setOpen(true)} aria-label="فیلترها" aria-expanded={open}>
@@ -141,20 +139,11 @@ export default function MeetingFilters({
           {active > 0 && <b className="num">{toFa(active)}</b>}
         </button>
 
-        <div className="mf-quick" role="group" aria-label="دسته‌های پرکاربرد">
-          <button className={'mf-chip' + (value.cats.length === 0 ? ' on' : '')}
-            onClick={() => onChange({ ...value, cats: [] })}>همه</button>
-          {quick.map((c) => (
-            <button key={c.id} className={'mf-chip' + (value.cats.includes(c.id) ? ' on' : '')}
-              onClick={() => toggleCat(c.id)}
-              style={value.cats.includes(c.id)
-                ? { color: c.color, background: `color-mix(in srgb,${c.color} 15%,transparent)`, borderColor: c.color }
-                : undefined}>
-              <i style={{ background: c.color }} />{c.name}
-              <b className="num">{toFa(counts[c.id] ?? 0)}</b>
-            </button>
-          ))}
-        </div>
+        {active > 0 && (
+          <button className="mf-wipe" onClick={() => onChange({ cats: [], time: 'all' })}>
+            <IconX size={14} />پاک کردن
+          </button>
+        )}
       </div>
 
       {/* ---------- خلاصهٔ فیلترهای فعال ---------- */}
@@ -174,9 +163,6 @@ export default function MeetingFilters({
               </button>
             );
           })}
-          <button className="mf-clear" onClick={() => onChange({ cats: [], time: 'all' })}>
-            پاک کردن همه
-          </button>
         </div>
       )}
 

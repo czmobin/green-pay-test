@@ -55,6 +55,13 @@ export function faDateShort(iso: string): string {
 }
 
 /** برچسب نسبی: امروز / فردا / دیروز، وگرنه تاریخ */
+/** فاصلهٔ روزها تا یک تاریخ ISO — منفی یعنی گذشته. */
+export function daysUntil(iso: string): number {
+  const a = isoToDate(todayISO()).getTime();
+  const b = isoToDate(iso).getTime();
+  return Math.round((b - a) / 86_400_000);
+}
+
 /** «سه‌شنبه» — نام روز هفتهٔ یک تاریخ ISO */
 export function faWeekdayOf(iso: string): string {
   const j = isoToJ(iso);
@@ -102,7 +109,7 @@ export const priorityColor: Record<Priority, string> = {
 
 export const minuteMeta: Record<MinuteType, { label: string; color: string; icon: string }> = {
   note: { label: 'یادداشت', color: '#6B7B73', icon: 'note' },
-  decision: { label: 'تصمیم', color: '#0E9F6E', icon: 'decision' },
+  decision: { label: 'تصمیم', color: '#2563EB', icon: 'decision' },
   task: { label: 'تسک', color: '#2F7FE4', icon: 'task' },
   reminder: { label: 'یادآور', color: '#D9930B', icon: 'reminder' },
   call: { label: 'تماس تلفنی', color: '#7C3AED', icon: 'call' },
@@ -112,7 +119,7 @@ export const minuteMeta: Record<MinuteType, { label: string; color: string; icon
 
 /* پالت رنگ آواتار برای افراد تازه‌تعریف‌شده */
 export const avatarPalette = [
-  '#0E9F6E,#0B5B3E', '#2F7FE4,#153E7E', '#7C3AED,#4C1D95', '#D9930B,#7A4E00',
+  '#2563EB,#1E3A8A', '#0891B2,#0E5A70', '#7C3AED,#4C1D95', '#D9930B,#7A4E00',
   '#DB2777,#831843', '#0891B2,#0E4A5A', '#B45309,#78350F', '#059669,#064E3B',
 ];
 
@@ -137,7 +144,8 @@ export function toFa(input: string | number): string {
 export function fmtTime(t: number): string {
   const h = Math.floor(t);
   const m = Math.round((t - h) * 60);
-  return toFa(h) + ':' + (m ? toFa(m) : '۰۰');
+  // دقیقه همیشه دورقمی: بدون این، ۹:۰۵ به شکل «۹:۵» درمی‌آمد
+  return `${toFa(h)}:${toFa(String(m).padStart(2, '0'))}`;
 }
 
 export function initials(name: string): string {

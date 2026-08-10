@@ -108,7 +108,16 @@ export default function LocationDialog({
                   ? <p className="loc-addr">{current.address}</p>
                   : <p className="loc-addr empty">نشانی کاملی برای این محل ثبت نشده است.</p>}
 
-                {current.cap && <p className="loc-cap">ظرفیت: {current.cap}</p>}
+                <dl className="loc-facts">
+                  {current.cap && <><dt>ظرفیت</dt><dd>{current.cap}</dd></>}
+                  <dt>سازمان</dt><dd>{store.orgs[current.orgId]?.name ?? '—'}</dd>
+                  {current.lat != null && current.lng != null && (
+                    <>
+                      <dt>عرض جغرافیایی</dt><dd className="num" dir="ltr">{current.lat}</dd>
+                      <dt>طول جغرافیایی</dt><dd className="num" dir="ltr">{current.lng}</dd>
+                    </>
+                  )}
+                </dl>
 
                 {links.length > 0 ? (
                   <>
@@ -119,7 +128,6 @@ export default function LocationDialog({
                           target="_blank" rel="noopener noreferrer">{l.label}</a>
                       ))}
                     </div>
-                    <p className="loc-coord num" dir="ltr">{current.lat}, {current.lng}</p>
                   </>
                 ) : (
                   <p className="loc-note">

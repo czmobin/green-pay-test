@@ -58,7 +58,7 @@ export default function UserMenu() {
     <div className="um-wrap" ref={wrap}>
       <button className="um-btn" onClick={() => setOpen((v) => !v)} aria-label="حساب کاربری"
         aria-expanded={open}>
-        <span className="ava sm" style={{ background: `linear-gradient(145deg,${me?.color ?? '#0E9F6E,#08281E'})` }}>
+        <span className="ava sm" style={{ background: `linear-gradient(145deg,${me?.color ?? '#2563EB,#0F2A5E'})` }}>
           {me ? initials(me.name) : '—'}
         </span>
       </button>
@@ -66,7 +66,7 @@ export default function UserMenu() {
       {open && (
         <div className="um-panel" role="menu">
           <div className="um-head">
-            <span className="ava" style={{ background: `linear-gradient(145deg,${me?.color ?? '#0E9F6E,#08281E'})` }}>
+            <span className="ava" style={{ background: `linear-gradient(145deg,${me?.color ?? '#2563EB,#0F2A5E'})` }}>
               {me ? initials(me.name) : '—'}
             </span>
             <div>

@@ -1,13 +1,6 @@
 'use client';
 import React from 'react';
-import { toFa, todayISO, isoToDate } from '@/lib/data';
-
-/** فاصلهٔ روزها بین امروز و یک تاریخ ISO — منفی یعنی گذشته. */
-function daysUntil(iso: string): number {
-  const a = isoToDate(todayISO()).getTime();
-  const b = isoToDate(iso).getTime();
-  return Math.round((b - a) / 86_400_000);
-}
+import { toFa, daysUntil } from '@/lib/data';
 
 /**
  * مهلت باقی‌مانده به روز.

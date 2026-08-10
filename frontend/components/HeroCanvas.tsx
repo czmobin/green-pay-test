@@ -6,6 +6,24 @@ import React, { useEffect, useRef } from 'react';
  * - three به‌صورت dynamic import لود می‌شود تا وارد باندل اولیه نشود.
  * - در prefers-reduced-motion اصلاً رندر نمی‌شود؛ در تب مخفی متوقف می‌شود.
  */
+/**
+ * رنگ توکن CSS را برای three.js می‌خواند.
+ * بوم بخشی از همان کارت است، پس نباید رنگ جداگانه‌ای داشته باشد؛ با تغییر
+ * تم، توکن عوض می‌شود و بوم هم باید همان را بگیرد.
+ */
+function readToken(name: string, fallback: number): number {
+  if (typeof window === 'undefined') return fallback;
+  const raw = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  if (!raw) return fallback;
+  const probe = document.createElement('span');
+  probe.style.color = raw;
+  document.body.appendChild(probe);
+  const rgb = getComputedStyle(probe).color.match(/\d+/g);
+  probe.remove();
+  if (!rgb || rgb.length < 3) return fallback;
+  return (Number(rgb[0]) << 16) | (Number(rgb[1]) << 8) | Number(rgb[2]);
+}
+
 export default function HeroCanvas() {
   const hostRef = useRef<HTMLDivElement>(null);
 
@@ -51,7 +69,7 @@ export default function HeroCanvas() {
       const geo = new THREE.BufferGeometry();
       geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
       const mat = new THREE.PointsMaterial({
-        color: 0x34d399, size: 0.09, transparent: true, opacity: 0.85,
+        color: readToken('--hero-accent', 0x34d399), size: 0.09, transparent: true, opacity: 0.85,
         depthWrite: false, blending: THREE.AdditiveBlending,
       });
       const points = new THREE.Points(geo, mat);
@@ -75,8 +93,19 @@ export default function HeroCanvas() {
       const lineGeo = new THREE.BufferGeometry();
       lineGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(linePos), 3));
       const lineMat = new THREE.LineBasicMaterial({
-        color: 0x2fbe89, transparent: true, opacity: 0.14, depthWrite: false,
+        color: readToken('--hero-accent', 0x2fbe89), transparent: true, opacity: 0.14, depthWrite: false,
       });
+
+      // رنگ بوم از همان توکنِ کارت می‌آید، پس با عوض‌شدن تم باید به‌روز شود
+      const repaint = () => {
+        const c = readToken('--hero-accent', 0x34d399);
+        mat.color.set(c);
+        lineMat.color.set(c);
+      };
+      const themeWatch = new MutationObserver(repaint);
+      themeWatch.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+      const scheme = window.matchMedia('(prefers-color-scheme: dark)');
+      scheme.addEventListener('change', repaint);
       const lines = new THREE.LineSegments(lineGeo, lineMat);
       scene.add(lines);
 
@@ -116,6 +145,8 @@ export default function HeroCanvas() {
       cleanup = () => {
         cancelAnimationFrame(raf);
         ro.disconnect();
+        themeWatch.disconnect();
+        scheme.removeEventListener('change', repaint);
         host.removeEventListener('pointermove', onPointer);
         geo.dispose(); mat.dispose(); lineGeo.dispose(); lineMat.dispose();
         renderer.dispose();

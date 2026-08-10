@@ -60,7 +60,7 @@ export default function CancelMeetingDialog({ meeting, onClose }: { meeting: Mee
         <div className="modal-foot">
           <button className="btn btn-ghost" onClick={onClose} disabled={busy}>انصراف</button>
           <button className="btn btn-danger" onClick={submit} disabled={busy}>
-            {busy ? 'در حال لغو…' : 'لغو جلسه و اطلاع به شرکت‌کنندگان'}
+            {busy ? 'در حال لغو…' : 'لغو جلسه'}
           </button>
         </div>
       </div>

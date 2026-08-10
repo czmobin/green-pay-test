@@ -156,7 +156,7 @@ export default function MeetingsPage() {
             <button className="btn btn-ghost re-clear" onClick={() => {
               setFilters({ cats: [], time: 'all' }); setQ('');
               if (dayFilter || statusFilter) router.push('/meetings');
-            }}>برداشتن فیلترها</button>
+            }}>پاک کردن فیلترها</button>
           )}
         </div>
       ) : (

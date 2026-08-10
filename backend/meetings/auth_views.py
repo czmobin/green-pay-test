@@ -23,7 +23,7 @@ from .serializers import PersonSerializer
 from .sms import is_valid_phone, normalize_phone, send_otp
 
 AVATAR_COLORS = [
-    '#0E9F6E,#0B5B3E', '#2F7FE4,#153E7E', '#7C3AED,#4C1D95', '#D9930B,#7A4E00',
+    '#2563EB,#1E3A8A', '#0891B2,#0E5A70', '#7C3AED,#4C1D95', '#D9930B,#7A4E00',
     '#DB2777,#831843', '#0891B2,#0E4A5A', '#B45309,#78350F', '#059669,#064E3B',
 ]
 
