@@ -90,7 +90,7 @@ export default function NotificationBell() {
           })}
         </div>
 
-        <div className="notif-foot">یادآور خودکار ۳۰ دقیقه قبل از هر جلسه، تسک و یادآور ارسال می‌شود.</div>
+        <div className="notif-foot">یادآور خودکار پیش از هر جلسه و برای یادآورهای ثبت‌شده فرستاده می‌شود.</div>
       </div>
     </div>
   );
