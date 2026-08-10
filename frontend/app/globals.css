@@ -1169,10 +1169,17 @@ select.field-in option{direction:rtl;text-align:right}
  * در فهرست بلند هم برای عوض‌کردن فیلتر لازم نیست تا بالا برگردید.
  * سرصفحهٔ روز پایین‌تر از این بلوک می‌چسبد (--tools-h) تا رویش نیفتد.
  */
+/* فاصلهٔ زیرین به‌جای margin از padding می‌آید تا داخل offsetHeight بیفتد؛
+   وگرنه سرصفحهٔ روز دقیقاً به لبهٔ چیپ‌ها می‌چسبد. */
 .mf-tools{position:sticky;top:calc(var(--content-pad, 16px) * -1);z-index:12;
-  background:var(--bg);padding-top:var(--content-pad, 16px);margin-bottom:14px}
+  background:var(--bg);padding-top:var(--content-pad, 16px);padding-bottom:16px}
 .mf-tools::before{content:'';position:absolute;
   inset:calc(var(--content-pad, 16px) * -1) -15px 0;background:var(--bg);z-index:-1}
+/* خط جداکنندهٔ نازک وقتی محتوا از زیرش رد می‌شود */
+.mf-tools::after{content:'';position:absolute;inset-inline:-15px;bottom:0;height:1px;
+  background:var(--line);opacity:0;transition:opacity .18s}
+.mf-tools.stuck::after{opacity:1}
+@media (min-width:900px){.mf-tools::after{inset-inline:-26px}}
 @media (min-width:900px){.mf-tools::before{inset:calc(var(--content-pad, 24px) * -1) -26px 0}}
 
 .search-row{display:flex;align-items:stretch;gap:9px;margin-bottom:9px}

@@ -30,7 +30,13 @@ export default function MeetingsPage() {
     apply();
     const ro = new ResizeObserver(apply);
     ro.observe(el);
-    return () => ro.disconnect();
+
+    // وقتی نوار ابزار چسبیده و محتوایی زیرش می‌گذرد، یک خط نازک مرزش را نشان دهد
+    const scroller = el.closest('.content');
+    const onScroll = () => el.classList.toggle('stuck', (scroller?.scrollTop ?? 0) > 4);
+    onScroll();
+    scroller?.addEventListener('scroll', onScroll, { passive: true });
+    return () => { ro.disconnect(); scroller?.removeEventListener('scroll', onScroll); };
   }, []);
 
   // searchable text per meeting (title, category, location, participants, guests, agenda, minutes)
