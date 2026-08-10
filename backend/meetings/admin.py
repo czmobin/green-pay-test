@@ -63,7 +63,7 @@ class OrganizationAdmin(admin.ModelAdmin):
 
 @admin.register(MinuteEntry)
 class MinuteEntryAdmin(admin.ModelAdmin):
-    list_display = ('entry_type', 'text', 'assignee', 'is_done', 'done_at')
+    list_display = ('entry_type', 'text', 'is_done', 'done_at')
     list_filter = ('entry_type', 'is_done')
 
 @admin.register(Location)

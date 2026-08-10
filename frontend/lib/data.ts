@@ -110,8 +110,6 @@ export const priorityColor: Record<Priority, string> = {
 export const minuteMeta: Record<MinuteType, { label: string; color: string; icon: string }> = {
   note: { label: 'یادداشت', color: '#6B7B73', icon: 'note' },
   decision: { label: 'تصمیم', color: '#2563EB', icon: 'decision' },
-  // این نوع دیگر ساخته نمی‌شود؛ فقط برچسبِ آیتم‌های قدیمی است
-  action: { label: 'اقدام', color: '#2F7FE4', icon: 'action' },
   reminder: { label: 'یادآور', color: '#D9930B', icon: 'reminder' },
   call: { label: 'تماس تلفنی', color: '#7C3AED', icon: 'call' },
   letter: { label: 'نامه', color: '#0891B2', icon: 'letter' },

@@ -1,17 +1,16 @@
 'use client';
 import React, { useState } from 'react';
 import { useStore } from './store';
-import { minuteMeta, toFa, initials, faDate, todayISO, remindLabel } from '@/lib/data';
+import { minuteMeta, toFa, initials, todayISO, remindLabel } from '@/lib/data';
 import DatePicker from './DatePicker';
 import DueBadge from './DueBadge';
 import TimePicker from './TimePicker';
 import type { AgendaItem, Meeting, Minute, MinuteType } from '@/lib/types';
-import { minuteIcon, IconDoc, IconPlus, IconTrash, IconCheck, IconClock, IconCall, IconUsers, IconPaperclip, IconEdit, IconList } from './Icons';
+import { minuteIcon, IconDoc, IconPlus, IconTrash, IconCheck, IconClock, IconCall, IconPaperclip, IconEdit, IconList } from './Icons';
 
-// «اقدام» از اپ برداشته شده و ساخته نمی‌شود؛ آیتم‌های قدیمی همچنان دیده می‌شوند
 const order: MinuteType[] = ['note', 'decision', 'reminder', 'call', 'letter', 'file'];
 /** انواعی که وضعیت انجام دارند */
-const DONEABLE = new Set<MinuteType>(['action', 'reminder', 'call']);   // action فقط دادهٔ قدیمی
+const DONEABLE = new Set<MinuteType>(['reminder', 'call']);
 
 export default function MinutesEditor({ meeting }: { meeting: Meeting }) {
   const store = useStore();
@@ -42,8 +41,6 @@ export default function MinutesEditor({ meeting }: { meeting: Meeting }) {
       participant: activeP === 'general' ? null : activeP,
       type,
       text: text.trim() || fileName,
-      assignee: null,
-      due: null,
       remindDate: type === 'reminder' ? (remindDate || todayISO()) : null,
       remindHour: type === 'reminder' ? remindHour : null,
       who: type === 'call' ? who : '',
@@ -174,8 +171,6 @@ function MinuteRow({ m, mid, agenda }: { m: Minute; mid: string; agenda: AgendaI
 
   const [editing, setEditing] = useState(false);
   const [text, setText] = useState(m.text);
-  const [assignee, setAssignee] = useState(m.assignee ?? '');
-  const [due, setDue] = useState(m.due ?? '');
   const [rDate, setRDate] = useState(m.remindDate ?? '');
   const [rHour, setRHour] = useState(m.remindHour ?? 9);
   const [who, setWho] = useState(m.who ?? '');
@@ -184,7 +179,7 @@ function MinuteRow({ m, mid, agenda }: { m: Minute; mid: string; agenda: AgendaI
   const [busy, setBusy] = useState(false);
 
   function startEdit() {
-    setText(m.text); setAssignee(m.assignee ?? ''); setDue(m.due ?? '');
+    setText(m.text);
     setRDate(m.remindDate ?? ''); setRHour(m.remindHour ?? 9);
     setWho(m.who ?? ''); setPhone(m.phone ?? ''); setItem(m.agendaItem ?? '');
     setEditing(true);
@@ -196,7 +191,6 @@ function MinuteRow({ m, mid, agenda }: { m: Minute; mid: string; agenda: AgendaI
     await store.updateMinute(mid, m.id, {
       text: text.trim(),
       agendaItem: item || null,
-      ...(m.type === 'action' ? { assignee: assignee || null, due: due || null } : {}),
       ...(m.type === 'reminder' ? { remindDate: rDate || null, remindHour: rHour } : {}),
       ...(m.type === 'call' ? { who, phone } : {}),
     });
@@ -216,15 +210,6 @@ function MinuteRow({ m, mid, agenda }: { m: Minute; mid: string; agenda: AgendaI
           <textarea className="field-in" rows={2} value={text} autoFocus
             onChange={(e) => setText(e.target.value)} placeholder={meta.label} />
 
-          {m.type === 'action' && (
-            <div className="extra">
-              <select className="field-in" value={assignee} onChange={(e) => setAssignee(e.target.value)}>
-                <option value="">— بدون مسئول —</option>
-                {Object.values(store.people).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-              </select>
-              <DatePicker value={due || todayISO()} onChange={setDue} />
-            </div>
-          )}
           {m.type === 'reminder' && (
             <div className="extra">
               <DatePicker value={rDate || todayISO()} onChange={setRDate} />
@@ -282,8 +267,6 @@ function MinuteRow({ m, mid, agenda }: { m: Minute; mid: string; agenda: AgendaI
             </button>
           )}
           {m.done && <span className="done-tag">انجام شد</span>}
-          {m.type === 'action' && m.assignee && <span><IconUsers size={12} />{store.people[m.assignee]?.name ?? m.assignee}</span>}
-          {m.type === 'action' && m.due && <span><IconClock size={12} />مهلت: {faDate(m.due)}</span>}
           {m.type === 'reminder' && remindLabel(m) && <span><IconClock size={12} />{remindLabel(m)}</span>}
           {m.type === 'reminder' && m.remindDate && !m.done && <DueBadge iso={m.remindDate} />}
           {m.type === 'call' && m.who && <span><IconCall size={12} />{m.who}</span>}

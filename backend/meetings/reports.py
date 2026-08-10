@@ -3,7 +3,7 @@
 
 هدف این گزارش «شمردن جلسه» نیست؛ پیدا کردن جاهایی است که فرایند می‌لنگد:
 جلسه‌ای که صورت‌جلسه ندارد، جلسه‌ای که هیچ اقدامی از دلش بیرون نیامده،
-تسکی که از مهلتش گذشته، و کسانی که جلسه می‌گیرند ولی چیزی ثبت نمی‌کنند.
+یادآوری که رها شده، و کسانی که جلسه می‌گیرند ولی چیزی ثبت نمی‌کنند.
 """
 from datetime import timedelta
 
@@ -16,7 +16,7 @@ from .models import Meeting, MinuteEntry
 from .serializers import to_float_hour, to_iso_date
 
 # آیتم‌هایی که «اقدام» به حساب می‌آیند — جلسه‌ای که هیچ‌کدام را ندارد، خروجی عملی نداشته
-ACTION_TYPES = {MinuteEntry.Type.TASK, MinuteEntry.Type.REMINDER, MinuteEntry.Type.CALL}
+ACTION_TYPES = {MinuteEntry.Type.REMINDER, MinuteEntry.Type.CALL}
 
 MIN_MEETINGS_FOR_RATE = 3   # زیر این تعداد، درصدها گمراه‌کننده‌اند
 
@@ -64,20 +64,18 @@ def full_report(request):
                 .exclude(status=Meeting.Status.CANCELLED)
                 .select_related('category', 'organizer', 'location')
                 .prefetch_related('meeting_participants__user',
-                                  'minutes_set__entries__assignee')
+                                  'minutes_set__entries')
                 .order_by('start'))
 
     # ---------- انباره‌های تجمیع ----------
     totals = dict(meetings=0, past=0, hours=0.0, action_hours=0.0,
                   with_minutes=0, with_action=0,
-                  tasks=0, tasks_done=0, tasks_overdue=0,
                   reminders=0, reminders_stale=0)
 
     people = {}                       # id -> سطر تحلیل هر فرد
     cats = {}                         # id -> سطر تحلیل هر دسته
     dead_meetings = []                # گذشته و بدون هیچ آیتم صورت‌جلسه
-    no_action_meetings = []           # صورت‌جلسه دارد ولی هیچ تسک/یادآور/تماس
-    overdue = []                      # تسک‌های گذشته از مهلت
+    no_action_meetings = []           # صورت‌جلسه دارد ولی هیچ یادآور/تماسی
     stale_reminders = []              # یادآورهایی که زمانشان گذشته و انجام نشده‌اند
     unanswered = []                   # دعوت‌های بی‌پاسخِ جلساتی که شروع شده‌اند
 
@@ -86,7 +84,6 @@ def full_report(request):
         if pid not in people:
             people[pid] = {**_person(user), 'meetings': 0, 'hours': 0.0,
                            'organized': 0, 'organizedPast': 0, 'organizedWithMinutes': 0,
-                           'tasksOpen': 0, 'tasksOverdue': 0, 'tasksDone': 0,
                            'pendingInvites': 0, 'entriesWritten': 0}
         return people[pid]
 
@@ -113,7 +110,7 @@ def full_report(request):
             'id': cid,
             'name': m.category.name if m.category_id else 'بدون دسته',
             'color': m.category.color if m.category_id else '#94a3b8',
-            'meetings': 0, 'past': 0, 'hours': 0.0, 'withAction': 0, 'tasks': 0,
+            'meetings': 0, 'past': 0, 'hours': 0.0, 'withAction': 0,
         })
         cat['meetings'] += 1
         cat['hours'] += hours
@@ -149,33 +146,7 @@ def full_report(request):
         for e in entries:
             if e.created_by_id:
                 person_row(e.created_by)['entriesWritten'] += 1
-            if e.entry_type == MinuteEntry.Type.TASK:
-                totals['tasks'] += 1
-                cat['tasks'] += 1
-                if e.is_done:
-                    totals['tasks_done'] += 1
-                if e.assignee_id:
-                    arow = person_row(e.assignee)
-                    if e.is_done:
-                        arow['tasksDone'] += 1
-                    else:
-                        arow['tasksOpen'] += 1
-                if not e.is_done and e.due_date and e.due_date < today:
-                    totals['tasks_overdue'] += 1
-                    if e.assignee_id:
-                        person_row(e.assignee)['tasksOverdue'] += 1
-                    overdue.append({
-                        'id': str(e.pk),
-                        'text': e.text,
-                        'due': e.due_date.isoformat(),
-                        'daysLate': (today - e.due_date).days,
-                        'assignee': str(e.assignee_id) if e.assignee_id else None,
-                        'assigneeName': (e.assignee.get_full_name() or e.assignee.username)
-                                        if e.assignee_id else 'بدون مسئول',
-                        'meeting': str(m.pk),
-                        'meetingTitle': m.title,
-                    })
-            elif e.entry_type == MinuteEntry.Type.REMINDER:
+            if e.entry_type == MinuteEntry.Type.REMINDER:
                 totals['reminders'] += 1
                 if not e.is_done and e.remind_at and e.remind_at < now:
                     totals['reminders_stale'] += 1
@@ -210,14 +181,12 @@ def full_report(request):
     for row in people.values():
         row['hours'] = round(row['hours'], 1)
         row['minuteRate'] = _pct(row['organizedWithMinutes'], row['organizedPast'])
-        row['taskDoneRate'] = _pct(row['tasksDone'], row['tasksDone'] + row['tasksOpen'])
     for row in cats.values():
         row['hours'] = round(row['hours'], 1)
         row['actionRate'] = _pct(row['withAction'], row['past'])
 
     dead_meetings.sort(key=lambda x: x['date'], reverse=True)
     no_action_meetings.sort(key=lambda x: x['date'], reverse=True)
-    overdue.sort(key=lambda x: x['daysLate'], reverse=True)
     unanswered.sort(key=lambda x: x['date'], reverse=True)
 
     people_list = sorted(people.values(), key=lambda x: x['hours'], reverse=True)
@@ -250,7 +219,6 @@ def full_report(request):
             f'{fa(len(no_action_meetings))} جلسه صورت‌جلسه دارد ولی هیچ یادآور یا تماسی از آن بیرون نیامده.',
             len(no_action_meetings),
             'جلسهٔ بدون اقدام معمولاً می‌توانست یک پیام باشد؛ تکرارشونده‌هایشان را بازبینی کنید.')
-    # «تسک» از اپ برداشته شده؛ هشدار و کارتش هم نباید بماند
     if silent:
         names = '، '.join(p['name'] for p in silent[:3])
         add('mid', 'silent', 'افرادی که صورت‌جلسه نمی‌نویسند',
@@ -292,10 +260,6 @@ def full_report(request):
             'avgLength': round(totals['hours'] / totals['meetings'], 2) if totals['meetings'] else 0,
             'minuteRate': _pct(totals['with_minutes'], totals['past']),
             'actionRate': _pct(totals['with_action'], totals['past']),
-            'tasks': totals['tasks'],
-            'tasksDone': totals['tasks_done'],
-            'taskDoneRate': _pct(totals['tasks_done'], totals['tasks']),
-            'tasksOverdue': totals['tasks_overdue'],
             'reminders': totals['reminders'],
             'remindersStale': totals['reminders_stale'],
             'wastedHours': round(totals['hours'] - totals['action_hours'], 1),
@@ -303,7 +267,6 @@ def full_report(request):
         'alerts': alerts,
         'deadMeetings': dead_meetings[:20],
         'noActionMeetings': no_action_meetings[:20],
-        'overdueTasks': overdue[:20],
         'staleReminders': stale_reminders[:20],
         'unanswered': unanswered[:20],
         'silentOrganizers': silent[:10],

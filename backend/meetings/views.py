@@ -170,7 +170,7 @@ def meetings_queryset(user=None):
 
 def entries_queryset(user=None):
     qs = (MinuteEntry.objects
-          .select_related('minutes', 'minutes__meeting', 'assignee')
+          .select_related('minutes', 'minutes__meeting')
           .prefetch_related('attachments')
           .order_by('-created_at'))
     if user is not None and not is_manager(user):
@@ -416,12 +416,6 @@ class MinuteEntryViewSet(viewsets.ModelViewSet):
         if 'text' in d:
             entry.text = str(d['text']).strip()
             fields.append('text')
-        if 'assignee' in d:
-            entry.assignee_id = d['assignee'] or None
-            fields.append('assignee')
-        if 'due' in d:
-            entry.due_date = parse_date(d['due']) if d['due'] else None
-            fields.append('due_date')
         if 'remindDate' in d:
             entry.remind_at = (from_date_hour(parse_date(d['remindDate']), d.get('remindHour') or 9)
                                if d['remindDate'] else None)
@@ -449,7 +443,7 @@ class MinuteEntryViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'])
     def toggle(self, request, pk=None):
-        """تیک انجام‌شدن — برای تسک، یادآور و تماس تلفنی."""
+        """تیک انجام‌شدن — برای یادآور و تماس تلفنی."""
         entry = self.get_object()
         entry.is_done = not entry.is_done
         entry.done_at = timezone.now() if entry.is_done else None

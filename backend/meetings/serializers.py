@@ -181,8 +181,6 @@ class MinuteEntrySerializer(serializers.ModelSerializer):
     createdAt = serializers.SerializerMethodField()
     participant = serializers.SerializerMethodField()
     meeting = serializers.SerializerMethodField()
-    assignee = serializers.CharField(source='assignee_id', required=False, allow_null=True)
-    due = serializers.DateField(source='due_date', required=False, allow_null=True)
     done = serializers.BooleanField(source='is_done', required=False)
     when = serializers.CharField(source='remind_text', required=False, allow_blank=True)
     remindDate = serializers.SerializerMethodField()
@@ -197,7 +195,7 @@ class MinuteEntrySerializer(serializers.ModelSerializer):
     class Meta:
         model = MinuteEntry
         fields = ['id', 'meeting', 'type', 'text', 'createdAt', 'participant',
-                  'assignee', 'due', 'done', 'doneAt', 'when', 'remindDate', 'remindHour',
+                  'done', 'doneAt', 'when', 'remindDate', 'remindHour',
                   'who', 'phone', 'fileName', 'agendaItem', 'editedAt']
 
     def get_doneAt(self, obj):
@@ -306,9 +304,6 @@ class MinuteEntryCreateSerializer(serializers.Serializer):
         queryset=User.objects.all(), required=False, allow_null=True)
     type = serializers.ChoiceField(choices=MinuteEntry.Type.choices)
     text = serializers.CharField(allow_blank=True, required=False, default='')
-    assignee = serializers.PrimaryKeyRelatedField(
-        queryset=User.objects.all(), required=False, allow_null=True)
-    due = serializers.DateField(required=False, allow_null=True, default=None)
     remindDate = serializers.DateField(required=False, allow_null=True, default=None)
     remindHour = serializers.FloatField(required=False, allow_null=True, default=None)
     when = serializers.CharField(required=False, allow_blank=True, default='')
@@ -328,8 +323,6 @@ class MinuteEntryCreateSerializer(serializers.Serializer):
             minutes=minutes,
             entry_type=validated['type'],
             text=validated.get('text', ''),
-            assignee=validated.get('assignee'),
-            due_date=validated.get('due'),
             remind_at=remind_at,
             remind_text=validated.get('when', ''),
             call_with=validated.get('who', ''),

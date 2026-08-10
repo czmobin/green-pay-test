@@ -69,9 +69,6 @@ export const IconNote = ({ size, className }: P) => (
 export const IconDecision = ({ size, className }: P) => (
   <svg {...s(size)} className={className} viewBox="0 0 24 24" {...stroke}><path d="M12 3l2.5 5 5.5.8-4 3.9 1 5.5-5-2.6-5 2.6 1-5.5-4-3.9 5.5-.8z" /></svg>
 );
-export const IconCheckbox = ({ size, className }: P) => (
-  <svg {...s(size)} className={className} viewBox="0 0 24 24" {...stroke}><rect x="4" y="4" width="16" height="16" rx="3" /><path d="M8.5 12.5l2.2 2.2 4.8-5" /></svg>
-);
 export const IconReminder = ({ size, className }: P) => (
   <svg {...s(size)} className={className} viewBox="0 0 24 24" {...stroke}><circle cx="12" cy="13" r="8" /><path d="M12 9v4l2.5 1.5M9 2.5 5.5 5M15 2.5 18.5 5" /></svg>
 );
@@ -136,7 +133,6 @@ export const minuteIcon = (name: string, p?: P) => {
   switch (name) {
     case 'note': return <IconNote {...p} />;
     case 'decision': return <IconDecision {...p} />;
-    case 'action': return <IconCheckbox {...p} />;
     case 'reminder': return <IconReminder {...p} />;
     case 'call': return <IconCall {...p} />;
     case 'letter': return <IconLetter {...p} />;

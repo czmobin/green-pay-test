@@ -119,18 +119,6 @@ async function request<T>(path: string, init?: RequestInit, retry = true, isForm
 const post = <T,>(path: string, body?: unknown) =>
   request<T>(path, { method: 'POST', body: JSON.stringify(body ?? {}) });
 
-/**
- * نوعِ قدیمیِ `task` را به `action` برمی‌گرداند.
- *
- * ساختِ این نوع از اپ برداشته شده، ولی رکوردهای قدیمی در دیتابیس مانده‌اند و
- * بدون این نگاشت، `minuteMeta[type]` برایشان undefined می‌شود و سطر می‌ترکد.
- */
-function normalizeMinute<T extends { type: string }>(m: T): T {
-  return m.type === 'task' ? { ...m, type: 'action' } : m;
-}
-
-const minute = async (p: Promise<Minute>) => normalizeMinute(await p);
-
 export interface NewMeeting {
   title: string;
   category: string;
@@ -171,8 +159,6 @@ export interface NewMinute {
   participant?: string | null;
   type: MinuteType;
   text: string;
-  assignee?: string | null;
-  due?: string | null;
   /** زمان یادآوری — تاریخ میلادی ISO و ساعت اعشاری (۹:۳۰ → ۹.۵) */
   remindDate?: string | null;
   remindHour?: number | null;
@@ -187,8 +173,6 @@ export interface NewMinute {
 /** فیلدهای قابل ویرایش یک آیتم صورت‌جلسه (نوعش عوض نمی‌شود) */
 export interface MinutePatch {
   text?: string;
-  assignee?: string | null;
-  due?: string | null;
   remindDate?: string | null;
   remindHour?: number | null;
   who?: string;
@@ -295,14 +279,7 @@ export const api = {
     post<{ access: string; refresh: string; user: Person; isNew: boolean }>(
       '/auth/reset-password/', p),
 
-  bootstrap: async (): Promise<Bootstrap> => {
-    const d = await request<Bootstrap>('/bootstrap/');
-    return {
-      ...d,
-      minutes: Object.fromEntries(
-        Object.entries(d.minutes).map(([k, list]) => [k, list.map(normalizeMinute)])),
-    };
-  },
+  bootstrap: () => request<Bootstrap>('/bootstrap/'),
   report: (days: number) => request<FullReport>(`/reports/full/?days=${days}`),
 
   createMeeting: (m: NewMeeting) => post<CreatedMeeting>('/meetings/', m),
@@ -320,15 +297,15 @@ export const api = {
   cancelMeeting: (id: string, reason: string) =>
     post<Meeting & { smsSent: number; smsFailed: number }>(`/meetings/${id}/cancel/`, { reason }),
   updateMinute: (id: string, patch: MinutePatch) =>
-    minute(request<Minute>(`/entries/${id}/`, { method: 'PATCH', body: JSON.stringify(patch) })),
+    request<Minute>(`/entries/${id}/`, { method: 'PATCH', body: JSON.stringify(patch) }),
   getReminder: (id: string) => request<MeetingReminder>(`/meetings/${id}/reminder/`),
   setReminder: (id: string, body: { leadMinutes?: number; enabled?: boolean }) =>
     post<MeetingReminder>(`/meetings/${id}/reminder/`, body),
   syncMeeting: (id: string) => post<Meeting>(`/meetings/${id}/sync/`),
 
-  createMinute: (m: NewMinute) => minute(post<Minute>('/entries/', m)),
+  createMinute: (m: NewMinute) => post<Minute>('/entries/', m),
   deleteMinute: (id: string) => request<void>(`/entries/${id}/`, { method: 'DELETE' }),
-  toggleMinute: (id: string) => minute(post<Minute>(`/entries/${id}/toggle/`)),
+  toggleMinute: (id: string) => post<Minute>(`/entries/${id}/toggle/`),
 
   createOrg: (o: { name: string; kind: string }) => post<Organization>('/organizations/', o),
   createPerson: (p: { name: string; role: string; orgId: string; color?: string }) => post<Person>('/people/', p),

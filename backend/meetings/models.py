@@ -263,11 +263,10 @@ class Minutes(models.Model):
 
 
 class MinuteEntry(models.Model):
-    """یک آیتم صورت‌جلسه: یادداشت/تصمیم/تسک/یادآور/تماس/نامه/فایل."""
+    """یک آیتم صورت‌جلسه: یادداشت/تصمیم/یادآور/تماس/نامه/فایل."""
     class Type(models.TextChoices):
         NOTE = 'note', 'یادداشت'
         DECISION = 'decision', 'تصمیم'
-        TASK = 'task', 'تسک'
         REMINDER = 'reminder', 'یادآور'
         CALL = 'call', 'تماس تلفنی'
         LETTER = 'letter', 'نامه'
@@ -286,14 +285,7 @@ class MinuteEntry(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     edited_at = models.DateTimeField('آخرین ویرایش', null=True, blank=True)
 
-    # تسک
-    assignee = models.ForeignKey(
-        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
-        related_name='assigned_entries', verbose_name='مسئول',
-    )
-    due_date = models.DateField('مهلت', null=True, blank=True)
-    due_text = models.CharField('مهلت (متن آزاد — فقط دادهٔ قدیمی)', max_length=60, blank=True)
-    # وضعیت انجام برای تسک، یادآور و تماس تلفنی
+    # وضعیت انجام برای یادآور و تماس تلفنی
     is_done = models.BooleanField('انجام شد', default=False)
     done_at = models.DateTimeField('زمان انجام', null=True, blank=True)
 
@@ -389,11 +381,10 @@ class MeetingReminder(models.Model):
 
 
 class Notification(models.Model):
-    """اعلان درون‌پنل و پیامکی — یادآور ۳۰ دقیقه قبل از جلسه/تسک/یادآور."""
+    """اعلان درون‌پنل و پیامکی — یادآور ۳۰ دقیقه قبل از جلسه یا یادآور."""
     class Kind(models.TextChoices):
         MEETING = 'meeting', 'جلسه'
         INVITE = 'invite', 'دعوت‌نامه'
-        TASK = 'task', 'تسک'
         REMINDER = 'reminder', 'یادآور'
 
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='notifications')

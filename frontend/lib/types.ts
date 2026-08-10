@@ -86,8 +86,7 @@ export interface Meeting {
   agenda: AgendaItem[];
 }
 
-/** «action» دیگر ساخته نمی‌شود و فقط در دادهٔ قدیمی دیده می‌شود. */
-export type MinuteType = 'note' | 'decision' | 'action' | 'reminder' | 'call' | 'letter' | 'file';
+export type MinuteType = 'note' | 'decision' | 'reminder' | 'call' | 'letter' | 'file';
 
 export interface Minute {
   id: string;
@@ -96,9 +95,6 @@ export interface Minute {
   createdAt: number;
   participant?: string; // person id — صورت‌جلسهٔ کدام شرکت‌کننده؛ undefined = عمومی
   fileName?: string; // برای نامه/فایل
-  // فقط «اقدام»های قدیمی
-  assignee?: string;
-  due?: string | null;   // تاریخ ISO مهلت
   done?: boolean;
   doneAt?: number | null;
   // reminder

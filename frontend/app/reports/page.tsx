@@ -19,7 +19,7 @@ const levelLabel: Record<string, string> = { high: 'بحرانی', mid: 'قاب�
 /** هر هشدار به تبی می‌رود که جزئیاتش آنجاست */
 const ALERT_TAB: Record<string, Tab> = {
   'no-minutes': 'meetings', 'no-action': 'meetings', 'stale-reminder': 'meetings',
-  'no-response': 'meetings', overdue: 'meetings',
+  'no-response': 'meetings',
   silent: 'people', overload: 'people', 'weak-category': 'cats',
 };
 
