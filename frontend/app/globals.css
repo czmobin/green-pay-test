@@ -23,18 +23,18 @@
 }
 @media (prefers-color-scheme:dark){
   :root{
-    --brand:#2FBE89; --brand-strong:#37C994; --brand-deep:#06201A;
-    --mint:#34D399; --mint-soft:#123227;
-    --ink:#E9F1ED; --ink-soft:#B6C6BE; --muted:#7C948A;
-    --line:#1E332B; --line-strong:#274036;
-    --bg:#071410; --panel:#0C1F18; --panel-2:#0A1B15; --raised:#102A20;
-    --info:#5AA0F2; --info-soft:#12253C;
+    --brand:#38BDF8; --brand-strong:#7DD3FC; --brand-deep:#0B2540;
+    --mint:#38BDF8; --mint-soft:#0E2A45;
+    --ink:#E7EEF8; --ink-soft:#B4C4DA; --muted:#7D93AE;
+    --line:#1D2C42; --line-strong:#2A3D58;
+    --bg:#070D18; --panel:#0D1626; --panel-2:#111C2E; --raised:#16233A;
+    --info:#60A5FA; --info-soft:#122844;
     --warn:#E7AE45; --warn-soft:#2E2411;
     --danger:#EC6C6C; --danger-soft:#301616;
-    --ok:#3FC694; --ok-soft:#0F2A20;
-    --violet:#A78BFA; --violet-soft:#20183A;
-    --sb-bg:#061711; --sb-ink:#C6DDD2; --sb-muted:#5E7C6E; --sb-strong:#FFFFFF;
-    --sb-hover:rgba(255,255,255,.06); --sb-active:rgba(52,211,153,.15); --sb-cnt:rgba(255,255,255,.08);
+    --ok:#34D399; --ok-soft:#0C2C24;
+    --violet:#A78BFA; --violet-soft:#1E1B3A;
+    --sb-bg:#060B15; --sb-ink:#C3D3E8; --sb-muted:#64799A; --sb-strong:#FFFFFF;
+    --sb-hover:rgba(255,255,255,.06); --sb-active:rgba(56,189,248,.16); --sb-cnt:rgba(255,255,255,.08);
     --sb-card:rgba(255,255,255,.05); --sb-cardbd:rgba(255,255,255,.10);
     --shadow-sm:0 1px 2px rgba(0,0,0,.3);
     --shadow:0 1px 2px rgba(0,0,0,.3), 0 10px 30px -16px rgba(0,0,0,.6);
@@ -53,14 +53,18 @@
   --shadow:0 1px 2px rgba(8,40,30,.05), 0 8px 22px -14px rgba(8,40,30,.22);
 }
 :root[data-theme="dark"]{
-  --brand:#2FBE89; --brand-strong:#37C994; --brand-deep:#06201A; --mint-soft:#123227;
-  --ink:#E9F1ED; --ink-soft:#B6C6BE; --muted:#7C948A; --line:#1E332B; --line-strong:#274036;
-  --bg:#071410; --panel:#0C1F18; --panel-2:#0A1B15; --raised:#102A20;
-  --info:#5AA0F2; --info-soft:#12253C; --warn:#E7AE45; --warn-soft:#2E2411;
-  --danger:#EC6C6C; --danger-soft:#301616; --ok:#3FC694; --ok-soft:#0F2A20;
-  --violet:#A78BFA; --violet-soft:#20183A;
-  --sb-bg:#061711; --sb-ink:#C6DDD2; --sb-muted:#5E7C6E; --sb-strong:#FFFFFF;
-  --sb-hover:rgba(255,255,255,.06); --sb-active:rgba(52,211,153,.15); --sb-cnt:rgba(255,255,255,.08);
+--brand:#38BDF8; --brand-strong:#7DD3FC; --brand-deep:#0B2540;
+  --mint:#38BDF8; --mint-soft:#0E2A45;
+  --ink:#E7EEF8; --ink-soft:#B4C4DA; --muted:#7D93AE;
+  --line:#1D2C42; --line-strong:#2A3D58;
+  --bg:#070D18; --panel:#0D1626; --panel-2:#111C2E; --raised:#16233A;
+  --info:#60A5FA; --info-soft:#122844;
+  --warn:#E7AE45; --warn-soft:#2E2411;
+  --danger:#EC6C6C; --danger-soft:#301616;
+  --ok:#34D399; --ok-soft:#0C2C24;
+  --violet:#A78BFA; --violet-soft:#1E1B3A;
+  --sb-bg:#060B15; --sb-ink:#C3D3E8; --sb-muted:#64799A; --sb-strong:#FFFFFF;
+  --sb-hover:rgba(255,255,255,.06); --sb-active:rgba(56,189,248,.16); --sb-cnt:rgba(255,255,255,.08);
   --sb-card:rgba(255,255,255,.05); --sb-cardbd:rgba(255,255,255,.10);
   --shadow:0 1px 2px rgba(0,0,0,.3), 0 10px 30px -16px rgba(0,0,0,.6);
   --shadow-lg:0 30px 70px -30px rgba(0,0,0,.8);
@@ -423,6 +427,11 @@ select.field-in option{direction:rtl;text-align:right}
   box-shadow:var(--shadow-lg);font-size:13px;font-weight:600;max-width:420px;width:100%;pointer-events:auto;
   animation:toastIn .3s ease}
 :root[data-theme="dark"] .toast{background:var(--raised);border:1px solid var(--line-strong)}
+/* در تم تیره لوگو روی کاشی سرمه‌ای می‌نشیند، نه سفیدِ روشن */
+:root[data-theme="dark"] .topbar .tb-logo,
+:root[data-theme="dark"] .sidebar .brand .logo,
+:root[data-theme="dark"] .lg-logo{background:var(--raised);border-color:var(--line-strong)}
+:root[data-theme="dark"] ::selection{background:var(--brand);color:#04121F}
 .toast svg{width:19px;height:19px;flex:0 0 auto}
 .toast .tclose{margin-inline-start:auto;opacity:.7;font-size:16px;color:#fff}
 @keyframes toastIn{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
@@ -505,19 +514,18 @@ select.field-in option{direction:rtl;text-align:right}
 
 /* ===================== Date group header ===================== */
 /* هر روز یک بلوک جداست تا چشم سریع مرز روزها را پیدا کند */
-.day-block{margin-bottom:26px}
+.day-block{margin-bottom:28px}
 .day-block:last-child{margin-bottom:6px}
 /*
  * سرصفحه چسبان است، پس باید کاملاً مات باشد و از دو طرف تا لبهٔ ناحیهٔ اسکرول
  * کشیده شود؛ وگرنه کارت‌ها هنگام عبور از زیرش دیده می‌شوند.
  */
 .date-group{display:flex;align-items:center;gap:9px;margin:0 0 12px;
-  position:sticky;top:calc(var(--content-pad, 16px) * -1);z-index:8;background:var(--bg);
+  position:sticky;top:var(--tools-h, 0px);z-index:8;background:var(--bg);
   padding:10px 2px 9px;border-bottom:2px solid var(--line)}
 /* پس‌زمینه تا لبهٔ افقی و تا بالای ناحیهٔ اسکرول کشیده می‌شود تا کارتی از
    کنار یا بالای سرصفحه دیده نشود */
-.date-group::before{content:'';position:absolute;
-  inset:calc(var(--content-pad, 16px) * -1) -15px 0;background:var(--bg);z-index:-1}
+.date-group::before{content:'';position:absolute;inset:0 -15px;background:var(--bg);z-index:-1}
 .date-group .dg-day{font-size:13px;font-weight:800;color:var(--brand-strong);
   background:var(--mint-soft);border-radius:999px;padding:3px 11px;flex:0 0 auto}
 .date-group h3{margin:0;font-size:14.5px;font-weight:800;color:var(--ink-soft)}
@@ -527,7 +535,7 @@ select.field-in option{direction:rtl;text-align:right}
 .date-group .cnt{margin-inline-start:auto;color:var(--muted);font-size:11px;font-weight:600;opacity:.75}
 .day-block.is-today .date-group{border-bottom-color:var(--brand)}
 .day-block .mlist{display:flex;flex-direction:column;gap:8px}
-@media (min-width:900px){.date-group::before{inset:calc(var(--content-pad, 24px) * -1) -26px 0}}
+@media (min-width:900px){.date-group::before{inset:0 -26px}}
 
 .result-empty{text-align:center;color:var(--muted);font-size:13.5px;padding:40px 16px;
   background:var(--panel);border:1px solid var(--line);border-radius:var(--r)}
@@ -1156,11 +1164,22 @@ select.field-in option{direction:rtl;text-align:right}
 }
 
 /* ===================== فیلتر جلسات ===================== */
-.search-row{display:flex;align-items:stretch;gap:9px;margin-bottom:10px}
+/*
+ * جستجو و فیلتر یک بلوک چسبان‌اند: با اسکرول نیمه‌بریده زیر هدر نمی‌مانند و
+ * در فهرست بلند هم برای عوض‌کردن فیلتر لازم نیست تا بالا برگردید.
+ * سرصفحهٔ روز پایین‌تر از این بلوک می‌چسبد (--tools-h) تا رویش نیفتد.
+ */
+.mf-tools{position:sticky;top:calc(var(--content-pad, 16px) * -1);z-index:12;
+  background:var(--bg);padding-top:var(--content-pad, 16px);margin-bottom:14px}
+.mf-tools::before{content:'';position:absolute;
+  inset:calc(var(--content-pad, 16px) * -1) -15px 0;background:var(--bg);z-index:-1}
+@media (min-width:900px){.mf-tools::before{inset:calc(var(--content-pad, 24px) * -1) -26px 0}}
+
+.search-row{display:flex;align-items:stretch;gap:9px;margin-bottom:9px}
 .search-row .searchbar{flex:1;min-width:0;margin-bottom:0}
 
 /* ردیف میان‌بر: دکمهٔ فیلتر ثابت می‌ماند، دسته‌های پرکاربرد کنارش می‌لغزند */
-.mf-bar{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.mf-bar{display:flex;align-items:center;gap:8px;margin-bottom:0}
 .mf-open{flex:0 0 auto;display:inline-flex;align-items:center;gap:7px;height:44px;padding:0 14px;
   border-radius:13px;border:1px solid var(--line);background:var(--panel);color:var(--ink-soft);
   font-size:12.5px;font-weight:700;box-shadow:var(--shadow-sm);transition:.14s}
@@ -1182,7 +1201,7 @@ select.field-in option{direction:rtl;text-align:right}
 .mf-chip.on{border-color:var(--brand);background:var(--mint-soft);color:var(--brand-strong)}
 
 /* خلاصهٔ فیلترهای فعال — بدون باز کردن پنل هم قابل برداشتن‌اند */
-.mf-active{display:flex;flex-wrap:wrap;align-items:center;gap:7px;margin-bottom:12px}
+.mf-active{display:flex;flex-wrap:wrap;align-items:center;gap:7px;margin-top:9px}
 .mf-tag{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 11px;border-radius:999px;
   font-size:11.5px;font-weight:700;background:var(--panel-2);color:var(--ink-soft)}
 .mf-tag svg{opacity:.65}
@@ -1190,6 +1209,9 @@ select.field-in option{direction:rtl;text-align:right}
 .mf-clear{height:32px;padding:0 11px;font-size:11.5px;font-weight:700;color:var(--danger)}
 
 /* ---- شیت فیلتر ---- */
+/* حرکت را GSAP اداره می‌کند؛ ترنزیشن CSS با آن می‌جنگد */
+.mf-scrim{transition:none}
+.mf-scrim .mf-sheet{transition:none}
 .mf-sheet .modal-head h2{display:flex;align-items:center;gap:8px}
 .mf-reset{margin-inline-start:auto;font-size:12px;font-weight:700;color:var(--brand-strong);
   height:32px;padding:0 10px;border-radius:9px}

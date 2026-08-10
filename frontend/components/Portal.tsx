@@ -1,5 +1,4 @@
 'use client';
-import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 
 /**
@@ -10,8 +9,8 @@ import { createPortal } from 'react-dom';
  * بگیرد از آن زمینه بیرون نمی‌زند و زیر نوار پایین می‌افتد.
  */
 export default function Portal({ children }: { children: React.ReactNode }) {
-  const [ready, setReady] = useState(false);
-  useEffect(() => { setReady(true); }, []);
-  if (!ready || typeof document === 'undefined') return null;
+  // در SSR سند وجود ندارد؛ روی مرورگر بی‌درنگ رندر می‌شود تا انیمیشن ورود
+  // یک فریم عقب نیفتد.
+  if (typeof document === 'undefined') return null;
   return createPortal(children, document.body);
 }

@@ -1,5 +1,5 @@
 'use client';
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useStore } from '@/components/store';
 import MeetingRow from '@/components/MeetingRow';
@@ -15,6 +15,23 @@ export default function MeetingsPage() {
   const params = useSearchParams();
   const [q, setQ] = useState(() => params.get('q') ?? '');
   const [filters, setFilters] = useState<FilterState>({ cats: [], time: 'all' });
+
+  /**
+   * ارتفاع نوار ابزار به یک متغیر CSS می‌رود تا سرصفحهٔ هر روز دقیقاً زیرش
+   * بچسبد. با ثابت‌نوشتن این عدد، هر بار که تگ‌های فعال کم و زیاد شوند
+   * سرصفحه‌ها روی نوار می‌افتادند.
+   */
+  const toolsRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = toolsRef.current;
+    const host = el?.parentElement;          // نیای مشترکِ نوار ابزار و سرصفحه‌ها
+    if (!el || !host) return;
+    const apply = () => host.style.setProperty('--tools-h', `${el.offsetHeight}px`);
+    apply();
+    const ro = new ResizeObserver(apply);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   // searchable text per meeting (title, category, location, participants, guests, agenda, minutes)
   const haystack = useMemo(() => {
@@ -106,21 +123,24 @@ export default function MeetingsPage() {
         </button>
       )}
 
-      <div className="search-row">
-        <div className="searchbar">
-          <IconSearch size={17} />
-          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="جستجوی جلسه…" />
-          {q && <button className="clr" onClick={() => setQ('')} aria-label="پاک کردن"><IconX size={15} /></button>}
+      {/* جستجو و فیلتر با هم می‌چسبند؛ ارتفاعشان به سرصفحهٔ روزها داده می‌شود */}
+      <div className="mf-tools" ref={toolsRef}>
+        <div className="search-row">
+          <div className="searchbar">
+            <IconSearch size={17} />
+            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="جستجوی جلسه…" />
+            {q && <button className="clr" onClick={() => setQ('')} aria-label="پاک کردن"><IconX size={15} /></button>}
+          </div>
         </div>
-      </div>
 
-      <MeetingFilters
-        categories={Object.values(store.categories)}
-        counts={catCounts}
-        value={filters}
-        onChange={setFilters}
-        resultCount={rows.length}
-      />
+        <MeetingFilters
+          categories={Object.values(store.categories)}
+          counts={catCounts}
+          value={filters}
+          onChange={setFilters}
+          resultCount={rows.length}
+        />
+      </div>
 
       {rows.length === 0 ? (
         <div className="result-empty">

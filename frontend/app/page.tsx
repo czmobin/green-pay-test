@@ -42,7 +42,9 @@ export default function Dashboard() {
     <div ref={scope}>
       <div className="page-head">
         <h1>سلام، {meName} 👋</h1>
-        <p>{faDate(iso, true)} — امروز {toFa(today.length)} جلسه دارید.</p>
+        <p>{faDate(iso, true)} — {today.length === 0
+          ? 'امروز جلسه‌ای ندارید.'
+          : <>امروز {toFa(today.length)} جلسه دارید.</>}</p>
       </div>
 
       {/* جستجوی سریع — نتیجه در تب جلسات باز می‌شود */}
@@ -54,7 +56,7 @@ export default function Dashboard() {
       }}>
         <IconSearch size={17} />
         <input value={q} onChange={(e) => setQ(e.target.value)}
-          placeholder="جستجوی سریع در عنوان و صورت‌جلسه…" aria-label="جستجوی سریع جلسات" />
+          placeholder="جستجوی سریع…" aria-label="جستجوی سریع جلسات" />
         {q && <button type="button" className="clr" onClick={() => setQ('')} aria-label="پاک کردن"><IconX size={15} /></button>}
         <button className="btn btn-primary qs-go" type="submit">جستجو</button>
       </form>

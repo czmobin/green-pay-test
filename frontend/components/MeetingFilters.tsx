@@ -1,5 +1,7 @@
 'use client';
 import React, { useEffect, useMemo, useState } from 'react';
+import gsap from 'gsap';
+import { useGSAP } from '@gsap/react';
 import Portal from './Portal';
 import { toFa, normalizeFa } from '@/lib/data';
 import type { Category } from '@/lib/types';
@@ -47,8 +49,55 @@ export default function MeetingFilters({
   resultCount: number;
 }) {
   const [open, setOpen] = useState(false);
+  const [closing, setClosing] = useState(false);   // تا انیمیشن بسته‌شدن فرصت اجرا پیدا کند
   const [q, setQ] = useState('');
   const [showEmpty, setShowEmpty] = useState(false);
+  /**
+   * Portal یک تیک دیرتر رندر می‌کند، پس با تکیه بر `open` انیمیشن وقتی اجرا
+   * می‌شد که شیت هنوز در DOM نبود. این state با callback ref دقیقاً لحظهٔ
+   * سوارشدن گره پر می‌شود.
+   */
+  const [sheetEl, setSheetEl] = useState<HTMLDivElement | null>(null);
+
+
+  /**
+   * ورود شیت: پرده محو می‌شود، خودِ شیت از پایین بالا می‌آید و بخش‌هایش
+   * پشت سر هم جا می‌افتند (قاعدهٔ modal-motion: حرکت باید بافت مکانی بدهد).
+   * خروج کوتاه‌تر از ورود است تا بستن سریع حس شود (exit-faster-than-enter).
+   */
+  useGSAP(() => {
+    if (!sheetEl) return;
+    const box = sheetEl;
+    const scrim = box.parentElement;
+    const parts = box.querySelectorAll('.mf-sec, .modal-foot');
+
+    // با کاهش حرکت، فقط ظاهر می‌شود؛ هیچ لغزش و مرحله‌ای در کار نیست
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      gsap.set([scrim, box, parts], { clearProps: 'all' });
+      return;
+    }
+
+    const tl = gsap.timeline();
+    tl.fromTo(scrim, { opacity: 0 }, { opacity: 1, duration: .2, ease: 'power1.out' })
+      .fromTo(box, { yPercent: 100 },
+        { yPercent: 0, duration: .38, ease: 'back.out(1.05)', clearProps: 'transform' }, '<')
+      .fromTo(parts, { y: 14, autoAlpha: 0 },
+        { y: 0, autoAlpha: 1, duration: .26, stagger: .06, ease: 'power2.out',
+          clearProps: 'transform,opacity,visibility' }, '-=.2');
+    return () => { tl.kill(); };
+  }, { dependencies: [sheetEl] });
+
+  function dismiss() {
+    const box = sheetEl;
+    if (!box || closing) { setOpen(false); return; }
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) { setOpen(false); return; }
+    setClosing(true);
+    gsap.to(box, {
+      yPercent: 100, duration: .24, ease: 'power2.in',
+      onComplete: () => { setOpen(false); setClosing(false); },
+    });
+    gsap.to(box.parentElement, { opacity: 0, duration: .22, ease: 'power1.in' });
+  }
 
   const active = value.cats.length + (value.time !== 'all' ? 1 : 0);
 
@@ -70,7 +119,7 @@ export default function MeetingFilters({
   // بستن با Escape — مثل هر شیت دیگری در اپ
   useEffect(() => {
     if (!open) return;
-    const onEsc = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
+    const onEsc = (e: KeyboardEvent) => { if (e.key === 'Escape') dismiss(); };
     document.addEventListener('keydown', onEsc);
     return () => document.removeEventListener('keydown', onEsc);
   }, [open]);
@@ -134,9 +183,9 @@ export default function MeetingFilters({
       {/* ---------- شیت فیلتر ---------- */}
       {open && (
         <Portal>
-          <div className="modal-overlay show" onClick={() => setOpen(false)}>
-            <div className="modal sm mf-sheet" role="dialog" aria-modal="true" aria-label="فیلتر جلسات"
-              onClick={(e) => e.stopPropagation()}>
+          <div className="modal-overlay show mf-scrim" onClick={dismiss}>
+            <div className="modal sm mf-sheet" ref={setSheetEl} role="dialog" aria-modal="true"
+              aria-label="فیلتر جلسات" onClick={(e) => e.stopPropagation()}>
               <div className="modal-head">
                 <h2><IconFilter size={17} /> فیلتر جلسات</h2>
                 {active > 0 && (
@@ -144,7 +193,7 @@ export default function MeetingFilters({
                     بازنشانی
                   </button>
                 )}
-                <button className="close" onClick={() => setOpen(false)} aria-label="بستن"><IconX size={17} /></button>
+                <button className="close" onClick={dismiss} aria-label="بستن"><IconX size={17} /></button>
               </div>
 
               <div className="modal-body mf-body">
@@ -212,7 +261,7 @@ export default function MeetingFilters({
               </div>
 
               <div className="modal-foot">
-                <button className="btn btn-primary" onClick={() => setOpen(false)}>
+                <button className="btn btn-primary" onClick={dismiss}>
                   {resultCount > 0
                     ? <>نمایش <span className="num">{toFa(resultCount)}</span> جلسه</>
                     : 'نتیجه‌ای ندارد'}
