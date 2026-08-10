@@ -3,13 +3,15 @@ import React, { useState } from 'react';
 import { useStore } from './store';
 import { minuteMeta, toFa, initials, faDate, todayISO, remindLabel } from '@/lib/data';
 import DatePicker from './DatePicker';
+import DueBadge from './DueBadge';
 import TimePicker from './TimePicker';
 import type { AgendaItem, Meeting, Minute, MinuteType } from '@/lib/types';
 import { minuteIcon, IconDoc, IconPlus, IconTrash, IconCheck, IconClock, IconCall, IconUsers, IconPaperclip, IconEdit, IconList } from './Icons';
 
-const order: MinuteType[] = ['note', 'decision', 'task', 'reminder', 'call', 'letter', 'file'];
+// «تسک» فعلاً از اپ برداشته شده؛ آیتم‌های قدیمی همچنان نمایش داده می‌شوند
+const order: MinuteType[] = ['note', 'decision', 'reminder', 'call', 'letter', 'file'];
 /** انواعی که وضعیت انجام دارند */
-const DONEABLE = new Set<MinuteType>(['task', 'reminder', 'call']);
+const DONEABLE = new Set<MinuteType>(['task', 'reminder', 'call']);   // task فقط برای دادهٔ قدیمی
 
 export default function MinutesEditor({ meeting }: { meeting: Meeting }) {
   const store = useStore();
@@ -293,6 +295,7 @@ function MinuteRow({ m, mid, agenda }: { m: Minute; mid: string; agenda: AgendaI
           {m.type === 'task' && m.assignee && <span><IconUsers size={12} />{store.people[m.assignee]?.name ?? m.assignee}</span>}
           {m.type === 'task' && m.due && <span><IconClock size={12} />مهلت: {faDate(m.due)}</span>}
           {m.type === 'reminder' && remindLabel(m) && <span><IconClock size={12} />{remindLabel(m)}</span>}
+          {m.type === 'reminder' && m.remindDate && !m.done && <DueBadge iso={m.remindDate} />}
           {m.type === 'call' && m.who && <span><IconCall size={12} />{m.who}</span>}
           {m.type === 'call' && m.phone && <span className="num">{m.phone}</span>}
           {linked && <span className="ag-link"><IconList size={12} />{linked.title}</span>}

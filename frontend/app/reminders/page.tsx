@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useStore } from '@/components/store';
 import { useReveal } from '@/components/useReveal';
+import DueBadge from '@/components/DueBadge';
 import { minuteMeta, toFa, normalizeFa, todayISO, faDateLabel, faDate, remindLabel } from '@/lib/data';
 import type { Meeting, Minute } from '@/lib/types';
 import {
@@ -11,37 +12,29 @@ import {
 import { minuteIcon } from '@/components/Icons';
 
 type Item = { mn: Minute; m: Meeting };
-type TypeF = 'all' | 'task' | 'reminder';
 type TimeF = 'all' | 'today' | 'upcoming' | 'past';
 
 export default function RemindersPage() {
   const store = useStore();
   const router = useRouter();
   const [q, setQ] = useState('');
-  const [tf, setTf] = useState<TypeF>('all');
   const [time, setTime] = useState<TimeF>('all');
 
   const items: Item[] = [];
   store.visibleMeetings.forEach((m) => (store.minutes[m.id] ?? []).forEach((mn) => {
-    if (mn.type === 'task' || mn.type === 'reminder') items.push({ mn, m });
+    if (mn.type === 'reminder') items.push({ mn, m });
   }));
 
-  const openTasks = items.filter((x) => !x.mn.done).length;
-  const reminders = items.filter((x) => x.mn.type === 'reminder').length;
+  const openCount = items.filter((x) => !x.mn.done).length;
+  const doneCount = items.filter((x) => x.mn.done).length;
   const iso = todayISO();
   /** عقب‌افتاده یعنی مهلتِ خودِ آیتم گذشته باشد، نه اینکه جلسه‌اش قدیمی باشد. */
-  const isOverdue = ({ mn }: Item) => {
-    if (mn.done) return false;
-    if (mn.type === 'task') return !!mn.due && mn.due < iso;
-    if (mn.type === 'reminder') return !!mn.remindDate && mn.remindDate < iso;
-    return false;
-  };
+  const isOverdue = ({ mn }: Item) => !mn.done && !!mn.remindDate && mn.remindDate < iso;
   const overdue = items.filter(isOverdue).length;
 
   const nq = normalizeFa(q);
   const rows = items
     .filter(({ mn, m }) => {
-      if (tf !== 'all' && mn.type !== tf) return false;
       if (time === 'today' && m.date !== iso) return false;
       if (time === 'upcoming' && m.date < iso) return false;
       if (time === 'past' && m.date >= iso) return false;
@@ -55,13 +48,13 @@ export default function RemindersPage() {
   return (
     <div ref={scope}>
       <div className="page-head">
-        <h1>یادآورها و تسک‌ها</h1>
-        <p>همهٔ تسک‌ها و یادآورهایی که داخل صورت‌جلسه‌ها ثبت شده — با فیلتر زمان و جستجو.</p>
+        <h1>یادآورها</h1>
+        <p>همهٔ یادآورهایی که داخل صورت‌جلسه‌ها ثبت شده — با فیلتر زمان و جستجو.</p>
       </div>
 
       <div className="rem-count">
-        <div className="rem-stat"><div className="rs-val num"><i style={{ background: minuteMeta.task.color }} />{toFa(openTasks)}</div><div className="rs-lbl">انجام‌نشده</div></div>
-        <div className="rem-stat"><div className="rs-val num"><i style={{ background: minuteMeta.reminder.color }} />{toFa(reminders)}</div><div className="rs-lbl">یادآور</div></div>
+        <div className="rem-stat"><div className="rs-val num"><i style={{ background: minuteMeta.reminder.color }} />{toFa(openCount)}</div><div className="rs-lbl">انجام‌نشده</div></div>
+        <div className="rem-stat"><div className="rs-val num"><i style={{ background: 'var(--ok)' }} />{toFa(doneCount)}</div><div className="rs-lbl">انجام‌شده</div></div>
         <div className="rem-stat"><div className="rs-val num"><i style={{ background: 'var(--danger)' }} />{toFa(overdue)}</div><div className="rs-lbl">عقب‌افتاده</div></div>
       </div>
 
@@ -72,20 +65,13 @@ export default function RemindersPage() {
       </div>
 
       <div className="filters">
-        <button className={'chip-btn' + (tf === 'all' ? ' active' : '')} onClick={() => setTf('all')}>همه</button>
-        <button className={'chip-btn' + (tf === 'task' ? ' active' : '')} onClick={() => setTf('task')}>
-          <span className="cdot" style={{ background: minuteMeta.task.color }} />تسک‌ها</button>
-        <button className={'chip-btn' + (tf === 'reminder' ? ' active' : '')} onClick={() => setTf('reminder')}>
-          <span className="cdot" style={{ background: minuteMeta.reminder.color }} />یادآورها</button>
-      </div>
-      <div className="filters">
         {([['all', 'همه‌ی زمان‌ها'], ['today', 'امروز'], ['upcoming', 'پیش‌رو'], ['past', 'گذشته']] as [TimeF, string][]).map(([id, lbl]) => (
           <button key={id} className={'chip-btn' + (time === id ? ' active' : '')} onClick={() => setTime(id)}>{lbl}</button>
         ))}
       </div>
 
       {rows.length === 0 ? (
-        <div className="result-empty"><div><IconReminder size={40} /></div>موردی پیدا نشد. داخل صورت‌جلسه‌ها می‌توانید تسک و یادآور ثبت کنید.</div>
+        <div className="result-empty"><div><IconReminder size={40} /></div>موردی پیدا نشد. داخل صورت‌جلسه‌ها می‌توانید یادآور ثبت کنید.</div>
       ) : (
         <div className="rem-list">
           {rows.map(({ mn, m }) => {
@@ -102,9 +88,8 @@ export default function RemindersPage() {
                   <div className="rtitle">{mn.text}</div>
                   <div className="rmeta">
                     <span className="mlink"><IconList size={12} />{m.title.replace(/—.*/, '').trim()}</span>
-                    {mn.type === 'task' && mn.assignee && <span><IconUsers size={12} />{store.people[mn.assignee]?.name ?? mn.assignee}</span>}
-                    {mn.type === 'task' && mn.due && <span><IconClock size={12} />مهلت: {faDate(mn.due)}</span>}
-                    {mn.type === 'reminder' && remindLabel(mn) && <span><IconClock size={12} />{remindLabel(mn)}</span>}
+                    {remindLabel(mn) && <span><IconClock size={12} />{remindLabel(mn)}</span>}
+                    {mn.remindDate && !mn.done && <DueBadge iso={mn.remindDate} />}
                     <span className="num">{faDateLabel(m.date)}</span>
                   </div>
                 </div>

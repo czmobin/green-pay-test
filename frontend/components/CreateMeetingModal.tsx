@@ -31,6 +31,12 @@ export default function CreateMeetingModal() {
   const [saving, setSaving] = useState(false);
   const [priority, setPriority] = useState<Priority>('normal');
   const [meetLink, setMeetLink] = useState('');
+  const [reminderLead, setReminderLead] = useState<number>(60);
+  const [guests, setGuests] = useState<string[]>([]);
+  const [guestOpen, setGuestOpen] = useState(false);
+  const [gName, setGName] = useState('');
+  const [gOrg, setGOrg] = useState('');
+  const [gBusy, setGBusy] = useState(false);
   const [liveConflicts, setLiveConflicts] = useState<Conflict[]>([]);
   const [confirmConflicts, setConfirmConflicts] = useState<Conflict[] | null>(null);
 
@@ -86,6 +92,7 @@ export default function CreateMeetingModal() {
     setConfirmConflicts(null);
     setTitle(''); setCat(''); setType('in_person'); setStart(10); setEnd(11);
     setRoom(''); setParts([]); setPq(''); setPriority('normal'); setMeetLink(''); setDate('');
+    setGuests([]); setGuestOpen(false); setGName(''); setGOrg(''); setReminderLead(60);
     setLiveConflicts([]);
   }
   function onStart(v: number) { setStart(v); if (end <= v) setEnd(Math.min(v + 1, 23.75)); }
@@ -116,7 +123,7 @@ export default function CreateMeetingModal() {
     const created = await store.createMeeting({
       title: title.trim(), category: selectedCat, type, date: selectedDate, start, end,
       room: selectedRoom || '', organizer: store.currentUser, parts: selectedParts,
-      guests: [], priority, meetLink: type === 'online' ? meetLink.trim() : '',
+      guests, priority, reminderLead, meetLink: type === 'online' ? meetLink.trim() : '',
     });
     setSaving(false);
     if (!created) return;
@@ -208,6 +215,22 @@ export default function CreateMeetingModal() {
           </div>
 
           <div className="field">
+            <label>یادآور پیامکی برای شرکت‌کنندگان</label>
+            <div className="rl-picks">
+              {([0, 15, 30, 60, 120, 1440] as const).map((v) => (
+                <button type="button" key={v}
+                  className={'chip-btn' + (reminderLead === v ? ' active' : '')}
+                  onClick={() => setReminderLead(v)}>
+                  {v === 0 ? 'بدون یادآور'
+                    : v >= 1440 ? `${toFa(v / 1440)} روز قبل`
+                      : v >= 60 ? `${toFa(v / 60)} ساعت قبل` : `${toFa(v)} دقیقه قبل`}
+                </button>
+              ))}
+            </div>
+            <small className="fhint">این تنظیم برای همه ثبت می‌شود؛ بعداً هر کس می‌تواند مالِ خودش را عوض کند.</small>
+          </div>
+
+          <div className="field">
             <label>شرکت‌کنندگان ({toFa(selectedParts.length)})</label>
             <div className="pp-search">
               <IconSearch size={15} />
@@ -228,6 +251,48 @@ export default function CreateMeetingModal() {
             {!pq && hiddenCount > 0 && (
               <div className="pp-more">{toFa(hiddenCount)} نفر دیگر — برای دیدنشان جستجو کنید.</div>
             )}
+
+            {/* مهمان خارجی: هر کاربری می‌تواند بسازد و به همین جلسه اضافه کند */}
+            <div className="guest-box">
+              <div className="gb-head">
+                <span>مهمان خارجی ({toFa(guests.length)})</span>
+                <button type="button" className="gb-add" onClick={() => setGuestOpen((v) => !v)}>
+                  {guestOpen ? 'بستن' : '+ افزودن مهمان'}
+                </button>
+              </div>
+
+              {guests.length > 0 && (
+                <div className="gb-list">
+                  {guests.map((id) => (
+                    <span className="gb-chip" key={id}>
+                      {store.guests[id]?.name ?? id}
+                      <button type="button" onClick={() => setGuests((g) => g.filter((x) => x !== id))}
+                        aria-label="حذف مهمان"><IconX size={12} /></button>
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              {guestOpen && (
+                <div className="gb-form">
+                  <input className="field-in" value={gName} onChange={(e) => setGName(e.target.value)}
+                    placeholder="نام و نام خانوادگی" />
+                  <input className="field-in" value={gOrg} onChange={(e) => setGOrg(e.target.value)}
+                    placeholder="سازمان (اختیاری)" />
+                  <button type="button" className="btn btn-ghost" disabled={gBusy} onClick={async () => {
+                    if (!gName.trim()) { store.toast('نام مهمان را وارد کنید', 'info'); return; }
+                    setGBusy(true);
+                    const g = await store.addGuest({ name: gName.trim(), org: gOrg.trim() });
+                    setGBusy(false);
+                    if (g) {
+                      setGuests((list) => [...list, g.id]);
+                      setGName(''); setGOrg(''); setGuestOpen(false);
+                      store.toast('مهمان اضافه شد', 'ok');
+                    }
+                  }}>{gBusy ? '…' : 'ثبت'}</button>
+                </div>
+              )}
+            </div>
 
             {liveConflicts.length > 0 && (
               <div className="conflict-hint">

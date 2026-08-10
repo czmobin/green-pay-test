@@ -29,6 +29,8 @@ export default function Dashboard() {
     .sort((a, b) => a.date.localeCompare(b.date) || a.start - b.start)[0];
   const pending = vis.filter((m) => m.status === 'pending').length;
   const tomorrowCount = vis.filter((m) => m.date === addDaysISO(iso, 1)).length;
+  const openReminders = vis.reduce((n, m) =>
+    n + (store.minutes[m.id] ?? []).filter((x) => x.type === 'reminder' && !x.done).length, 0);
   const invites = vis.filter((m) => m.status === 'pending').sort((a, b) => a.date.localeCompare(b.date) || a.start - b.start);
 
   const [q, setQ] = useState('');
@@ -137,19 +139,31 @@ export default function Dashboard() {
         <Link href="/calendar?view=week">تقویم هفته</Link>
       </div>
       {today.length === 0 ? (
-        <div className="empty-banner">
-          <span className="eb-ic"><IconCalendar size={26} /></span>
-          <div>
-            <b>امروز جلسه‌ای ندارید</b>
-            <p>
-              {next
-                ? <>نزدیک‌ترین جلسه‌تان {faDateLabel(next.date)} ساعت <span className="num">{fmtTime(next.start)}</span> است.</>
-                : 'جلسه‌ای در پیشِ رو ثبت نشده — از دکمهٔ «جلسهٔ جدید» می‌توانید یکی بسازید.'}
-            </p>
+        <div className="empty-card">
+          <span className="ec-ic"><IconCalendar size={30} /></span>
+          <b>امروز جلسه‌ای ندارید</b>
+          <p>
+            {next
+              ? <>نزدیک‌ترین جلسه‌تان {faDateLabel(next.date)} ساعت <span className="num">{fmtTime(next.start)}</span> است.</>
+              : 'جلسه‌ای در پیشِ رو ثبت نشده است.'}
+          </p>
+
+          <div className="ec-stats">
+            <div><b className="num">{toFa(tomorrowCount)}</b><small>جلسهٔ فردا</small></div>
+            <div><b className="num">{toFa(pending)}</b><small>دعوت بی‌پاسخ</small></div>
+            <div><b className="num">{toFa(openReminders)}</b><small>یادآور باز</small></div>
           </div>
-          <button className="btn btn-primary" onClick={store.openCreate}>
-            <IconPlus size={16} />جلسهٔ جدید
-          </button>
+
+          <div className="ec-actions">
+            <button className="btn btn-primary" onClick={store.openCreate}>
+              <IconPlus size={16} />جلسهٔ جدید
+            </button>
+            {next && (
+              <button className="btn btn-ghost" onClick={() => router.push(`/meetings/${next.id}`)}>
+                دیدن جلسهٔ بعدی
+              </button>
+            )}
+          </div>
         </div>
       ) : (
         <div className="mlist">

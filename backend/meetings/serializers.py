@@ -13,7 +13,7 @@ from rest_framework import serializers
 
 from .models import (
     AgendaItem, Attachment, Category, Location, Meeting, MeetingParticipant,
-    MinuteEntry, Minutes, Organization, OrganizationKind, User,
+    MeetingReminder, MinuteEntry, Minutes, Organization, OrganizationKind, User,
 )
 
 
@@ -240,6 +240,10 @@ class MeetingCreateSerializer(serializers.Serializer):
     priority = serializers.ChoiceField(choices=Meeting.Priority.choices,
                                        required=False, default=Meeting.Priority.NORMAL)
     meetLink = serializers.CharField(required=False, allow_blank=True, default='')
+    # فاصلهٔ یادآور که سازندهٔ جلسه برای همه تعیین می‌کند؛ بعداً هرکس می‌تواند
+    # مالِ خودش را عوض کند. صفر یعنی یادآور برای این جلسه خاموش باشد.
+    reminderLead = serializers.IntegerField(required=False, allow_null=True, default=None,
+                                            min_value=0, max_value=10080)
 
     def validate(self, attrs):
         if attrs['end'] <= attrs['start']:
@@ -270,6 +274,16 @@ class MeetingCreateSerializer(serializers.Serializer):
                 meeting=meeting, user_id=uid,
                 defaults={'is_guest': True, 'response': MeetingParticipant.Response.PENDING},
             )
+
+        lead = validated.get('reminderLead')
+        if lead is not None:
+            # تنظیم سازنده برای همهٔ شرکت‌کنندگان ثبت می‌شود تا از همان ابتدا
+            # معلوم باشد چه‌وقت پیامک می‌رود؛ هرکس بعداً می‌تواند عوضش کند.
+            MeetingReminder.objects.bulk_create([
+                MeetingReminder(meeting=meeting, user_id=p.user_id,
+                                lead_minutes=max(lead, 1), enabled=lead > 0)
+                for p in meeting.meeting_participants.filter(is_guest=False)
+            ], ignore_conflicts=True)
         return meeting
 
 

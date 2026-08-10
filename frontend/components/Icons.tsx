@@ -109,6 +109,9 @@ export const IconPaperclip = ({ size, className }: P) => (
   <svg {...s(size)} className={className} viewBox="0 0 24 24" {...stroke}><path d="M21 11.5 12.5 20a5 5 0 0 1-7-7l8-8a3.3 3.3 0 0 1 4.7 4.7l-8 8a1.7 1.7 0 0 1-2.4-2.4l7.3-7.3" /></svg>
 );
 
+export const IconFilter = ({ size, className }: P) => (
+  <svg {...s(size)} className={className} viewBox="0 0 24 24" {...stroke}><path d="M3 5h18l-7 8v5.5l-4 2V13z" /></svg>
+);
 export const IconReport = ({ size, className }: P) => (
   <svg {...s(size)} className={className} viewBox="0 0 24 24" {...stroke}><path d="M3 20h18" /><rect x="4" y="11" width="4" height="7" rx="1" /><rect x="10" y="6" width="4" height="12" rx="1" /><rect x="16" y="14" width="4" height="4" rx="1" /></svg>
 );

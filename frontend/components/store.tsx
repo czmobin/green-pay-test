@@ -63,6 +63,10 @@ interface Store {
   deleteOrg: (id: string) => Promise<void>;
   /** فقط ادمین و مدیرعامل می‌توانند تعریف‌های دیگران را حذف کنند */
   isManager: boolean;
+  /** افزودن فرد به فهرست افراد سازمان فقط از عهدهٔ ادمین برمی‌آید */
+  isAdmin: boolean;
+  addGuest: (g: { name: string; role?: string; org?: string }) => Promise<Guest | null>;
+  importPeople: (file: File) => Promise<{ created: number; skipped: number; messages: string[] } | null>;
 
   /* دسترسی و تنظیمات */
   role: Role;
@@ -420,6 +424,25 @@ export default function Providers({ children }: { children: React.ReactNode }) {
     return out;
   }, [guarded]);
 
+  const addGuest = useCallback(async (g: { name: string; role?: string; org?: string }) => {
+    let out: Guest | null = null;
+    await guarded(async () => {
+      out = await api.createGuest(g);
+      setGuests((s) => ({ ...s, [(out as Guest).id]: out as Guest }));
+    });
+    return out;
+  }, [guarded]);
+
+  const importPeople = useCallback(async (file: File) => {
+    let out: { created: number; skipped: number; messages: string[] } | null = null;
+    await guarded(async () => {
+      const res = await api.importPeople(file);
+      setPeople((s) => ({ ...s, ...res.people }));
+      out = { created: res.created, skipped: res.skipped, messages: res.messages };
+    });
+    return out;
+  }, [guarded]);
+
   /* ---------- دسترسی ---------- */
   const isManager = role === 'admin' || role === 'ceo';
   // «جلسه‌های من» یعنی جلسه‌هایی که در آن‌ها شرکت دارم — نه جلسه‌ای که فقط ساخته‌ام
@@ -462,6 +485,8 @@ export default function Providers({ children }: { children: React.ReactNode }) {
     addPerson, addRoom, addOrg,
     deletePerson, deleteRoom, deleteOrg, updateRoom,
     isManager,
+    isAdmin: role === 'admin',
+    addGuest, importPeople,
     role, scope, setScope, mineCount, liveCount, canSwitchScope: isManager, currentUser, setRole, setCurrentUser,
     gcalConnected, connectGcal, smsEnabled, toggleSms,
     conflicts, dismissConflicts: () => setConflicts([]),
@@ -471,7 +496,7 @@ export default function Providers({ children }: { children: React.ReactNode }) {
     ready, error, reload, meetings, visibleMeetings, minutes, people, guests, rooms, orgs, orgKinds, categories,
     getMeeting, canEdit, createMeeting, updateMeeting, addAgenda, updateAgendaItem, deleteAgendaItem,
     respondMeeting, cancelMeeting, syncMeeting, addMinute, deleteMinute, toggleTask, updateMinute,
-    addPerson, addRoom, addOrg, deletePerson, deleteRoom, deleteOrg, updateRoom, role, isManager, scope, setScope, mineCount, liveCount,
+    addPerson, addGuest, importPeople, addRoom, addOrg, deletePerson, deleteRoom, deleteOrg, updateRoom, role, isManager, scope, setScope, mineCount, liveCount,
     currentUser, gcalConnected, connectGcal, smsEnabled, toggleSms,
     createOpen, toast, toggleTheme]);
 

@@ -484,14 +484,90 @@ class OrganizationViewSet(ManagerOnlyDeleteMixin, viewsets.ModelViewSet):
         return Response(OrganizationSerializer(write.save()).data, status=status.HTTP_201_CREATED)
 
 
+def is_admin(user) -> bool:
+    """فقط ادمین اصلی — مدیرعامل هم اجازهٔ افزودن فرد به فهرست سازمان را ندارد."""
+    return getattr(user, 'role', None) == User.Role.ADMIN or user.is_superuser
+
+
 class PersonViewSet(ManagerOnlyDeleteMixin, viewsets.ModelViewSet):
     queryset = User.objects.filter(is_external=False).select_related('organization')
     serializer_class = PersonSerializer
 
     def create(self, request, *args, **kwargs):
+        """
+        افزودن فرد به فهرست افراد سازمان — فقط ادمین.
+
+        کاربر عادی برای دعوت افراد بیرونی به جلسه از /guests/ استفاده می‌کند؛
+        آن‌ها مهمان‌اند و در فهرست افراد سازمان نمی‌آیند.
+        """
+        if not is_admin(request.user):
+            raise PermissionDenied('افزودن فرد به فهرست افراد فقط از عهدهٔ ادمین برمی‌آید.')
         write = PersonCreateSerializer(data=request.data)
         write.is_valid(raise_exception=True)
         return Response(PersonSerializer(write.save()).data, status=status.HTTP_201_CREATED)
+
+    @action(detail=False, methods=['post'], url_path='import')
+    def bulk_import(self, request):
+        """
+        درون‌ریزی گروهی افراد از فایل اکسل یا CSV — فقط ادمین.
+
+        ستون‌ها بر پایهٔ سرصفحه تشخیص داده می‌شوند (نام، سمت، شماره، سازمان)؛
+        ترتیبشان مهم نیست و سرصفحه‌های انگلیسی هم پذیرفته می‌شوند.
+        """
+        if not is_admin(request.user):
+            raise PermissionDenied('درون‌ریزی افراد فقط از عهدهٔ ادمین برمی‌آید.')
+
+        upload = request.FILES.get('file')
+        if not upload:
+            raise ValidationError({'file': 'فایلی فرستاده نشده است.'})
+        if upload.size > 4 * 1024 * 1024:
+            raise ValidationError({'file': 'حجم فایل نباید از ۴ مگابایت بیشتر باشد.'})
+
+        from .people_import import import_people
+        try:
+            result = import_people(upload, default_org=Organization.objects.first())
+        except ValueError as exc:
+            raise ValidationError({'file': str(exc)})
+        result['people'] = _by_id(PersonSerializer(
+            User.objects.filter(pk__in=result.pop('created_ids')), many=True).data)
+        return Response(result)
+
+
+class GuestViewSet(viewsets.ModelViewSet):
+    """
+    مهمان خارجی — هر کاربری می‌تواند برای دعوت به جلسهٔ خودش یکی بسازد.
+
+    مهمان‌ها در فهرست «افراد سازمان» نمی‌آیند و حساب ورود ندارند؛ فقط برای
+    اینکه بشود آن‌ها را به جلسه اضافه کرد و در صورت‌جلسه نامشان را آورد.
+    """
+    queryset = User.objects.filter(is_external=True).select_related('organization')
+    serializer_class = GuestSerializer
+
+    def create(self, request, *args, **kwargs):
+        name = str(request.data.get('name', '')).strip()
+        if not name:
+            raise ValidationError({'name': 'نام مهمان را وارد کنید.'})
+        org_name = str(request.data.get('org', '')).strip()
+        org = Organization.objects.filter(name=org_name).first() if org_name else None
+        first, _, last = name.partition(' ')
+        base = f'guest{User.objects.filter(is_external=True).count() + 1}'
+        username, i = base, 1
+        while User.objects.filter(username=username).exists():
+            i += 1
+            username = f'{base}_{i}'
+        guest = User.objects.create(
+            username=username, first_name=first, last_name=last,
+            title=str(request.data.get('role', '')).strip()[:120] or 'مهمان',
+            organization=org, is_external=True, role=User.Role.MEMBER,
+        )
+        guest.set_unusable_password()
+        guest.save(update_fields=['password'])
+        return Response(GuestSerializer(guest).data, status=status.HTTP_201_CREATED)
+
+    def perform_destroy(self, instance):
+        if not is_manager(self.request.user):
+            raise PermissionDenied('فقط مدیرعامل یا ادمین می‌تواند مهمان را حذف کند.')
+        instance.delete()
 
 
 class LocationViewSet(ManagerOnlyDeleteMixin, viewsets.ModelViewSet):

@@ -6,7 +6,9 @@ import MeetingRow from '@/components/MeetingRow';
 import { useReveal } from '@/components/useReveal';
 import { categoryOf, toFa, normalizeFa, todayISO, addDaysISO, faDateShort, faWeekdayOf } from '@/lib/data';
 import type { Meeting } from '@/lib/types';
-import { IconSearch, IconX, IconList } from '@/components/Icons';
+
+type TimeF = 'all' | 'upcoming' | 'past';
+import { IconSearch, IconX, IconList, IconFilter } from '@/components/Icons';
 
 export default function MeetingsPage() {
   const store = useStore();
@@ -14,6 +16,8 @@ export default function MeetingsPage() {
   const params = useSearchParams();
   const [q, setQ] = useState(() => params.get('q') ?? '');
   const [cat, setCat] = useState<string>('all');
+  const [time, setTime] = useState<TimeF>('all');
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   // searchable text per meeting (title, category, location, participants, guests, agenda, minutes)
   const haystack = useMemo(() => {
@@ -37,11 +41,14 @@ export default function MeetingsPage() {
   // فیلترهای آمده از داشبورد: روز مشخص یا فقط دعوت‌های بی‌پاسخ
   const dayFilter = params.get('day');
   const statusFilter = params.get('status');
+  const activeFilters = (cat !== 'all' ? 1 : 0) + (time !== 'all' ? 1 : 0)
+    + (dayFilter ? 1 : 0) + (statusFilter ? 1 : 0);
 
   const rows = store.visibleMeetings
     .filter((m) => (cat === 'all' || m.category === cat)
       && (!dayFilter || m.date === dayFilter)
       && (!statusFilter || m.status === statusFilter)
+      && (time === 'all' || (time === 'upcoming' ? m.date >= todayISO() : m.date < todayISO()))
       && (!nq || haystack[m.id].includes(nq)))
     .sort((a, b) => a.date.localeCompare(b.date) || a.start - b.start);
 
@@ -84,20 +91,51 @@ export default function MeetingsPage() {
         </button>
       )}
 
-      <div className="searchbar">
-        <IconSearch size={17} />
-        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="جستجوی جلسه…" />
-        {q && <button className="clr" onClick={() => setQ('')} aria-label="پاک کردن"><IconX size={15} /></button>}
+      <div className="search-row">
+        <div className="searchbar">
+          <IconSearch size={17} />
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="جستجوی جلسه…" />
+          {q && <button className="clr" onClick={() => setQ('')} aria-label="پاک کردن"><IconX size={15} /></button>}
+        </div>
+        {/* فیلترها پشت یک آیکون جمع شده‌اند تا بالای صفحه با ردیف تگ‌ها پر نشود
+            و جا برای فیلترهای بعدی باز بماند */}
+        <button className={'filter-btn' + (activeFilters > 0 ? ' on' : '')}
+          onClick={() => setFiltersOpen((v) => !v)} aria-expanded={filtersOpen} aria-label="فیلترها">
+          <IconFilter size={18} />
+          {activeFilters > 0 && <span className="fb-dot num">{toFa(activeFilters)}</span>}
+        </button>
       </div>
 
-      <div className="filters">
-        <button className={'chip-btn' + (cat === 'all' ? ' active' : '')} onClick={() => setCat('all')}>همه</button>
-        {Object.values(store.categories).map((c) => (
-          <button key={c.id} className={'chip-btn' + (cat === c.id ? ' active' : '')} onClick={() => setCat(c.id)}>
-            <span className="cdot" style={{ background: c.color }} />{c.name}
-          </button>
-        ))}
-      </div>
+      {filtersOpen && (
+        <div className="filter-panel">
+          <div className="fp-row">
+            <span className="fp-lbl">دسته‌بندی</span>
+            <div className="filters">
+              <button className={'chip-btn' + (cat === 'all' ? ' active' : '')} onClick={() => setCat('all')}>همه</button>
+              {Object.values(store.categories).map((c) => (
+                <button key={c.id} className={'chip-btn' + (cat === c.id ? ' active' : '')} onClick={() => setCat(c.id)}>
+                  <span className="cdot" style={{ background: c.color }} />{c.name}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="fp-row">
+            <span className="fp-lbl">زمان</span>
+            <div className="filters">
+              {([['all', 'همه'], ['upcoming', 'پیشِ رو'], ['past', 'گذشته']] as [TimeF, string][]).map(([id, lbl]) => (
+                <button key={id} className={'chip-btn' + (time === id ? ' active' : '')} onClick={() => setTime(id)}>{lbl}</button>
+              ))}
+            </div>
+          </div>
+
+          {activeFilters > 0 && (
+            <button className="fp-clear" onClick={() => { setCat('all'); setTime('all'); router.push('/meetings'); }}>
+              برداشتن همهٔ فیلترها
+            </button>
+          )}
+        </div>
+      )}
 
       {rows.length === 0 ? (
         <div className="result-empty"><div><IconList size={40} /></div>جلسه‌ای با این فیلتر/جستجو پیدا نشد.</div>

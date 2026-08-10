@@ -403,9 +403,11 @@ button.kpi:active{transform:scale(.985)}
 .field label{display:block;font-size:12px;font-weight:700;color:var(--ink-soft);margin-bottom:6px}
 .field-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 select.field-in{appearance:none;background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%236B7B73' stroke-width='2'><path d='M4 6l4 4 4-4'/></svg>");
-  background-repeat:no-repeat;background-position:left 11px center;padding-inline-start:32px;
-  /* بدون این، بعضی مرورگرها متنِ select را در RTL چپ‌چین می‌گذارند */
-  direction:rtl;text-align:right;text-align:start}
+  background-repeat:no-repeat;background-position:left 11px center;
+  /* فلش سمت چپ است، پس فضای خالی هم باید سمت چپ باشد؛ با padding-inline-start
+     متن از لبهٔ راست فاصله می‌گرفت و ناهم‌تراز با بقیهٔ فیلدها می‌شد. */
+  padding-inline-end:32px;padding-inline-start:13px;
+  direction:rtl;text-align:start}
 select.field-in option{direction:rtl;text-align:right}
 .pick-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
 .pick{display:flex;align-items:center;gap:8px;padding:9px 11px;border:1px solid var(--line-strong);border-radius:11px;font-size:12.5px;font-weight:700;color:var(--ink-soft);transition:.12s;text-align:start}
@@ -1153,6 +1155,94 @@ select.field-in option{direction:rtl;text-align:right}
   .empty-banner .btn{margin-inline-start:0;width:100%}
 }
 
+/* ===================== نوار جستجو + آیکون فیلتر ===================== */
+.search-row{display:flex;align-items:stretch;gap:9px;margin-bottom:12px}
+.search-row .searchbar{flex:1;min-width:0;margin-bottom:0}
+.filter-btn{position:relative;flex:0 0 auto;width:46px;border-radius:14px;
+  border:1px solid var(--line);background:var(--panel);color:var(--ink-soft);
+  display:grid;place-items:center;box-shadow:var(--shadow-sm);transition:.14s}
+.filter-btn:hover{border-color:var(--brand);color:var(--brand)}
+.filter-btn.on{border-color:var(--brand);color:var(--brand-strong);background:var(--mint-soft)}
+.fb-dot{position:absolute;top:-5px;inset-inline-start:-5px;min-width:18px;height:18px;
+  border-radius:999px;background:var(--brand);color:#fff;font-size:10.5px;font-weight:800;
+  display:grid;place-items:center;padding:0 4px}
+.filter-panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);
+  padding:13px 14px;margin-bottom:14px;box-shadow:var(--shadow-sm);animation:umIn .16s ease}
+.fp-row{display:flex;align-items:flex-start;gap:10px;margin-bottom:10px}
+.fp-row:last-of-type{margin-bottom:0}
+.fp-lbl{flex:0 0 62px;font-size:11.5px;font-weight:700;color:var(--muted);padding-top:7px}
+.filter-panel .filters{margin:0;flex:1}
+.fp-clear{margin-top:11px;font-size:12px;font-weight:700;color:var(--danger)}
+
+/* ===================== مهمان خارجی در فرم جلسه ===================== */
+.guest-box{margin-top:11px;padding-top:11px;border-top:1px solid var(--line)}
+.gb-head{display:flex;align-items:center;justify-content:space-between;gap:8px;
+  font-size:12px;font-weight:700;color:var(--ink-soft)}
+.gb-add{font-size:11.5px;font-weight:700;color:var(--brand-strong)}
+.gb-list{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.gb-chip{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:700;
+  background:var(--violet-soft);color:var(--violet);border-radius:999px;padding:4px 10px}
+.gb-chip button{display:grid;place-items:center;color:inherit;opacity:.7}
+.gb-chip button:hover{opacity:1}
+.gb-form{display:grid;grid-template-columns:1fr 1fr auto;gap:7px;margin-top:9px}
+.gb-form .field-in{padding:9px 11px;font-size:12.5px}
+.gb-form .btn{padding:9px 15px;font-size:12.5px}
+@media (max-width:520px){.gb-form{grid-template-columns:1fr}}
+
+/* فاصلهٔ یادآور هنگام ساخت جلسه */
+.rl-picks{display:flex;flex-wrap:wrap;gap:6px}
+.rl-picks .chip-btn{padding:6px 11px;font-size:12px}
+
+/* ===================== درون‌ریزی افراد ===================== */
+.pimport .card-head h3{display:flex;align-items:center;gap:7px}
+.pi-hint{font-size:12px;color:var(--muted);line-height:2;margin-bottom:12px}
+.pi-hint b{color:var(--ink-soft);font-weight:800}
+.pi-result{margin-top:13px;padding-top:12px;border-top:1px solid var(--line)}
+.pi-sum{display:flex;flex-wrap:wrap;gap:10px;font-size:12.5px;font-weight:700}
+.pi-ok{display:inline-flex;align-items:center;gap:5px;color:var(--brand-strong)}
+.pi-skip{display:inline-flex;align-items:center;gap:5px;color:var(--warn)}
+.pi-msgs{margin-top:9px;display:flex;flex-direction:column;gap:4px}
+.pi-msgs li{font-size:11.5px;color:var(--muted);line-height:1.8}
+
+/* پیام قفل‌بودن افزودن فرد */
+.locked-note{display:flex;gap:12px;align-items:flex-start;padding:15px 16px}
+.locked-note .ln-ic{width:32px;height:32px;border-radius:10px;display:grid;place-items:center;
+  background:var(--warn-soft);color:var(--warn);flex:0 0 auto}
+.locked-note b{font-size:14px;font-weight:800;display:block}
+.locked-note p{font-size:12.5px;color:var(--muted);line-height:1.95;margin-top:4px}
+
+/* ===================== کارت خالیِ برنامهٔ امروز ===================== */
+.empty-card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);
+  padding:26px 20px;text-align:center;box-shadow:var(--shadow-sm)}
+.empty-card .ec-ic{width:62px;height:62px;border-radius:19px;display:inline-grid;place-items:center;
+  background:var(--mint-soft);color:var(--brand-strong);margin-bottom:13px}
+.empty-card > b{font-size:16px;font-weight:800;display:block}
+.empty-card > p{font-size:12.5px;color:var(--muted);line-height:2;margin-top:5px}
+.ec-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin:16px 0 15px}
+.ec-stats > div{background:var(--panel-2);border-radius:13px;padding:11px 6px}
+.ec-stats b{display:block;font-size:19px;font-weight:800;color:var(--ink)}
+.ec-stats small{display:block;font-size:10.5px;color:var(--muted);margin-top:2px}
+.ec-actions{display:flex;gap:9px;justify-content:center;flex-wrap:wrap}
+.ec-actions .btn{flex:1;min-width:140px}
+
+/* ===================== کارت آکاردئونی یادآور ===================== */
+.rc-head{display:flex;align-items:center;gap:9px;width:100%;text-align:start}
+.rc-head h3{margin:0;font-size:14.5px;font-weight:800;display:flex;align-items:center;gap:7px}
+.rc-sum{margin-inline-start:auto;font-size:11.5px;font-weight:700;color:var(--brand-strong);
+  background:var(--mint-soft);border-radius:999px;padding:3px 10px;white-space:nowrap}
+.rc-caret{color:var(--muted);display:grid;place-items:center;transition:transform .2s}
+.rem-card.open .rc-caret{transform:rotate(180deg)}
+.rc-body{margin-top:13px;padding-top:13px;border-top:1px solid var(--line);animation:umIn .16s ease}
+.rc-toggle{display:flex;align-items:center;gap:10px;font-size:12.5px;font-weight:700;
+  color:var(--ink-soft);margin-bottom:12px}
+
+/* مهلت باقی‌مانده به روز */
+.due-badge{font-size:10.5px;font-weight:800;border-radius:999px;padding:2px 9px;white-space:nowrap}
+.due-badge.ok{background:var(--panel-2);color:var(--muted)}
+.due-badge.soon{background:var(--warn-soft);color:var(--warn)}
+.due-badge.today{background:var(--mint-soft);color:var(--brand-strong)}
+.due-badge.late{background:var(--danger-soft);color:var(--danger)}
+
 /* یادآور عقب‌افتاده */
 .rem.late .rtitle{color:var(--danger)}
 
@@ -1226,7 +1316,9 @@ select.field-in option{direction:rtl;text-align:right}
   line-height:1.9;margin-top:14px;padding-top:12px;border-top:1px solid var(--line)}
 
 /* تگ‌های کارت جلسه: همیشه سطر جدا، زیر محل */
-.mrow .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+/* هر تگ در سطر خودش: ارتفاع همهٔ کارت‌ها یکسان می‌ماند و با اضافه‌شدن
+   تگ بعدی چیدمان به‌هم نمی‌ریزد */
+.mrow .chips{display:flex;flex-direction:column;align-items:flex-start;gap:5px;margin-top:6px}
 
 /* برچسب دستهٔ جلسه — رنگش از پنل ادمین می‌آید */
 .cat-chip{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;

@@ -11,6 +11,7 @@ router.register('agenda', views.AgendaItemViewSet, basename='agenda')
 router.register('org-kinds', views.OrganizationKindViewSet, basename='org-kind')
 router.register('organizations', views.OrganizationViewSet, basename='organization')
 router.register('people', views.PersonViewSet, basename='person')
+router.register('guests', views.GuestViewSet, basename='guest')
 router.register('locations', views.LocationViewSet, basename='location')
 
 urlpatterns = [

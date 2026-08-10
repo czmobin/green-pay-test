@@ -14,7 +14,7 @@ function human(mins: number): string {
 }
 const short = (t: string) => t.replace(/—.*/, '').trim();
 
-type N = { id: string; kind: 'meeting' | 'invite' | 'reminder' | 'task'; title: string; sub: string; urgent?: boolean; mid: string };
+type N = { id: string; kind: 'meeting' | 'invite' | 'reminder'; title: string; sub: string; urgent?: boolean; mid: string };
 
 export default function NotificationBell() {
   const store = useStore();
@@ -36,7 +36,6 @@ export default function NotificationBell() {
   });
   store.visibleMeetings.forEach((m) => (store.minutes[m.id] ?? []).forEach((x) => {
     if (x.type === 'reminder' && !x.done) notifs.push({ id: x.id, kind: 'reminder', title: x.text, sub: remindLabel(x) || faDateLabel(m.date), mid: m.id });
-    if (x.type === 'task' && !x.done) notifs.push({ id: x.id, kind: 'task', title: x.text, sub: `مهلت: ${x.due || '—'}`, mid: m.id });
   }));
 
   const meta = {

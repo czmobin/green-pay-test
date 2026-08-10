@@ -83,12 +83,13 @@ export interface Bootstrap {
   smsEnabled: boolean;
 }
 
-async function request<T>(path: string, init?: RequestInit, retry = true): Promise<T> {
+async function request<T>(path: string, init?: RequestInit, retry = true, isForm = false): Promise<T> {
   const auth = loadToken();
   const res = await fetch(`${BASE}${path}`, {
     ...init,
     headers: {
-      'Content-Type': 'application/json',
+      // برای FormData هدر را مرورگر می‌گذارد (boundary لازم دارد)
+      ...(isForm ? {} : { 'Content-Type': 'application/json' }),
       ...(auth ? { Authorization: `Bearer ${auth}` } : {}),
       ...(init?.headers ?? {}),
     },
@@ -96,7 +97,7 @@ async function request<T>(path: string, init?: RequestInit, retry = true): Promi
   });
   if (res.status === 401 && retry && !path.startsWith('/auth/')) {
     // توکن منقضی شده — یک‌بار با refresh تازه‌اش می‌کنیم
-    if (await tryRefresh()) return request<T>(path, init, false);
+    if (await tryRefresh()) return request<T>(path, init, false, isForm);
   }
   if (res.status === 401 || res.status === 403) {
     setTokens(null, null);
@@ -132,6 +133,8 @@ export interface NewMeeting {
   synced?: boolean;
   priority?: Meeting['priority'];
   meetLink?: string;
+  /** فاصلهٔ یادآور پیش‌فرض برای همهٔ شرکت‌کنندگان (دقیقه؛ صفر = خاموش) */
+  reminderLead?: number;
 }
 
 /** فیلدهای قابل ویرایش جلسه */
@@ -314,6 +317,14 @@ export const api = {
 
   createOrg: (o: { name: string; kind: string }) => post<Organization>('/organizations/', o),
   createPerson: (p: { name: string; role: string; orgId: string; color?: string }) => post<Person>('/people/', p),
+  createGuest: (g: { name: string; role?: string; org?: string }) => post<Guest>('/guests/', g),
+  importPeople: (file: File) => {
+    const body = new FormData();
+    body.append('file', file);
+    // بدون Content-Type تا مرورگر خودش boundary فرم را بگذارد
+    return request<{ created: number; skipped: number; messages: string[]; people: Record<string, Person> }>(
+      '/people/import/', { method: 'POST', body, headers: {} }, true, true);
+  },
   createRoom: (r: { name: string; cap: string; orgId: string; address?: string; lat?: number | null; lng?: number | null }) =>
     post<Room>('/locations/', r),
   deleteOrg: (id: string) => request<void>(`/organizations/${id}/`, { method: 'DELETE' }),

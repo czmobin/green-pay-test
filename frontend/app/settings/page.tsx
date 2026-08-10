@@ -6,7 +6,8 @@ import { initials, avatarPalette, toFa } from '@/lib/data';
 import LocationDialog, { parseCoord } from '@/components/LocationDialog';
 import type { Room } from '@/lib/types';
 
-import { IconBuilding, IconRoom, IconPlus, IconTrash, IconMapPin } from '@/components/Icons';
+import { IconBuilding, IconRoom, IconPlus, IconTrash, IconMapPin, IconAlert } from '@/components/Icons';
+import PeopleImport from '@/components/PeopleImport';
 
 type Tab = 'orgs' | 'people' | 'locations';
 
@@ -121,6 +122,17 @@ export default function Settings() {
       {/* PEOPLE */}
       {tab === 'people' && (
         <>
+          {!store.isAdmin ? (
+            <div className="card def-form locked-note">
+              <span className="ln-ic"><IconAlert size={17} /></span>
+              <div>
+                <b>افزودن فرد فقط از عهدهٔ ادمین برمی‌آید</b>
+                <p>برای دعوت افراد بیرون از سازمان به یک جلسه، هنگام ساخت جلسه از بخش «مهمان خارجی» استفاده کنید.</p>
+              </div>
+            </div>
+          ) : (
+          <>
+          <PeopleImport />
           <form className="card def-form" onSubmit={addPerson}>
             <div className="card-head"><h3>فرد جدید</h3></div>
             <div className="def-form-body">
@@ -136,6 +148,8 @@ export default function Settings() {
               <button className="btn btn-primary" type="submit" disabled={busy}><IconPlus size={16} />{busy ? 'در حال ذخیره…' : 'افزودن'}</button>
             </div>
           </form>
+          </>
+          )}
           <div className="def-list">
             {Object.values(store.people).map((p) => (
               <div className="def-item" key={p.id}>
@@ -183,7 +197,7 @@ export default function Settings() {
             {Object.values(store.rooms).map((r) => (
               <div className="def-item" key={r.id}>
                 <span className="di-ic" style={{ background: 'var(--violet-soft)', color: 'var(--violet)' }}><IconRoom size={18} /></span>
-                <div><b>{r.name}</b><small>{r.address || r.cap}</small></div>
+                <div><b>{r.name}</b><small>{r.cap}</small></div>
                 {r.hasMap && <span className="map-badge" title="مختصات دارد"><IconMapPin size={12} />نقشه</span>}
                 <button className="def-more" onClick={() => setDetail(r)}>جزئیات</button>
                 <span className="def-badge">{orgName(r.orgId)}</span>

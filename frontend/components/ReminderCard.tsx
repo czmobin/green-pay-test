@@ -3,7 +3,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { useStore } from './store';
 import { api, type MeetingReminder } from '@/lib/api';
 import { toFa, fmtTime, faDate } from '@/lib/data';
-import { IconReminder, IconCheck, IconClock } from './Icons';
+import { IconReminder, IconCheck, IconClock, IconChevron } from './Icons';
 
 /** «۹۰ دقیقه» → «۱ ساعت و ۳۰ دقیقه» */
 function leadLabel(min: number): string {
@@ -21,6 +21,7 @@ export default function ReminderCard({ meetingId }: { meetingId: string }) {
   const store = useStore();
   const [data, setData] = useState<MeetingReminder | null>(null);
   const [custom, setCustom] = useState('');
+  const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
 
@@ -64,9 +65,23 @@ export default function ReminderCard({ meetingId }: { meetingId: string }) {
   const sent = data.sentAt != null;
 
   return (
-    <section className="card rem-card">
-      <div className="card-head">
+    <section className={'card rem-card' + (open ? ' open' : '')}>
+      {/* جمع‌شده باز می‌شود تا صفحهٔ جلسه با جزئیات یادآور شلوغ نشود؛
+          خلاصهٔ وضعیت روی خودِ سرصفحه دیده می‌شود. */}
+      <button className="rc-head" onClick={() => setOpen((v) => !v)} aria-expanded={open}>
         <h3><IconReminder size={17} /> یادآور پیامکی</h3>
+        <span className="rc-sum">
+          {!data.enabled ? 'خاموش'
+            : sent ? 'فرستاده شد'
+              : `${leadLabel(data.leadMinutes)} قبل`}
+        </span>
+        <span className="rc-caret"><IconChevron size={16} /></span>
+      </button>
+
+      {open && (
+      <div className="rc-body">
+      <div className="rc-toggle">
+        <span>یادآور این جلسه</span>
         <button className={'rc-switch' + (data.enabled ? ' on' : '')} disabled={busy}
           onClick={() => save({ enabled: !data.enabled })}
           aria-label={data.enabled ? 'خاموش کردن یادآور' : 'روشن کردن یادآور'}>
@@ -115,6 +130,8 @@ export default function ReminderCard({ meetingId }: { meetingId: string }) {
       )}
 
       {data.error && <p className="rc-err">آخرین تلاش ارسال ناموفق بود: {data.error}</p>}
+      </div>
+      )}
     </section>
   );
 }

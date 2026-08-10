@@ -43,7 +43,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   }
   const me = store.people[store.currentUser];
   const roleLabel: Record<string, string> = { admin: 'ادمین', ceo: 'مدیرعامل', user: 'کاربر عادی', member: 'کاربر عادی' };
-  const remCount = store.visibleMeetings.reduce((acc, m) => acc + (store.minutes[m.id] ?? []).filter((x) => x.type === 'task' || x.type === 'reminder').length, 0);
+  const remCount = store.visibleMeetings.reduce((acc, m) => acc + (store.minutes[m.id] ?? []).filter((x) => x.type === 'reminder' && !x.done).length, 0);
 
   return (
     <div className="shell">
