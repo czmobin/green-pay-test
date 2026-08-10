@@ -1461,10 +1461,10 @@ select.field-in option{direction:rtl;text-align:right}
 .fhint{display:block;font-size:11px;color:var(--muted);margin-top:5px;line-height:1.8}
 
 /* ورودی رمز با کلید چشم — دیدنِ آنچه تایپ شده جلوی خطای تایپی را می‌گیرد.
-   ورودی dir=ltr است، پس `end` برایش یعنی راست: متن راست‌چین می‌شود و
-   جای خالیِ کلید چشم در سمت چپ باز می‌ماند. */
+   ورودی dir=ltr و چپ‌چین است، ولی چون کلید چشم گوشهٔ چپ می‌نشیند، شروعِ متن
+   با padding به بعد از آن هل داده می‌شود تا حرف‌ها زیر آیکون نروند. */
 .pw-wrap{position:relative;display:block}
-.pw-wrap .pw-in{width:100%;text-align:end;padding-inline-start:46px;padding-inline-end:11px}
+.pw-wrap .pw-in{width:100%;text-align:start;padding-inline-start:46px;padding-inline-end:11px}
 .pw-eye{position:absolute;inset-inline-end:6px;top:50%;transform:translateY(-50%);
   width:36px;height:36px;border-radius:10px;display:grid;place-items:center;
   color:var(--muted);transition:.12s}
