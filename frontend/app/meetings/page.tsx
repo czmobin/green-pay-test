@@ -108,17 +108,22 @@ export default function MeetingsPage() {
   const iso = todayISO();
   const tomorrow = addDaysISO(iso, 1);
 
-  /** نزدیک‌ترین جلسهٔ پیشِ رو — لنگرِ اسکرول خودکار */
-  const nextId = useMemo(() => {
+  /**
+   * لنگرِ اسکرول خودکار: نخستین جلسهٔ همان روزی که نزدیک‌ترین جلسهٔ پیشِ رو
+   * در آن است. با تکیه بر خودِ آن جلسه، اگر روز چند جلسه داشت کاربر وسط یا
+   * ته روز فرود می‌آمد و جلسه‌های قبلیِ همان روز را نمی‌دید.
+   */
+  const anchorId = useMemo(() => {
     const hour = nowHour();
     const upcoming = rows.filter((m) => m.date > iso || (m.date === iso && m.end > hour));
-    // آخرین عضو فهرستِ نزولی، نزدیک‌ترین جلسهٔ آینده است
-    return upcoming.length ? upcoming[upcoming.length - 1].id : '';
+    if (!upcoming.length) return '';
+    const day = upcoming[upcoming.length - 1].date;   // نزدیک‌ترین روزِ پیشِ رو
+    return rows.find((m) => m.date === day)?.id ?? '';
   }, [rows, iso]);
 
   /**
-   * یک‌بار در هر ورود به صفحه روی همان جلسه می‌رویم. با `block:'center'`
-   * سرصفحهٔ چسبانِ روز رویش نمی‌افتد.
+   * یک‌بار در هر ورود به صفحه روی همان جلسه می‌رویم؛ سرصفحهٔ روز و نوار ابزار
+   * چسبان‌اند، پس به‌اندازهٔ ارتفاعشان بالاتر می‌ایستیم تا رویش نیفتند.
    *
    * وقتی کاربر خودش جستجو یا فیلتری از داشبورد آورده، نتیجه باید از بالا
    * دیده شود؛ پرش خودکار آنجا گیج‌کننده است.
@@ -126,12 +131,16 @@ export default function MeetingsPage() {
   const scrolledTo = useRef('');
   const jump = !nq && !dayFilter && !statusFilter;
   useEffect(() => {
-    if (!jump || !nextId || scrolledTo.current === nextId) return;
-    const el = document.querySelector(`[data-mid="${nextId}"]`);
-    if (!el) return;
-    scrolledTo.current = nextId;
-    el.scrollIntoView({ block: 'center', behavior: 'auto' });
-  }, [nextId, jump]);
+    if (!jump || !anchorId || scrolledTo.current === anchorId) return;
+    const el = document.querySelector(`[data-mid="${anchorId}"]`);
+    const block = el?.closest('.day-block');
+    const scroller = el?.closest('.content') as HTMLElement | null;
+    if (!el || !block || !scroller) return;
+    scrolledTo.current = anchorId;
+    const pad = (toolsRef.current?.offsetHeight ?? 0) + 12;
+    scroller.scrollTop += block.getBoundingClientRect().top
+      - scroller.getBoundingClientRect().top - pad;
+  }, [anchorId, jump]);
 
   const scope = useReveal(['.page-head', '.searchbar', '.filters', '.date-group', '.mrow']);
 

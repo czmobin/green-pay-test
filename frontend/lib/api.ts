@@ -69,6 +69,15 @@ export class UnauthorizedError extends Error {
   constructor() { super('نشست شما منقضی شده است.'); }
 }
 
+/** خلاصهٔ یادآور پیامکی که روی کارت جلسه نشان داده می‌شود */
+export interface MeetingReminderHint {
+  /** فاصله تا شروع جلسه، به دقیقه */
+  lead: number;
+  date: string;
+  hour: number;
+  sent: boolean;
+}
+
 export interface Bootstrap {
   organizations: Record<string, Organization>;
   orgKinds: Record<string, OrgKind>;
@@ -78,6 +87,8 @@ export interface Bootstrap {
   guests: Record<string, Guest>;
   meetings: Meeting[];
   minutes: Record<string, Minute[]>;
+  /** یادآور پیامکیِ خودِ کاربر برای هر جلسه — کلید: شناسهٔ جلسه */
+  reminders: Record<string, MeetingReminderHint>;
   currentUser: string | null;
   gcalConnected: boolean;
   smsEnabled: boolean;
@@ -244,6 +255,7 @@ export interface FullReport {
   totals: {
     meetings: number; past: number; hours: number; avgLength: number;
     minuteRate: number; actionRate: number;
+    entries: number; entriesPerMeeting: number;
     reminders: number; remindersStale: number; wastedHours: number;
   };
   alerts: ReportAlert[];

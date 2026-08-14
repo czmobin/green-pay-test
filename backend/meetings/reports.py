@@ -15,8 +15,8 @@ from rest_framework.response import Response
 from .models import Meeting, MinuteEntry
 from .serializers import to_float_hour, to_iso_date
 
-# آیتم‌هایی که «اقدام» به حساب می‌آیند — جلسه‌ای که هیچ‌کدام را ندارد، خروجی عملی نداشته
-ACTION_TYPES = {MinuteEntry.Type.REMINDER, MinuteEntry.Type.CALL}
+# «اقدام» یعنی یادآور — جلسه‌ای که یادآوری از دلش بیرون نیامده، خروجی عملی نداشته
+ACTION_TYPES = {MinuteEntry.Type.REMINDER}
 
 MIN_MEETINGS_FOR_RATE = 3   # زیر این تعداد، درصدها گمراه‌کننده‌اند
 
@@ -69,7 +69,7 @@ def full_report(request):
 
     # ---------- انباره‌های تجمیع ----------
     totals = dict(meetings=0, past=0, hours=0.0, action_hours=0.0,
-                  with_minutes=0, with_action=0,
+                  with_minutes=0, with_action=0, entries=0,
                   reminders=0, reminders_stale=0)
 
     people = {}                       # id -> سطر تحلیل هر فرد
@@ -98,6 +98,7 @@ def full_report(request):
         totals['hours'] += hours
         if is_past:
             totals['past'] += 1
+            totals['entries'] += len(entries)
             if entries:
                 totals['with_minutes'] += 1
             if actions:
@@ -260,6 +261,9 @@ def full_report(request):
             'avgLength': round(totals['hours'] / totals['meetings'], 2) if totals['meetings'] else 0,
             'minuteRate': _pct(totals['with_minutes'], totals['past']),
             'actionRate': _pct(totals['with_action'], totals['past']),
+            'entries': totals['entries'],
+            # میانگین آیتم صورت‌جلسه برای هر جلسهٔ برگزارشده
+            'entriesPerMeeting': round(totals['entries'] / totals['past'], 1) if totals['past'] else 0,
             'reminders': totals['reminders'],
             'remindersStale': totals['reminders_stale'],
             'wastedHours': round(totals['hours'] - totals['action_hours'], 1),

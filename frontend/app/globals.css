@@ -279,8 +279,12 @@ button.kpi:active{transform:scale(.985)}
    با wrap مستقیم روی همین سطر، جای دکمه‌ها به تعداد تگ‌ها وابسته می‌شد. */
 .detail-top{display:flex;align-items:flex-start;gap:8px;margin:4px 0 14px;flex-wrap:nowrap}
 .detail-top .back-btn{flex:0 0 auto}
-.dt-chips{flex:1 1 auto;min-width:0;display:flex;align-items:center;flex-wrap:wrap;gap:8px}
-.dt-actions{flex:0 0 auto;display:flex;align-items:center;gap:8px;margin-inline-start:auto}
+/* تگ‌ها و دکمه‌ها هم‌ارتفاعِ دکمهٔ بازگشت می‌شوند تا روی یک خط بنشینند؛
+   بدون این، سطر تگ‌ها می‌چسبید به بالای دکمه. */
+.dt-chips{flex:1 1 auto;min-width:0;display:flex;align-items:center;flex-wrap:wrap;gap:8px;
+  min-height:36px}
+.dt-actions{flex:0 0 auto;display:flex;align-items:center;gap:8px;margin-inline-start:auto;
+  min-height:36px}
 .dt-actions .edit-btn{margin-inline-start:0}
 @media (max-width:560px){
   .detail-top{gap:6px}

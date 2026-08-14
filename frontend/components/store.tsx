@@ -6,7 +6,8 @@ import type {
 } from '@/lib/types';
 import {
   api, loadToken, setTokens, UnauthorizedError,
-  type Conflict, type MeetingPatch, type MinutePatch, type NewMeeting, type NewMinute,
+  type Conflict, type MeetingPatch, type MeetingReminderHint, type MinutePatch,
+  type NewMeeting, type NewMinute,
 } from '@/lib/api';
 import { IconCheck, IconX } from './Icons';
 
@@ -32,6 +33,8 @@ interface Store {
   meetings: Meeting[];
   visibleMeetings: Meeting[];
   minutes: Record<string, Minute[]>;
+  /** یادآور پیامکیِ خودِ کاربر برای هر جلسه — کارت جلسه از همین می‌خواند */
+  reminders: Record<string, MeetingReminderHint>;
   people: Record<string, Person>;
   guests: Record<string, Guest>;
   rooms: Record<string, Room>;
@@ -121,6 +124,7 @@ export default function Providers({ children }: { children: React.ReactNode }) {
 
   const [meetings, setMeetings] = useState<Meeting[]>([]);
   const [minutes, setMinutes] = useState<Record<string, Minute[]>>({});
+  const [reminders, setReminders] = useState<Record<string, MeetingReminderHint>>({});
   const [people, setPeople] = useState<Record<string, Person>>({});
   const [guests, setGuests] = useState<Record<string, Guest>>({});
   const [rooms, setRooms] = useState<Record<string, Room>>({});
@@ -193,7 +197,7 @@ export default function Providers({ children }: { children: React.ReactNode }) {
     setNeedsProfile(false);
     setMe(null);
     setReady(true);
-    setMeetings([]); setMinutes({}); setPeople({}); setGuests({});
+    setMeetings([]); setMinutes({}); setReminders({}); setPeople({}); setGuests({});
     setRooms({}); setOrgs({}); setOrgKinds({}); setCategories({});
   }, []);
 
@@ -203,6 +207,7 @@ export default function Providers({ children }: { children: React.ReactNode }) {
       const d = await api.bootstrap();
       setMeetings(d.meetings);
       setMinutes(d.minutes);
+      setReminders(d.reminders ?? {});
       setPeople(d.people);
       setGuests(d.guests);
       setRooms(d.rooms);
@@ -496,7 +501,7 @@ export default function Providers({ children }: { children: React.ReactNode }) {
   const value = useMemo<Store>(() => ({
     authed, authChecked, needsProfile, me, signIn, completeProfile, signOut,
     ready, error, reload,
-    meetings, visibleMeetings, minutes, people, guests, rooms, orgs, orgKinds, categories,
+    meetings, visibleMeetings, minutes, reminders, people, guests, rooms, orgs, orgKinds, categories,
     getMeeting, canEdit, createMeeting, updateMeeting,
     addAgenda, updateAgenda: updateAgendaItem, deleteAgenda: deleteAgendaItem,
     respondMeeting, cancelMeeting, syncMeeting,
@@ -513,7 +518,7 @@ export default function Providers({ children }: { children: React.ReactNode }) {
     createOpen, openCreate: () => setCreateOpen(true), closeCreate: () => setCreateOpen(false),
     toast, toggleTheme,
   }), [conflicts, authed, authChecked, needsProfile, me, signIn, completeProfile, signOut,
-    ready, error, reload, meetings, visibleMeetings, minutes, people, guests, rooms, orgs, orgKinds, categories,
+    ready, error, reload, meetings, visibleMeetings, minutes, reminders, people, guests, rooms, orgs, orgKinds, categories,
     getMeeting, canEdit, createMeeting, updateMeeting, addAgenda, updateAgendaItem, deleteAgendaItem,
     respondMeeting, cancelMeeting, syncMeeting, addMinute, deleteMinute, toggleDone, updateMinute,
     addPerson, addGuest, importPeople, addRoom, addOrg, deletePerson, deleteRoom, deleteOrg, updateRoom, role, isManager, myResponse, myInvites, scope, setScope, mineCount, liveCount,

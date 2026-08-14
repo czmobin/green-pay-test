@@ -8,7 +8,8 @@ import TimePicker from './TimePicker';
 import type { AgendaItem, Meeting, Minute, MinuteType } from '@/lib/types';
 import { minuteIcon, IconDoc, IconPlus, IconTrash, IconCheck, IconClock, IconCall, IconPaperclip, IconEdit, IconList } from './Icons';
 
-const order: MinuteType[] = ['note', 'decision', 'reminder', 'call', 'letter', 'file'];
+/** انواعی که کاربر می‌تواند ثبت کند — بقیه فقط در دادهٔ قدیمی دیده می‌شوند */
+const order: MinuteType[] = ['note', 'reminder'];
 /** انواعی که وضعیت انجام دارند */
 const DONEABLE = new Set<MinuteType>(['reminder', 'call']);
 
@@ -20,41 +21,33 @@ export default function MinutesEditor({ meeting }: { meeting: Meeting }) {
   const [text, setText] = useState('');
   const [remindDate, setRemindDate] = useState('');   // تاریخ ISO یادآوری
   const [remindHour, setRemindHour] = useState(9);    // ساعت اعشاری یادآوری
-  const [who, setWho] = useState('');
-  const [phone, setPhone] = useState('');
-  const [fileName, setFileName] = useState('');
   const [agendaItem, setAgendaItem] = useState('');   // اختیاری — این آیتم ذیل کدام بند مطرح شد
 
   const [saving, setSaving] = useState(false);
-  const isFile = type === 'letter' || type === 'file';
   const bucketList = list.filter((m) => (activeP === 'general' ? !m.participant : m.participant === activeP));
   const bucketOf = (pid: string) => list.filter((m) => (pid === 'general' ? !m.participant : m.participant === pid)).length;
 
   async function add() {
-    if (!text.trim() && !(isFile && fileName)) {
-      store.toast(isFile ? 'فایل را انتخاب یا توضیح بنویسید' : 'متن صورت‌جلسه را بنویسید', 'info');
-      return;
-    }
+    if (!text.trim()) { store.toast('متن صورت‌جلسه را بنویسید', 'info'); return; }
     setSaving(true);
     await store.addMinute({
       meeting: meeting.id,
       participant: activeP === 'general' ? null : activeP,
       type,
-      text: text.trim() || fileName,
+      text: text.trim(),
       remindDate: type === 'reminder' ? (remindDate || todayISO()) : null,
       remindHour: type === 'reminder' ? remindHour : null,
-      who: type === 'call' ? who : '',
-      phone: type === 'call' ? phone : '',
-      fileName: isFile ? fileName : '',
       agendaItem: agendaItem || null,
     });
     setSaving(false);
-    setText(''); setRemindDate(''); setRemindHour(9);
-    setWho(''); setPhone(''); setFileName(''); setAgendaItem('');
+    setText(''); setRemindDate(''); setRemindHour(9); setAgendaItem('');
     store.toast(`${minuteMeta[type].label} ثبت شد`, 'ok');
   }
 
-  const counts = order.map((t) => ({ t, n: list.filter((x) => x.type === t).length })).filter((c) => c.n > 0);
+  // شمارش از روی خودِ آیتم‌ها می‌آید تا نوع‌های قدیمی هم بی‌صدا گم نشوند
+  const counts = (Object.keys(minuteMeta) as MinuteType[])
+    .map((t) => ({ t, n: list.filter((x) => x.type === t).length }))
+    .filter((c) => c.n > 0);
 
   return (
     <section className="minutes">
@@ -71,11 +64,8 @@ export default function MinutesEditor({ meeting }: { meeting: Meeting }) {
         )}
       </div>
 
-      {/* per-participant bucket selector */}
+      {/* سطل هر شرکت‌کننده؛ «عمومی» ته فهرست می‌ماند چون اسم‌ها اول خوانده می‌شوند */}
       <div className="p-buckets">
-        <button className={'pb' + (activeP === 'general' ? ' active' : '')} onClick={() => setActiveP('general')}>
-          عمومی{bucketOf('general') > 0 && <span className="pb-n num">{toFa(bucketOf('general'))}</span>}
-        </button>
         {meeting.parts.map((pid) => {
           const p = store.people[pid]; if (!p) return null;
           const n = bucketOf(pid);
@@ -86,6 +76,9 @@ export default function MinutesEditor({ meeting }: { meeting: Meeting }) {
             </button>
           );
         })}
+        <button className={'pb' + (activeP === 'general' ? ' active' : '')} onClick={() => setActiveP('general')}>
+          عمومی{bucketOf('general') > 0 && <span className="pb-n num">{toFa(bucketOf('general'))}</span>}
+        </button>
       </div>
 
       {/* composer */}
@@ -114,21 +107,6 @@ export default function MinutesEditor({ meeting }: { meeting: Meeting }) {
             </div>
           </div>
         )}
-        {type === 'call' && (
-          <div className="extra">
-            <input className="field-in" type="text" value={who} onChange={(e) => setWho(e.target.value)} placeholder="با چه کسی" />
-            <input className="field-in num" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="شمارهٔ تماس" />
-          </div>
-        )}
-        {isFile && (
-          <div className="extra">
-            <label className="file-btn full">
-              <IconPaperclip size={15} />
-              <span className="fn">{fileName || (type === 'letter' ? 'انتخاب نامه (پیوست)' : 'انتخاب فایل')}</span>
-              <input type="file" hidden onChange={(e) => setFileName(e.target.files?.[0]?.name ?? '')} />
-            </label>
-          </div>
-        )}
 
         {meeting.agenda.length > 0 && (
           <div className="extra">
@@ -152,7 +130,7 @@ export default function MinutesEditor({ meeting }: { meeting: Meeting }) {
         <div className="empty">
           <div><IconDoc size={34} /></div>
           {activeP === 'general'
-            ? 'صورت‌جلسهٔ عمومی خالی است — یادداشت، تصمیم، یادآور، تماس، نامه یا فایل اضافه کنید.'
+            ? 'صورت‌جلسهٔ عمومی خالی است — یادداشت یا یادآور اضافه کنید.'
             : `برای «${store.people[activeP]?.name}» هنوز موردی ثبت نشده.`}
         </div>
       ) : (
@@ -284,15 +262,7 @@ function MinuteRow({ m, mid, agenda }: { m: Minute; mid: string; agenda: AgendaI
 }
 
 function placeholderFor(t: MinuteType): string {
-  switch (t) {
-    case 'note': return 'یادداشت آزاد از جلسه…';
-    case 'decision': return 'تصمیم گرفته‌شده در جلسه را بنویسید…';
-    case 'reminder': return 'چه چیزی را باید یادآوری کرد؟';
-    case 'call': return 'موضوع تماس تلفنی…';
-    case 'letter': return 'توضیح نامه (اختیاری)…';
-    case 'file': return 'توضیح فایل (اختیاری)…';
-    default: return '';
-  }
+  return t === 'reminder' ? 'چه چیزی را باید یادآوری کرد؟' : 'یادداشت آزاد از جلسه…';
 }
 function formatClock(ts: number): string {
   const d = new Date(ts);

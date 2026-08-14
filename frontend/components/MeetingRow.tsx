@@ -19,10 +19,19 @@ export default function MeetingRow({ m, showDate = false }: { m: Meeting; showDa
       : days === -1 ? 'دیروز'
         : days > 0 ? `${toFa(days)} روز مانده` : `${toFa(-days)} روز پیش`;
 
-  // نزدیک‌ترین یادآورِ ثبت‌شده در صورت‌جلسهٔ همین جلسه
-  const remind = (minutes[m.id] ?? [])
+  /**
+   * یادآور این جلسه؛ دو منبع دارد و هر دو باید روی کارت دیده شوند:
+   *  ۱. یادآوری که در صورت‌جلسه نوشته شده،
+   *  ۲. یادآور پیامکیِ خودِ کاربر که موقع ساخت جلسه تنظیم شده — پیش‌تر فقط
+   *     مورد اول دیده می‌شد و جلسه‌ای که فقط یادآور پیامکی داشت، بی‌نشان بود.
+   */
+  const noteRemind = (minutes[m.id] ?? [])
     .filter((x) => x.type === 'reminder' && !x.done && x.remindDate)
     .sort((a, b) => (a.remindDate! + String(a.remindHour ?? 0)).localeCompare(b.remindDate! + String(b.remindHour ?? 0)))[0];
+  const sms = store.reminders[m.id];
+  const remind = noteRemind
+    ? { hour: noteRemind.remindHour, date: noteRemind.remindDate!, sms: false }
+    : sms ? { hour: sms.hour, date: sms.date, sms: true } : null;
 
   // دعوت بی‌پاسخ خودِ کاربر — مهم‌تر از وضعیت کلی جلسه است
   const waiting = store.myResponse(m) === 'pending';
@@ -40,9 +49,10 @@ export default function MeetingRow({ m, showDate = false }: { m: Meeting; showDa
           <span className="t-badge online" title="جلسهٔ آنلاین"><IconVideo size={12} /></span>
         )}
         {remind && (
-          <span className="t-badge remind" title={`یادآور: ${faDateShort(remind.remindDate!)}`}>
+          <span className="t-badge remind"
+            title={`${remind.sms ? 'یادآور پیامکی' : 'یادآور'}: ${faDateShort(remind.date)}`}>
             <IconReminder size={12} />
-            <em className="num">{remind.remindHour != null ? fmtTime(remind.remindHour) : faDateShort(remind.remindDate!)}</em>
+            <em className="num">{remind.hour != null ? fmtTime(remind.hour) : faDateShort(remind.date)}</em>
           </span>
         )}
       </span>

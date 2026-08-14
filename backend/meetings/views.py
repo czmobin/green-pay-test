@@ -192,6 +192,20 @@ def bootstrap(request):
 
     gcal = GoogleCalendarConnection.objects.filter(user=ceo).first() if ceo else None
 
+    # یادآور پیامکیِ خودِ کاربر برای هر جلسه — کارت جلسه از همین می‌فهمد که
+    # یادآور تنظیم شده، حتی وقتی هیچ آیتم یادآوری در صورت‌جلسه نیست.
+    reminders = {}
+    for row in (MeetingReminder.objects
+                .filter(user=request.user, enabled=True)
+                .select_related('meeting')):
+        send_at = row.send_at
+        reminders[str(row.meeting_id)] = {
+            'lead': row.lead_minutes,
+            'date': to_iso(send_at),
+            'hour': hour_of(send_at),
+            'sent': row.sent_at is not None,
+        }
+
     return Response({
         'organizations': _by_id(OrganizationSerializer(
             Organization.objects.select_related('kind'), many=True).data),
@@ -202,6 +216,7 @@ def bootstrap(request):
         'guests': _by_id(GuestSerializer(guests, many=True).data),
         'meetings': MeetingSerializer(meetings_queryset(request.user), many=True).data,
         'minutes': minutes,
+        'reminders': reminders,
         'currentUser': str(request.user.pk),
         'currentRole': request.user.role,
         'isManager': is_manager(request.user),
