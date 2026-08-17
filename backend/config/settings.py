@@ -39,6 +39,22 @@ SECRET_KEY = os.environ.get('SECRET_KEY', 'dev-insecure-change-me')
 DEBUG = os.environ.get('DEBUG', '1') == '1'
 ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', '*').split(',')
 
+# پشت nginx، خودِ اتصال به Django ساده است؛ اسکیم واقعی از این هدر خوانده
+# می‌شود تا request.is_secure() و نشانی‌های ساخته‌شده https باشند.
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
+# پنل ادمین با نشست و CSRF کار می‌کند؛ روی دامنهٔ https باید مبدأ مورد اعتماد
+# اعلام شود وگرنه فرم ورود با خطای «Origin checking failed» رد می‌شود.
+# (API با JWT است و CSRF ندارد.)
+CSRF_TRUSTED_ORIGINS = [
+    o.strip() for o in os.environ.get('CSRF_TRUSTED_ORIGINS', '').split(',') if o.strip()
+]
+
+# کوکی‌ها فقط روی https فرستاده شوند — وقتی TLS برقرار است
+if os.environ.get('SECURE_COOKIES', '0') == '1':
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+
 INSTALLED_APPS = [
     'django.contrib.admin',
     'django.contrib.auth',

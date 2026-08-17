@@ -16,6 +16,14 @@ npm-debug.log*
 .env
 .env*.local
 
+# گواهی و کلید TLS — کلید خصوصی هیچ‌وقت نباید وارد مخزن شود (مخزن عمومی است)
+*.key
+*.pem
+*.crt
+*.p12
+*.pfx
+*Fullchain*
+
 # editor
 .vscode/
 .idea/
