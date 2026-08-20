@@ -16,7 +16,10 @@ const DONEABLE = new Set<MinuteType>(['reminder', 'call']);
 export default function MinutesEditor({ meeting }: { meeting: Meeting }) {
   const store = useStore();
   const list = store.minutes[meeting.id] ?? [];
-  const [activeP, setActiveP] = useState<string>('general');
+  /* پیش‌فرض روی سطلِ خودِ کاربر است، نه «عمومی» — آدم معمولاً می‌آید چیزی
+     برای خودش بنویسد؛ اگر در این جلسه نباشد، عمومی می‌ماند. */
+  const [activeP, setActiveP] = useState<string>(
+    () => (meeting.parts.includes(store.currentUser) ? store.currentUser : 'general'));
   const [type, setType] = useState<MinuteType>('note');
   const [text, setText] = useState('');
   const [remindDate, setRemindDate] = useState('');   // تاریخ ISO یادآوری
@@ -93,9 +96,12 @@ export default function MinutesEditor({ meeting }: { meeting: Meeting }) {
           ))}
         </div>
 
+        {/* Enter خط تازه می‌سازد و همان‌طور هم ذخیره و نمایش داده می‌شود؛
+            برای ثبت سریع، Ctrl/⌘+Enter. */}
         <textarea value={text} onChange={(e) => setText(e.target.value)}
-          placeholder={placeholderFor(type)}
+          placeholder={placeholderFor(type)} rows={3}
           onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) add(); }} />
+        <small className="composer-hint">Enter خط تازه · Ctrl+Enter ثبت</small>
 
         {type === 'reminder' && (
           <div className="extra">

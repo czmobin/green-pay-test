@@ -1,4 +1,9 @@
-export type Role = 'admin' | 'ceo' | 'user' | 'member';
+export type Role = 'admin' | 'ceo' | 'executive' | 'user' | 'member';
+
+/** برچسب فارسی سطح دسترسی */
+export const roleLabels: Record<string, string> = {
+  admin: 'ادمین', ceo: 'مدیرعامل', executive: 'مدیر اجرایی', member: 'کاربر عادی', user: 'کاربر عادی',
+};
 /** دامنهٔ نمایش جلسات برای مدیرها */
 export type Scope = 'mine' | 'all';
 
@@ -14,7 +19,7 @@ export interface Person {
   role: string; // سمت شغلی
   color: string; // "start,end" gradient
   orgId?: string | null; // سازمان/شرکت
-  accessRole?: Role; // سطح دسترسی (admin/ceo/member)
+  accessRole?: Role; // سطح دسترسی (admin/ceo/executive/member)
 }
 
 export interface Guest {

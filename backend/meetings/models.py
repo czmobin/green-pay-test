@@ -57,6 +57,7 @@ class User(AbstractUser):
     class Role(models.TextChoices):
         ADMIN = 'admin', 'ادمین'
         CEO = 'ceo', 'مدیرعامل'
+        EXECUTIVE = 'executive', 'مدیر اجرایی'
         MEMBER = 'member', 'کاربر عادی'
 
     role = models.CharField('سطح دسترسی', max_length=10, choices=Role.choices, default=Role.MEMBER)

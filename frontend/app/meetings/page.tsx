@@ -70,6 +70,15 @@ export default function MeetingsPage() {
     return map;
   }, [store.visibleMeetings]);
 
+  /** تعداد جلسهٔ هر محل — جلسهٔ آنلاین محل ندارد و شمرده نمی‌شود */
+  const roomCounts = useMemo(() => {
+    const map: Record<string, number> = {};
+    store.visibleMeetings.forEach((m) => {
+      if (m.room) map[m.room] = (map[m.room] ?? 0) + 1;
+    });
+    return map;
+  }, [store.visibleMeetings]);
+
   const iso0 = todayISO();
   const weekEnd = addDaysISO(iso0, 7);
   const inTime = (m: Meeting) => {
@@ -92,6 +101,7 @@ export default function MeetingsPage() {
   const rows = store.visibleMeetings
     .filter((m) => (filters.cats.length === 0 || filters.cats.includes(m.category))
       && (filters.type === 'all' || m.type === filters.type)
+      && (!filters.room || m.room === filters.room)
       && (!dayFilter || m.date === dayFilter)
       && (!statusFilter || store.myResponse(m) === statusFilter)
       && inTime(m)
@@ -184,6 +194,8 @@ export default function MeetingsPage() {
         <MeetingFilters
           categories={Object.values(store.categories)}
           counts={catCounts}
+          rooms={Object.values(store.rooms)}
+          roomCounts={roomCounts}
           value={filters}
           onChange={setFilters}
           resultCount={rows.length}

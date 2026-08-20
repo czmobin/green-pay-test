@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { useStore } from '@/components/store';
 import { useReveal } from '@/components/useReveal';
 import { initials, avatarPalette, toFa } from '@/lib/data';
+import { roleLabels } from '@/lib/types';
 import LocationDialog, { parseCoord } from '@/components/LocationDialog';
 import type { Room } from '@/lib/types';
 
@@ -159,7 +160,15 @@ export default function Settings() {
               return (
                 <div className="def-item person" key={p.id}>
                   <span className="ava" style={{ background: `linear-gradient(145deg,${p.color})` }}>{initials(p.name)}</span>
-                  <div className="di-txt"><b>{p.name}</b><small>{p.role}</small></div>
+                  <div className="di-txt">
+                    <b>{p.name}
+                      {/* سطح دسترسی فقط وقتی از «کاربر عادی» بالاتر باشد دیده می‌شود */}
+                      {p.accessRole && p.accessRole !== 'member' && p.accessRole !== 'user' && (
+                        <span className="di-role">{roleLabels[p.accessRole] ?? p.accessRole}</span>
+                      )}
+                    </b>
+                    <small>{p.role}</small>
+                  </div>
                   <span className="def-badge">{orgName(p.orgId)}</span>
                   {store.isManager && !self ? (
                     <button className="def-del" aria-label={`حذف ${p.name}`} title="حذف"

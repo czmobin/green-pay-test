@@ -44,10 +44,10 @@ def _person(user):
 
 @api_view(['GET'])
 def full_report(request):
-    from .views import is_manager   # واردکردن تنبل برای پرهیز از حلقهٔ import
+    from .views import is_manager, meetings_queryset   # تنبل، برای پرهیز از حلقهٔ import
 
     if not is_manager(request.user):
-        raise PermissionDenied('گزارش کامل فقط برای مدیرعامل و ادمین در دسترس است.')
+        raise PermissionDenied('گزارش کامل فقط برای نقش‌های مدیریتی در دسترس است.')
 
     try:
         days = int(request.query_params.get('days') or 90)
@@ -59,7 +59,9 @@ def full_report(request):
     today = now.date()
     since = now - timedelta(days=days)
 
-    meetings = (Meeting.objects
+    # گزارش هم همان دامنهٔ دیدِ کاربر را دارد؛ مدیر اجرایی نباید جلسه‌های
+    # مدیرعامل را حتی به‌صورت آمار تجمیعی ببیند.
+    meetings = (meetings_queryset(request.user)
                 .filter(start__gte=since)
                 .exclude(status=Meeting.Status.CANCELLED)
                 .select_related('category', 'organizer', 'location')

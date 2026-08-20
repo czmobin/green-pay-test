@@ -163,7 +163,21 @@ export interface Conflict {
   room?: string;
 }
 
-export type CreatedMeeting = Meeting & { conflicts?: Conflict[] };
+/** تداخل محل: همان اتاق، همان بازه — بدون نام فرد */
+export interface RoomConflict {
+  /** خالی یعنی این جلسه در دامنهٔ دید شما نیست و عنوانش پنهان مانده */
+  meeting: string;
+  meetingTitle: string;
+  date: string;
+  start: number;
+  end: number;
+  room?: string;
+}
+
+export type CreatedMeeting = Meeting & {
+  conflicts?: Conflict[];
+  roomConflicts?: RoomConflict[];
+};
 
 export interface NewMinute {
   meeting: string;
@@ -297,8 +311,9 @@ export const api = {
   createMeeting: (m: NewMeeting) => post<CreatedMeeting>('/meetings/', m),
   updateMeeting: (id: string, patch: MeetingPatch) =>
     request<CreatedMeeting>(`/meetings/${id}/`, { method: 'PATCH', body: JSON.stringify(patch) }),
-  checkConflicts: (q: { date: string; start: number; end: number; parts: string[]; guests?: string[] }) =>
-    post<{ conflicts: Conflict[] }>('/meetings/check-conflicts/', q),
+  checkConflicts: (q: { date: string; start: number; end: number; parts: string[];
+    guests?: string[]; room?: string; exclude?: string }) =>
+    post<{ conflicts: Conflict[]; roomConflicts: RoomConflict[] }>('/meetings/check-conflicts/', q),
 
   createAgenda: (a: { meeting: string; title: string; dur: number }) =>
     post<AgendaItem>('/agenda/', a),

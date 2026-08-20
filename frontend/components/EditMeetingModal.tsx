@@ -29,6 +29,11 @@ export default function EditMeetingModal(
   const [priority, setPriority] = useState<Priority>(meeting.priority ?? 'normal');
   const [meetLink, setMeetLink] = useState(meeting.meetLink ?? '');
   const [parts, setParts] = useState<string[]>(meeting.parts);
+  const [guests, setGuests] = useState<string[]>(meeting.guests);
+  const [guestOpen, setGuestOpen] = useState(false);
+  const [gName, setGName] = useState('');
+  const [gOrg, setGOrg] = useState('');
+  const [gBusy, setGBusy] = useState(false);
   const [pq, setPq] = useState('');
   const [saving, setSaving] = useState(false);
   const { setBox, dismiss } = useSheet(open, onClose);
@@ -40,6 +45,7 @@ export default function EditMeetingModal(
     setDate(meeting.date); setStart(meeting.start); setEnd(meeting.end);
     setRoom(meeting.room); setPriority(meeting.priority ?? 'normal');
     setMeetLink(meeting.meetLink ?? ''); setParts(meeting.parts); setPq('');
+    setGuests(meeting.guests); setGuestOpen(false); setGName(''); setGOrg('');
   }, [open, meeting]);
 
   const filteredPeople = useMemo(() => {
@@ -62,7 +68,7 @@ export default function EditMeetingModal(
     const updated = await store.updateMeeting(meeting.id, {
       title: title.trim(), category: cat, type, date, start, end,
       room: type === 'online' ? '' : room,
-      priority, meetLink: type === 'online' ? meetLink.trim() : '', parts,
+      priority, meetLink: type === 'online' ? meetLink.trim() : '', parts, guests,
     });
     setSaving(false);
     if (updated) { store.toast('جلسه به‌روزرسانی شد', 'ok'); dismiss(); }
@@ -163,6 +169,48 @@ export default function EditMeetingModal(
                   {p.name}
                 </button>
               ))}
+            </div>
+
+            {/* مهمان خارجی — مثل فرم ساخت، اینجا هم قابل افزودن و برداشتن است */}
+            <div className="guest-box">
+              <div className="gb-head">
+                <span>مهمان خارجی ({toFa(guests.length)})</span>
+                <button type="button" className="gb-add" onClick={() => setGuestOpen((v) => !v)}>
+                  {guestOpen ? 'بستن' : '+ افزودن مهمان'}
+                </button>
+              </div>
+
+              {guests.length > 0 && (
+                <div className="gb-list">
+                  {guests.map((id) => (
+                    <span className="gb-chip" key={id}>
+                      {store.guests[id]?.name ?? id}
+                      <button type="button" onClick={() => setGuests((g) => g.filter((x) => x !== id))}
+                        aria-label="حذف مهمان"><IconX size={12} /></button>
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              {guestOpen && (
+                <div className="gb-form">
+                  <input className="field-in" value={gName} onChange={(e) => setGName(e.target.value)}
+                    placeholder="نام و نام خانوادگی" />
+                  <input className="field-in" value={gOrg} onChange={(e) => setGOrg(e.target.value)}
+                    placeholder="سازمان (اختیاری)" />
+                  <button type="button" className="btn btn-ghost" disabled={gBusy} onClick={async () => {
+                    if (!gName.trim()) { store.toast('نام مهمان را وارد کنید', 'info'); return; }
+                    setGBusy(true);
+                    const g = await store.addGuest({ name: gName.trim(), org: gOrg.trim() });
+                    setGBusy(false);
+                    if (g) {
+                      setGuests((list) => [...list, g.id]);
+                      setGName(''); setGOrg(''); setGuestOpen(false);
+                      store.toast('مهمان اضافه شد', 'ok');
+                    }
+                  }}>{gBusy ? '…' : 'ثبت'}</button>
+                </div>
+              )}
             </div>
           </div>
         </div>

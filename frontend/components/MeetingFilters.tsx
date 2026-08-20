@@ -4,7 +4,7 @@ import Portal from './Portal';
 import { useSheet } from './useSheet';
 import DatePicker from './DatePicker';
 import { toFa, normalizeFa, faDateShort } from '@/lib/data';
-import type { Category, MeetingType } from '@/lib/types';
+import type { Category, MeetingType, Room } from '@/lib/types';
 import { IconFilter, IconX, IconSearch, IconCheck, IconChevron } from './Icons';
 
 export type TimeF = 'all' | 'today' | 'week' | 'upcoming' | 'past' | 'range';
@@ -35,13 +35,18 @@ export interface FilterState {
   from: string;
   to: string;
   type: TypeF;
+  /** شناسهٔ محل جلسه؛ خالی یعنی همهٔ محل‌ها */
+  room: string;
 }
 
-export const EMPTY_FILTERS: FilterState = { cats: [], time: 'all', from: '', to: '', type: 'all' };
+export const EMPTY_FILTERS: FilterState = {
+  cats: [], time: 'all', from: '', to: '', type: 'all', room: '',
+};
 
 /** چند فیلتر فعال است؟ — عدد روی دکمهٔ فیلتر */
 export function activeCount(v: FilterState): number {
-  return v.cats.length + (v.time !== 'all' ? 1 : 0) + (v.type !== 'all' ? 1 : 0);
+  return v.cats.length + (v.time !== 'all' ? 1 : 0) + (v.type !== 'all' ? 1 : 0)
+    + (v.room ? 1 : 0);
 }
 
 /**
@@ -56,11 +61,14 @@ export function activeCount(v: FilterState): number {
  *     این فیلتر چه چیزی باقی می‌گذارد.
  */
 export default function MeetingFilters({
-  categories, counts, value, onChange, resultCount,
+  categories, counts, rooms, roomCounts, value, onChange, resultCount,
 }: {
   categories: Category[];
   /** تعداد جلسهٔ هر دسته — مبنای مرتب‌سازی و پنهان‌کردن دسته‌های خالی */
   counts: Record<string, number>;
+  rooms: Room[];
+  /** تعداد جلسهٔ هر محل — محل بدون جلسه در فهرست نمی‌آید */
+  roomCounts: Record<string, number>;
   value: FilterState;
   onChange: (next: FilterState) => void;
   resultCount: number;
@@ -81,6 +89,12 @@ export default function MeetingFilters({
       empty: sorted.filter((c) => !(counts[c.id] ?? 0)),
     };
   }, [categories, counts]);
+
+  /** فقط محل‌هایی که جلسه‌ای در آن‌ها هست — بقیه فقط فهرست را بلند می‌کنند */
+  const usedRooms = useMemo(
+    () => rooms.filter((r) => (roomCounts[r.id] ?? 0) > 0)
+      .sort((a, b) => (roomCounts[b.id] ?? 0) - (roomCounts[a.id] ?? 0)),
+    [rooms, roomCounts]);
 
   const nq = normalizeFa(q);
   const visible = useMemo(() => {
@@ -135,6 +149,11 @@ export default function MeetingFilters({
           {value.type !== 'all' && (
             <button className="mf-tag" onClick={() => onChange({ ...value, type: 'all' })}>
               {TYPE_LABELS[value.type]}<IconX size={12} />
+            </button>
+          )}
+          {value.room && (
+            <button className="mf-tag" onClick={() => onChange({ ...value, room: '' })}>
+              {rooms.find((r) => r.id === value.room)?.name ?? value.room}<IconX size={12} />
             </button>
           )}
           {value.cats.map((id) => {
@@ -211,6 +230,24 @@ export default function MeetingFilters({
                       </button>
                     ))}
                   </div>
+                </section>
+
+                {/* ---- محل جلسه ---- */}
+                <section className="mf-sec">
+                  <h3>محل جلسه</h3>
+                  <select className="field-in mf-room" value={value.room}
+                    aria-label="محل جلسه"
+                    onChange={(e) => onChange({ ...value, room: e.target.value })}>
+                    <option value="">همهٔ محل‌ها</option>
+                    {usedRooms.map((r) => (
+                      <option key={r.id} value={r.id}>
+                        {r.name} ({toFa(roomCounts[r.id] ?? 0)})
+                      </option>
+                    ))}
+                  </select>
+                  {usedRooms.length === 0 && (
+                    <p className="mf-empty">هیچ جلسه‌ای محل ثبت‌شده ندارد.</p>
+                  )}
                 </section>
 
                 {/* ---- دسته‌بندی: دراپ‌داون، تا فهرست بلند شیت را پر نکند ---- */}

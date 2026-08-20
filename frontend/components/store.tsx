@@ -7,9 +7,15 @@ import type {
 import {
   api, loadToken, setTokens, UnauthorizedError,
   type Conflict, type MeetingPatch, type MeetingReminderHint, type MinutePatch,
-  type NewMeeting, type NewMinute,
+  type NewMeeting, type NewMinute, type RoomConflict,
 } from '@/lib/api';
 import { IconCheck, IconX } from './Icons';
+
+/** نقشِ آمده از API را به نقش داخلی نگاشت می‌کند؛ هر چیز ناشناخته کاربر عادی است. */
+const roleOf = (r?: string): Role =>
+  (r === 'ceo' || r === 'admin' || r === 'executive') ? r : 'user';
+
+const isManagerRole = (r: Role) => r === 'admin' || r === 'ceo' || r === 'executive';
 
 type ToastKind = 'ok' | 'info' | 'load';
 interface Toast { id: number; msg: string; kind: ToastKind }
@@ -95,8 +101,9 @@ interface Store {
   smsEnabled: boolean;
   toggleSms: () => Promise<void>;
 
-  /* هشدار تداخل زمانی شرکت‌کنندگان (فقط اطلاع‌رسانی) */
+  /* هشدار تداخل زمانی — شرکت‌کنندگان و محل (فقط اطلاع‌رسانی) */
   conflicts: Conflict[];
+  roomConflicts: RoomConflict[];
   dismissConflicts: () => void;
 
   /* رابط کاربری */
@@ -141,6 +148,7 @@ export default function Providers({ children }: { children: React.ReactNode }) {
 
   const [createOpen, setCreateOpen] = useState(false);
   const [conflicts, setConflicts] = useState<Conflict[]>([]);
+  const [roomConflicts, setRoomConflicts] = useState<RoomConflict[]>([]);
   const [toasts, setToasts] = useState<Toast[]>([]);
 
   /** ادمین پیش‌فرض همهٔ جلسات را می‌بیند، مدیرعامل پیش‌فرض جلسه‌های خودش را. */
@@ -171,7 +179,7 @@ export default function Providers({ children }: { children: React.ReactNode }) {
     setAuthed(true);
     setNeedsProfile(isNew);
     setCurrentUser(user.id);
-    const r: Role = user.accessRole === 'ceo' ? 'ceo' : user.accessRole === 'admin' ? 'admin' : 'user';
+    const r = roleOf(user.accessRole);
     setRole(r);
     applyDefaultScope(r);
     setReady(false);            // داده‌ها با توکن جدید دوباره خوانده می‌شوند
@@ -240,7 +248,7 @@ export default function Providers({ children }: { children: React.ReactNode }) {
         setAuthed(true);
         setNeedsProfile(Boolean(user.isNew));
         setCurrentUser((c) => c || user.id);
-        const r: Role = user.accessRole === 'ceo' ? 'ceo' : user.accessRole === 'admin' ? 'admin' : 'user';
+        const r = roleOf(user.accessRole);
         setRole(r);
         applyDefaultScope(r);
       })
@@ -275,12 +283,13 @@ export default function Providers({ children }: { children: React.ReactNode }) {
       upsertMeeting(created);
       // تداخل‌ها فقط نمایش داده می‌شوند و جلوی ساخت جلسه یا افزودن فرد را نمی‌گیرند
       setConflicts(created.conflicts ?? []);
+      setRoomConflicts(created.roomConflicts ?? []);
       return created;
     }), [guarded]);
 
   /** سازندهٔ جلسه، مدیرعامل و ادمین اجازهٔ ویرایش دارند (هم‌سو با قانون بک‌اند). */
   const canEdit = useCallback((m: Meeting) =>
-    m.organizer === currentUser || role === 'ceo' || role === 'admin',
+    m.organizer === currentUser || isManagerRole(role),
     [currentUser, role]);
 
   const updateMeeting = useCallback(async (id: string, patch: MeetingPatch) =>
@@ -288,6 +297,7 @@ export default function Providers({ children }: { children: React.ReactNode }) {
       const updated = await api.updateMeeting(id, patch);
       upsertMeeting(updated);
       setConflicts(updated.conflicts ?? []);
+      setRoomConflicts(updated.roomConflicts ?? []);
       return updated;
     }), [guarded]);
 
@@ -454,7 +464,10 @@ export default function Providers({ children }: { children: React.ReactNode }) {
   }, [guarded]);
 
   /* ---------- دسترسی ---------- */
-  const isManager = role === 'admin' || role === 'ceo';
+  // مدیر اجرایی هم مدیر است: دامنهٔ دیدش فراتر از جلسه‌های خودش است و
+  // تعریف‌ها را می‌تواند بچیند. تفاوتش با مدیرعامل را بک‌اند اعمال می‌کند —
+  // جلسه‌های مدیرعامل برایش فرستاده نمی‌شود.
+  const isManager = role === 'admin' || role === 'ceo' || role === 'executive';
   // «جلسه‌های من» یعنی جلسه‌هایی که در آن‌ها شرکت دارم — نه جلسه‌ای که فقط ساخته‌ام
   // و خودم در آن نیستم (مثلاً جلسه‌ای که برای دیگران تنظیم کرده‌ام).
   const mine = useCallback((m: Meeting) => m.parts.includes(currentUser), [currentUser]);
@@ -514,10 +527,11 @@ export default function Providers({ children }: { children: React.ReactNode }) {
     addGuest, importPeople,
     role, scope, setScope, mineCount, liveCount, canSwitchScope: isManager, currentUser, setRole, setCurrentUser,
     gcalConnected, connectGcal, smsEnabled, toggleSms,
-    conflicts, dismissConflicts: () => setConflicts([]),
+    conflicts, roomConflicts,
+    dismissConflicts: () => { setConflicts([]); setRoomConflicts([]); },
     createOpen, openCreate: () => setCreateOpen(true), closeCreate: () => setCreateOpen(false),
     toast, toggleTheme,
-  }), [conflicts, authed, authChecked, needsProfile, me, signIn, completeProfile, signOut,
+  }), [conflicts, roomConflicts, authed, authChecked, needsProfile, me, signIn, completeProfile, signOut,
     ready, error, reload, meetings, visibleMeetings, minutes, reminders, people, guests, rooms, orgs, orgKinds, categories,
     getMeeting, canEdit, createMeeting, updateMeeting, addAgenda, updateAgendaItem, deleteAgendaItem,
     respondMeeting, cancelMeeting, syncMeeting, addMinute, deleteMinute, toggleDone, updateMinute,

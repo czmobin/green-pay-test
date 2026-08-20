@@ -21,9 +21,22 @@ from .serializers import (
 )
 
 
+def is_admin(user) -> bool:
+    """ادمین اصلی — تنها کسی که هیچ جلسه‌ای از او پنهان نیست."""
+    return getattr(user, 'role', None) == User.Role.ADMIN or getattr(user, 'is_superuser', False)
+
+
 def is_manager(user) -> bool:
-    """ادمین و مدیرعامل به همهٔ جلسات دسترسی کامل دارند."""
-    return getattr(user, 'role', None) in (User.Role.ADMIN, User.Role.CEO) or user.is_superuser
+    """
+    نقش‌های مدیریتی: ادمین، مدیرعامل و مدیر اجرایی.
+
+    هر سه دامنهٔ دیدشان فراتر از جلسه‌های خودشان است و اجازهٔ ویرایش تعریف‌ها
+    را دارند؛ تفاوتشان فقط در جلسه‌های مدیرعامل است — نگاه کنید به
+    `meetings_queryset`.
+    """
+    return (getattr(user, 'role', None)
+            in (User.Role.ADMIN, User.Role.CEO, User.Role.EXECUTIVE)
+            or getattr(user, 'is_superuser', False))
 
 
 def can_edit_meeting(user, meeting) -> bool:
@@ -33,24 +46,42 @@ def can_edit_meeting(user, meeting) -> bool:
 
 def assert_can_edit(user, meeting):
     if not can_edit_meeting(user, meeting):
-        raise PermissionDenied('فقط سازندهٔ جلسه، مدیرعامل یا ادمین می‌تواند این جلسه را ویرایش کند.')
+        raise PermissionDenied('فقط سازندهٔ جلسه یا نقش‌های مدیریتی می‌توانند این جلسه را ویرایش کنند.')
 
 
 class ManagerOnlyDeleteMixin:
-    """حذف تعریف‌ها (افراد، محل‌ها، سازمان‌ها) فقط برای ادمین و مدیرعامل."""
+    """حذف تعریف‌ها (افراد، محل‌ها، سازمان‌ها) فقط برای نقش‌های مدیریتی."""
 
     def perform_destroy(self, instance):
         if not is_manager(self.request.user):
-            raise PermissionDenied('فقط مدیرعامل یا ادمین می‌تواند این مورد را حذف کند.')
+            raise PermissionDenied('حذف این مورد فقط از عهدهٔ ادمین، مدیرعامل یا مدیر اجرایی برمی‌آید.')
         instance.delete()
 
 
-def find_conflicts(start, end, user_ids, exclude_meeting_id=None):
+HIDDEN_TITLE = 'جلسهٔ دیگر'
+
+
+def _overlapping(start, end, exclude_meeting_id=None):
+    """جلسه‌های لغونشده‌ای که با این بازه هم‌پوشانی دارند."""
+    qs = (Meeting.objects
+          .filter(start__lt=end, end__gt=start)
+          .exclude(status=Meeting.Status.CANCELLED)
+          .select_related('location'))
+    if exclude_meeting_id:
+        qs = qs.exclude(pk=exclude_meeting_id)
+    return qs
+
+
+def find_conflicts(start, end, user_ids, exclude_meeting_id=None, viewer=None):
     """
     جلسه‌های هم‌زمانِ افرادِ داده‌شده را برمی‌گرداند.
 
     این فقط یک هشدار است و هیچ‌جا مانع افزودن فرد یا ساخت جلسه نمی‌شود.
     بازه‌ها وقتی تداخل دارند که start < other_end و end > other_start باشد.
+
+    اگر جلسهٔ متداخل جزو دامنهٔ دیدِ `viewer` نباشد (مثلاً جلسهٔ مدیرعامل)،
+    خبرِ گرفتاربودنِ آن فرد داده می‌شود ولی عنوان جلسه پنهان می‌ماند — وگرنه
+    همین هشدار به راهی برای خواندن عنوان جلسه‌های پنهان تبدیل می‌شد.
     """
     from .serializers import to_iso_date, to_float_hour
 
@@ -58,18 +89,16 @@ def find_conflicts(start, end, user_ids, exclude_meeting_id=None):
     if not user_ids:
         return []
 
-    qs = (Meeting.objects
-          .filter(meeting_participants__user_id__in=user_ids, start__lt=end, end__gt=start)
-          .exclude(status=Meeting.Status.CANCELLED)
-          .select_related('location')
+    qs = (_overlapping(start, end, exclude_meeting_id)
+          .filter(meeting_participants__user_id__in=user_ids)
           .prefetch_related('meeting_participants__user')
           .distinct())
-    if exclude_meeting_id:
-        qs = qs.exclude(pk=exclude_meeting_id)
 
+    visible = _visible_ids(viewer, qs)
     wanted = set(user_ids)
     conflicts = []
     for meeting in qs:
+        shown = meeting.pk in visible
         for mp in meeting.meeting_participants.all():
             if str(mp.user_id) not in wanted:
                 continue
@@ -77,14 +106,45 @@ def find_conflicts(start, end, user_ids, exclude_meeting_id=None):
             conflicts.append({
                 'user': str(mp.user_id),
                 'userName': person.get_full_name() or person.username,
-                'meeting': str(meeting.pk),
-                'meetingTitle': meeting.title,
+                'meeting': str(meeting.pk) if shown else '',
+                'meetingTitle': meeting.title if shown else HIDDEN_TITLE,
                 'date': to_iso_date(meeting.start),
                 'start': to_float_hour(meeting.start),
                 'end': to_float_hour(meeting.end),
                 'room': meeting.location.name if meeting.location_id else '',
             })
     return conflicts
+
+
+def _visible_ids(viewer, qs):
+    """از میان این جلسه‌ها، کدام‌ها برای این کاربر قابل دیدن‌اند؟"""
+    if viewer is None:
+        return {m.pk for m in qs}
+    return set(meetings_queryset(viewer)
+               .filter(pk__in=[m.pk for m in qs]).values_list('pk', flat=True))
+
+
+def find_room_conflicts(start, end, room_id, exclude_meeting_id=None, viewer=None):
+    """
+    جلسه‌های دیگری که همین محل را در همین بازه گرفته‌اند.
+
+    اتاق برخلاف آدم قابل تقسیم نیست، پس این هشدار جدی‌تر از تداخل افراد است؛
+    با این حال باز هم فقط هشدار است و جلوی ثبت را نمی‌گیرد.
+    """
+    from .serializers import to_iso_date, to_float_hour
+
+    if not room_id:
+        return []
+    qs = _overlapping(start, end, exclude_meeting_id).filter(location_id=room_id)
+    visible = _visible_ids(viewer, qs)
+    return [{
+        'meeting': str(m.pk) if m.pk in visible else '',
+        'meetingTitle': m.title if m.pk in visible else HIDDEN_TITLE,
+        'date': to_iso_date(m.start),
+        'start': to_float_hour(m.start),
+        'end': to_float_hour(m.end),
+        'room': m.location.name if m.location_id else '',
+    } for m in qs]
 
 
 def notify_cancelled(meeting) -> tuple[int, int]:
@@ -157,25 +217,54 @@ def _by_id(serializer_data):
     return {row['id']: row for row in serializer_data}
 
 
+def ceo_meeting_ids():
+    """شناسهٔ جلسه‌هایی که مدیرعامل در آن‌هاست — چه سازنده، چه شرکت‌کننده."""
+    return (Meeting.objects
+            .filter(Q(organizer__role=User.Role.CEO) | Q(participants__role=User.Role.CEO))
+            .values('pk'))
+
+
 def meetings_queryset(user=None):
-    """جلسات قابل مشاهده؛ کاربر عادی فقط جلسه‌های خودش را می‌بیند."""
+    """
+    جلسات قابل مشاهده برای این کاربر.
+
+    سه لایه:
+      • ادمین — همه چیز.
+      • مدیرعامل و مدیر اجرایی — همهٔ جلسات سازمان، به‌جز جلسه‌هایی که
+        مدیرعامل در آن‌هاست؛ آن‌ها فقط برای شرکت‌کنندگان خودشان دیده
+        می‌شوند. جلسهٔ شخصیِ مدیرعامل (که کسی جز خودش در آن نیست) با همین
+        قاعده فقط برای خودش و ادمین می‌ماند.
+      • کاربر عادی — فقط جلسه‌هایی که خودش در آن‌هاست.
+    """
     qs = (Meeting.objects
           .select_related('category', 'location', 'organizer')
           .prefetch_related('meeting_participants', 'agenda')
           .order_by('start'))
-    if user is not None and not is_manager(user):
-        qs = qs.filter(Q(organizer=user) | Q(participants=user)).distinct()
-    return qs
+    if user is None or is_admin(user):
+        return qs
+
+    mine = Q(organizer=user) | Q(participants=user)
+    if is_manager(user):
+        qs = qs.filter(mine | ~Q(pk__in=ceo_meeting_ids()))
+    else:
+        qs = qs.filter(mine)
+    return qs.distinct()
 
 
 def entries_queryset(user=None):
+    """
+    آیتم‌های صورت‌جلسه، با همان دامنهٔ دیدِ خودِ جلسات.
+
+    پیش‌تر اینجا فقط «مدیر است یا نه» بررسی می‌شد؛ با آمدن مدیر اجرایی، آن
+    قاعده صورت‌جلسهٔ جلسه‌های مدیرعامل را هم به او می‌داد. حالا هر دو از یک
+    منبع تصمیم می‌گیرند.
+    """
     qs = (MinuteEntry.objects
           .select_related('minutes', 'minutes__meeting')
           .prefetch_related('attachments')
           .order_by('-created_at'))
-    if user is not None and not is_manager(user):
-        qs = qs.filter(Q(minutes__meeting__organizer=user)
-                       | Q(minutes__meeting__participants=user)).distinct()
+    if user is not None:
+        qs = qs.filter(minutes__meeting__in=meetings_queryset(user)).distinct()
     return qs
 
 
@@ -244,7 +333,11 @@ class MeetingViewSet(viewsets.ModelViewSet):
         attendees = [str(p.user_id) for p in meeting.meeting_participants.all()]
         data = MeetingSerializer(meeting).data
         data['conflicts'] = find_conflicts(
-            meeting.start, meeting.end, attendees, exclude_meeting_id=meeting.pk)
+            meeting.start, meeting.end, attendees, exclude_meeting_id=meeting.pk,
+            viewer=request.user)
+        data['roomConflicts'] = find_room_conflicts(
+            meeting.start, meeting.end, meeting.location_id,
+            exclude_meeting_id=meeting.pk, viewer=request.user)
         return Response(data, status=status.HTTP_201_CREATED)
 
     def update(self, request, *args, **kwargs):
@@ -290,12 +383,27 @@ class MeetingViewSet(viewsets.ModelViewSet):
                     meeting=meeting, user_id=uid,
                     defaults={'is_guest': False, 'response': auto})
 
+        if 'guests' in d:
+            # مهمان‌ها مثل شرکت‌کننده‌ها قابل افزودن و برداشتن‌اند؛ پاسخ دعوتشان
+            # بی‌معناست چون حساب ورود ندارند.
+            wanted = {str(x) for x in d['guests']}
+            meeting.meeting_participants.filter(is_guest=True).exclude(user_id__in=wanted).delete()
+            existing = {str(p.user_id) for p in meeting.meeting_participants.filter(is_guest=True)}
+            for uid in wanted - existing:
+                MeetingParticipant.objects.get_or_create(
+                    meeting=meeting, user_id=uid,
+                    defaults={'is_guest': True,
+                              'response': MeetingParticipant.Response.PENDING})
+
         meeting.refresh_from_db()
         data = MeetingSerializer(meeting).data
         data['conflicts'] = find_conflicts(
             meeting.start, meeting.end,
             [str(p.user_id) for p in meeting.meeting_participants.all()],
-            exclude_meeting_id=meeting.pk)
+            exclude_meeting_id=meeting.pk, viewer=request.user)
+        data['roomConflicts'] = find_room_conflicts(
+            meeting.start, meeting.end, meeting.location_id,
+            exclude_meeting_id=meeting.pk, viewer=request.user)
         return Response(data)
 
     @action(detail=False, methods=['post'], url_path='check-conflicts')
@@ -309,9 +417,14 @@ class MeetingViewSet(viewsets.ModelViewSet):
         except (TypeError, ValueError):
             return Response({'detail': 'تاریخ یا ساعت نامعتبر است.'}, status=status.HTTP_400_BAD_REQUEST)
         users = list(request.data.get('parts', [])) + list(request.data.get('guests', []))
-        conflicts = find_conflicts(begins, ends, users,
-                                   exclude_meeting_id=request.data.get('exclude'))
-        return Response({'conflicts': conflicts})
+        exclude = request.data.get('exclude')
+        return Response({
+            'conflicts': find_conflicts(begins, ends, users, exclude_meeting_id=exclude,
+                                        viewer=request.user),
+            'roomConflicts': find_room_conflicts(begins, ends, request.data.get('room'),
+                                                 exclude_meeting_id=exclude,
+                                                 viewer=request.user),
+        })
 
     @action(detail=True, methods=['post'])
     def respond(self, request, pk=None):

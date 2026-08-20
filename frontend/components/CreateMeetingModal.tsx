@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useStore } from './store';
 import { typeLabels, toFa, fmtTime, normalizeFa, priorityLabels, priorityColor, todayISO } from '@/lib/data';
 import type { MeetingType, Priority } from '@/lib/types';
-import { api, type Conflict } from '@/lib/api';
+import { api, type Conflict, type RoomConflict } from '@/lib/api';
 import DatePicker from './DatePicker';
 import { useSheet } from './useSheet';
 import TimePicker from './TimePicker';
@@ -53,7 +53,8 @@ export default function CreateMeetingModal() {
   const [gOrg, setGOrg] = useState('');
   const [gBusy, setGBusy] = useState(false);
   const [liveConflicts, setLiveConflicts] = useState<Conflict[]>([]);
-  const [confirmConflicts, setConfirmConflicts] = useState<Conflict[] | null>(null);
+  const [liveRoomConflicts, setLiveRoomConflicts] = useState<RoomConflict[]>([]);
+  const [confirmOpen, setConfirmOpen] = useState(false);
   /* فرم فقط بعد از ساختِ موفق خالی می‌شود؛ بستنِ ساده پیش‌نویس را نگه می‌دارد.
      خالی‌کردن به پایان انیمیشن موکول می‌شود تا وسط بسته‌شدن، فرم جلوی چشم
      کاربر پاک نشود. */
@@ -107,23 +108,33 @@ export default function CreateMeetingModal() {
      صرفاً نمایشی است و هیچ‌وقت مانع انتخاب فرد یا ثبت جلسه نمی‌شود. */
   const partsKey = selectedParts.join(',');
   useEffect(() => {
-    if (!store.createOpen || !partsKey) { setLiveConflicts([]); return; }
+    if (!store.createOpen || (!partsKey && !selectedRoom)) {
+      setLiveConflicts([]); setLiveRoomConflicts([]); return;
+    }
     let alive = true;
     const t = setTimeout(() => {
-      api.checkConflicts({ date: selectedDate, start, end, parts: partsKey.split(',') })
-        .then((r) => { if (alive) setLiveConflicts(r.conflicts); })
-        .catch(() => { if (alive) setLiveConflicts([]); });
+      api.checkConflicts({
+        date: selectedDate, start, end,
+        parts: partsKey ? partsKey.split(',') : [],
+        room: selectedRoom || undefined,
+      })
+        .then((r) => {
+          if (!alive) return;
+          setLiveConflicts(r.conflicts);
+          setLiveRoomConflicts(r.roomConflicts ?? []);
+        })
+        .catch(() => { if (alive) { setLiveConflicts([]); setLiveRoomConflicts([]); } });
     }, 350);
     return () => { alive = false; clearTimeout(t); };
-  }, [store.createOpen, partsKey, selectedDate, start, end]);
+  }, [store.createOpen, partsKey, selectedRoom, selectedDate, start, end]);
 
   function reset() {
-    setConfirmConflicts(null);
+    setConfirmOpen(false);
     setTitle(''); setCat(''); setType('in_person'); setStart(10); setEnd(11);
     setRoom(''); setParts([]); setPq(''); setPriority('normal'); setMeetLink(''); setDate('');
     setGuests([]); setGuestOpen(false); setGName(''); setGOrg(''); setReminderLead(60);
     setLeadCustom(false); setLeadText('');
-    setLiveConflicts([]);
+    setLiveConflicts([]); setLiveRoomConflicts([]);
   }
   function onStart(v: number) { setStart(v); if (end <= v) setEnd(Math.min(v + 1, 23.75)); }
   function toggle(id: string) {
@@ -142,16 +153,16 @@ export default function CreateMeetingModal() {
       store.toast('فاصلهٔ یادآور را بین ۱ دقیقه تا ۷ روز بنویسید', 'info'); return;
     }
 
-    // اگر تداخلی هست، اول تأیید بگیر
-    if (liveConflicts.length > 0 && !confirmConflicts) {
-      setConfirmConflicts(liveConflicts);
+    // اگر تداخلی هست — چه افراد، چه محل — اول تأیید بگیر
+    if ((liveConflicts.length > 0 || liveRoomConflicts.length > 0) && !confirmOpen) {
+      setConfirmOpen(true);
       return;
     }
     await doCreate();
   }
 
   async function doCreate() {
-    setConfirmConflicts(null);
+    setConfirmOpen(false);
     setSaving(true);
     const created = await store.createMeeting({
       title: title.trim(), category: selectedCat, type, date: selectedDate, start, end,
@@ -214,6 +225,19 @@ export default function CreateMeetingModal() {
               </select>
             </div>
           </div>
+
+          {/* تداخل محل: اتاق برخلاف آدم قابل تقسیم نیست، پس همین‌جا زیر
+              انتخاب محل هشدار می‌دهیم — همان‌جا که تصمیمش گرفته می‌شود */}
+          {liveRoomConflicts.length > 0 && (
+            <div className="conflict-hint room">
+              <span className="ch-ic">!</span>
+              <span>
+                این محل در همین بازه {toFa(liveRoomConflicts.length)} جلسهٔ دیگر دارد
+                ({liveRoomConflicts.slice(0, 2).map((c) => c.meetingTitle).join('، ')}
+                {liveRoomConflicts.length > 2 ? ' و…' : ''}) — می‌توانید همچنان ثبت کنید.
+              </span>
+            </div>
+          )}
 
           <div className="field">
             <label>اولویت جلسه</label>
@@ -359,22 +383,35 @@ export default function CreateMeetingModal() {
           </div>
         </div>
 
-        {confirmConflicts && (
-          <div className="confirm-layer" onClick={() => setConfirmConflicts(null)}>
+        {confirmOpen && (
+          <div className="confirm-layer" onClick={() => setConfirmOpen(false)}>
             <div className="confirm-box" onClick={(e) => e.stopPropagation()}>
               <div className="cb-head"><span className="ch-ic">!</span><b>تداخل زمانی</b></div>
-              <p>
-                {Array.from(new Set(confirmConflicts.map((c) => c.userName))).join('، ')} در این بازه
-                جلسهٔ دیگری {confirmConflicts.length > 1 ? 'دارند' : 'دارد'}. آیا جلسه ساخته شود؟
-              </p>
+              {liveRoomConflicts.length > 0 && (
+                <p>
+                  محل «{store.rooms[selectedRoom]?.name ?? '—'}» در این بازه
+                  {' '}{toFa(liveRoomConflicts.length)} جلسهٔ دیگر دارد.
+                </p>
+              )}
+              {liveConflicts.length > 0 && (
+                <p>
+                  {Array.from(new Set(liveConflicts.map((c) => c.userName))).join('، ')} در این بازه
+                  جلسهٔ دیگری {liveConflicts.length > 1 ? 'دارند' : 'دارد'}.
+                </p>
+              )}
+              <p>آیا جلسه ساخته شود؟</p>
               <ul className="cb-list">
-                {confirmConflicts.slice(0, 4).map((c, i) => (
-                  <li key={i}><b>{c.userName}</b><span>{c.meetingTitle}</span>
+                {liveRoomConflicts.slice(0, 3).map((c, i) => (
+                  <li key={'r' + i}><b>محل</b><span>{c.meetingTitle}</span>
+                    <span className="num">{fmtTime(c.start)}–{fmtTime(c.end)}</span></li>
+                ))}
+                {liveConflicts.slice(0, 3).map((c, i) => (
+                  <li key={'u' + i}><b>{c.userName}</b><span>{c.meetingTitle}</span>
                     <span className="num">{fmtTime(c.start)}–{fmtTime(c.end)}</span></li>
                 ))}
               </ul>
               <div className="cb-actions">
-                <button type="button" className="btn btn-ghost" onClick={() => setConfirmConflicts(null)}>بازگشت</button>
+                <button type="button" className="btn btn-ghost" onClick={() => setConfirmOpen(false)}>بازگشت</button>
                 <button type="button" className="btn btn-primary" onClick={doCreate} disabled={saving}>
                   {saving ? 'در حال ذخیره…' : 'بله، جلسه ساخته شود'}
                 </button>
