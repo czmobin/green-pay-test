@@ -8,7 +8,7 @@ import LoginScene from '@/components/LoginScene';
 import PasswordField from '@/components/PasswordField';
 import { api } from '@/lib/api';
 import type { Person } from '@/lib/types';
-import { toFa } from '@/lib/data';
+import { toFa, digitsOf } from '@/lib/data';
 import { IconBack, IconCheck, IconSun, IconMoon } from '@/components/Icons';
 
 const CODE_LEN = 5;
@@ -73,7 +73,7 @@ export default function LoginPage() {
 
   /* ---------- خواندن خودکار کد ---------- */
   const fillCode = useCallback((code: string) => {
-    const clean = code.replace(/\D/g, '').slice(0, CODE_LEN);
+    const clean = digitsOf(code).slice(0, CODE_LEN);
     if (clean.length !== CODE_LEN) return false;
     setDigits(clean.split(''));
     setPasteHint(null);
@@ -158,7 +158,7 @@ export default function LoginPage() {
 
   const submitPhone = (e: React.FormEvent) => {
     e.preventDefault();
-    if (phone.replace(/\D/g, '').length < 10) { setMsg('شمارهٔ موبایل را کامل وارد کنید.'); return; }
+    if (digitsOf(phone).length < 10) { setMsg('شمارهٔ موبایل را کامل وارد کنید.'); return; }
     void askCode();
   };
 
@@ -173,7 +173,7 @@ export default function LoginPage() {
   /* ---------- ورود با رمز عبور ---------- */
   const submitPassword = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (phone.replace(/\D/g, '').length < 10) { setMsg('شمارهٔ موبایل را کامل وارد کنید.'); return; }
+    if (digitsOf(phone).length < 10) { setMsg('شمارهٔ موبایل را کامل وارد کنید.'); return; }
     if (!password) { setMsg('رمز عبور را وارد کنید.'); return; }
     setBusy(true); setMsg(null);
     try {
@@ -239,7 +239,7 @@ export default function LoginPage() {
   };
 
   function onDigit(i: number, raw: string) {
-    const val = raw.replace(/\D/g, '');
+    const val = digitsOf(raw);
     if (!val) { setDigits((d) => d.map((x, k) => (k === i ? '' : x))); return; }
     const next = [...digits];
     val.split('').forEach((ch, k) => { if (i + k < CODE_LEN) next[i + k] = ch; });
@@ -334,7 +334,7 @@ export default function LoginPage() {
               </button>
               <button type="button" className="lg-link"
                 onClick={() => {
-                  if (phone.replace(/\D/g, '').length < 10) { setMsg('اول شمارهٔ موبایل را وارد کنید.'); return; }
+                  if (digitsOf(phone).length < 10) { setMsg('اول شمارهٔ موبایل را وارد کنید.'); return; }
                   setResetting(true); setMsg(null); void askCode();
                 }}>
                 رمز عبورم را فراموش کرده‌ام

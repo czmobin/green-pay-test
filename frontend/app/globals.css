@@ -649,16 +649,16 @@ select.field-in option{direction:rtl;text-align:right}
 .dp-foot{margin-top:10px;padding-top:9px;border-top:1px solid var(--line);text-align:center}
 .dp-foot button{font-size:12.5px;font-weight:700;color:var(--brand)}
 
-.tp{position:relative;display:flex;align-items:center}
-.tp-in{width:100%;cursor:pointer;color:transparent}
-/* آیکون بومی مرورگر پنهان می‌شود؛ به‌جایش آیکون خودمان در برچسب فارسی است */
-.tp-in::-webkit-calendar-picker-indicator{opacity:0;width:0;padding:0;margin:0}
-/* برچسب فارسیِ ساعت؛ هنگام فوکوس جای خود را به ورودی بومی می‌دهد */
-.tp-fa{position:absolute;inset-inline-start:13px;pointer-events:none;display:inline-flex;
-  align-items:center;gap:7px;font-size:14px;font-weight:600;color:var(--ink);letter-spacing:.5px}
-.tp-fa svg{color:var(--muted);flex:0 0 auto}
-.tp:focus-within .tp-in{color:var(--ink);padding-inline-start:13px}
-.tp:focus-within .tp-fa{opacity:0}
+/* انتخاب ساعت: دو کشویی ۲۴ساعته داخل یک کادر واحد */
+.tp{display:flex;align-items:center;gap:6px;height:38px;padding:0 11px;
+  border:1px solid var(--line-strong);border-radius:10px;background:var(--panel);
+  transition:.15s}
+.tp:focus-within{border-color:var(--brand);box-shadow:0 0 0 3px color-mix(in srgb,var(--brand) 14%,transparent)}
+.tp > svg{color:var(--muted);flex:0 0 auto}
+.tp-sel{flex:1;min-width:0;border:0;background:transparent;color:var(--ink);outline:none;
+  font:inherit;font-size:14px;font-weight:600;text-align:center;cursor:pointer;
+  appearance:none;padding:0}
+.tp-sep{font-size:14px;font-weight:700;color:var(--muted);flex:0 0 auto}
 
 /* دکمهٔ حذف در فهرست تعریف‌ها */
 .def-del{width:32px;height:32px;border-radius:9px;display:grid;place-items:center;flex:0 0 auto;
@@ -1022,10 +1022,13 @@ select.field-in option{direction:rtl;text-align:right}
 .mgrid{display:grid;grid-template-columns:repeat(7,1fr)}
 .mcell{border-inline-start:1px solid var(--line);border-bottom:1px solid var(--line);min-height:62px;padding:5px 4px;
   display:flex;flex-direction:column;gap:4px;text-align:start;background:var(--panel);transition:.1s}
-.mcell:nth-child(7n){border-inline-start:0}
+/* خانهٔ اولِ هر سطر (در RTL سمت راست) لبه‌اش با کادر بیرونی یکی است */
+.mcell:nth-child(7n+1){border-inline-start:0}
 .mcell:hover{background:var(--panel-2)}
 .mcell.out{background:var(--panel-2);opacity:.45}
-.mcell .md{font-size:12px;font-weight:700;align-self:flex-end;min-width:22px;text-align:center}
+/* عدد روز وسط‌چین است تا زیر سرصفحهٔ ستون خودش بیفتد؛ با چسبیدن به لبه،
+   هر عدد زیر سرصفحهٔ ستون کناری به‌نظر می‌رسید و روز هفته اشتباه خوانده می‌شد. */
+.mcell .md{font-size:12px;font-weight:700;align-self:center;min-width:22px;text-align:center}
 .mcell.today .md{background:var(--brand);color:#fff;width:22px;height:22px;line-height:22px;border-radius:50%}
 .mcell .mdots{display:flex;gap:3px;flex-wrap:wrap;padding-inline-start:2px}
 .mcell .mdots i{width:6px;height:6px;border-radius:50%}

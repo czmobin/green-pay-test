@@ -1,4 +1,5 @@
 """ویوهای API — یک endpoint راه‌انداز (bootstrap) به‌علاوهٔ عملیات نوشتن."""
+import logging
 from django.db.models import Prefetch, Q
 from rest_framework import status, viewsets
 from rest_framework.decorators import action, api_view
@@ -19,6 +20,8 @@ from .serializers import (
     MinuteEntrySerializer, OrganizationCreateSerializer, OrganizationKindSerializer,
     OrganizationSerializer, PersonCreateSerializer, PersonSerializer, from_date_hour,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def is_admin(user) -> bool:
@@ -145,6 +148,36 @@ def find_room_conflicts(start, end, room_id, exclude_meeting_id=None, viewer=Non
         'end': to_float_hour(m.end),
         'room': m.location.name if m.location_id else '',
     } for m in qs]
+
+
+def notify_created(meeting, creator) -> tuple[int, int]:
+    """
+    به شرکت‌کنندگانِ دارای شماره خبر ساخته‌شدن جلسه را پیامک می‌کند.
+
+    خودِ سازنده کنار گذاشته می‌شود؛ کسی که همین حالا جلسه را ساخته لازم نیست
+    برای خودش پیامک بگیرد.
+    """
+    from .jalali import fa_date, fa_digits, fa_weekday
+    from .sms import send_text
+
+    local = timezone.localtime(meeting.start)
+    clock = fa_digits(f'{local.hour:02d}:{local.minute:02d}')
+    when = f'{fa_weekday(local.date())} {fa_date(local.date())} ساعت {clock}'
+    who = creator.get_full_name() or creator.username
+    text = '\n'.join([
+        f'جلسه «{meeting.title}» برای {when} توسط {who} برای شما ایجاد شد.',
+        'گرین‌پی',
+    ])
+
+    ok = bad = 0
+    for mp in meeting.meeting_participants.select_related('user'):
+        if mp.is_guest or mp.user_id == creator.id or not mp.user.phone:
+            continue
+        if send_text(mp.user.phone, text, tag='greenpay-meeting-created').sent:
+            ok += 1
+        else:
+            bad += 1
+    return ok, bad
 
 
 def notify_cancelled(meeting) -> tuple[int, int]:
@@ -326,12 +359,24 @@ class MeetingViewSet(viewsets.ModelViewSet):
         write.is_valid(raise_exception=True)
         meeting = write.save()
 
-        # دعوت هر شرکت‌کننده بی‌پاسخ می‌ماند تا خودش تأیید کند — حتی وقتی جلسه را
-        # ادمین یا مدیرعامل ساخته باشد؛ وگرنه «در انتظار تأیید من» همیشه خالی است.
+        # جلسه‌ای که نقش مدیریتی می‌گذارد، برای بقیه از پیش پذیرفته است؛ حضورشان
+        # تصمیمِ خودشان نیست که بخواهند تأییدش کنند.
+        if is_manager(request.user):
+            meeting.meeting_participants.filter(is_guest=False).update(
+                response=MeetingParticipant.Response.ACCEPTED)
+
+        # خبر ساخته‌شدن جلسه همان لحظه پیامک می‌شود؛ اگر سرویس پیامک بالا نباشد
+        # نباید ساختِ جلسه شکست بخورد.
+        try:
+            sms_ok, sms_bad = notify_created(meeting, request.user)
+        except Exception:                                   # noqa: BLE001
+            logger.exception('پیامک ساخت جلسه فرستاده نشد')
+            sms_ok = sms_bad = 0
 
         # هشدار تداخل: جلسه ساخته شده و افراد اضافه شده‌اند؛ این فقط اطلاع‌رسانی است.
         attendees = [str(p.user_id) for p in meeting.meeting_participants.all()]
         data = MeetingSerializer(meeting).data
+        data['smsSent'], data['smsFailed'] = sms_ok, sms_bad
         data['conflicts'] = find_conflicts(
             meeting.start, meeting.end, attendees, exclude_meeting_id=meeting.pk,
             viewer=request.user)
@@ -375,9 +420,9 @@ class MeetingViewSet(viewsets.ModelViewSet):
             meeting.meeting_participants.filter(is_guest=False).exclude(user_id__in=wanted).delete()
             existing = {str(p.user_id) for p in meeting.meeting_participants.filter(is_guest=False)}
             for uid in wanted - existing:
-                # فردی که تازه اضافه می‌شود دعوت‌شده است، مگر خودِ برگزارکننده
+                # برگزارکننده و هر کسی که نقش مدیریتی او را اضافه کرده، پذیرفته است
                 auto = (MeetingParticipant.Response.ACCEPTED
-                        if str(uid) == str(meeting.organizer_id)
+                        if str(uid) == str(meeting.organizer_id) or is_manager(request.user)
                         else MeetingParticipant.Response.PENDING)
                 MeetingParticipant.objects.get_or_create(
                     meeting=meeting, user_id=uid,

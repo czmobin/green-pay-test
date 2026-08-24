@@ -140,6 +140,23 @@ export function toFa(input: string | number): string {
   return String(input).replace(/[0-9]/g, (d) => '۰۱۲۳۴۵۶۷۸۹'[Number(d)]);
 }
 
+/**
+ * ارقام فارسی و عربی → لاتین.
+ *
+ * صفحه‌کلید فارسی ارقام فارسی می‌دهد و `\d` در جاوااسکریپت آن‌ها را رقم
+ * نمی‌شمارد؛ بدون این تبدیل، شماره‌ای که کاربر با ارقام فارسی می‌نویسد
+ * «خالی» به حساب می‌آمد.
+ */
+export function toEn(input: string): string {
+  return String(input).replace(/[۰-۹٠-٩]/g, (d) => {
+    const fa = '۰۱۲۳۴۵۶۷۸۹'.indexOf(d);
+    return String(fa >= 0 ? fa : '٠١٢٣٤٥٦٧٨٩'.indexOf(d));
+  });
+}
+
+/** فقط رقم‌های یک رشته، با ارقام فارسی/عربی تبدیل‌شده به لاتین */
+export const digitsOf = (input: string): string => toEn(input).replace(/\D/g, '');
+
 export function fmtTime(t: number): string {
   const h = Math.floor(t);
   const m = Math.round((t - h) * 60);
