@@ -115,6 +115,9 @@ export const IconReport = ({ size, className }: P) => (
 export const IconAlert = ({ size, className }: P) => (
   <svg {...s(size)} className={className} viewBox="0 0 24 24" {...stroke}><path d="M10.3 3.9 1.9 18a2 2 0 0 0 1.7 3h16.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z" /><path d="M12 9v4M12 17h.01" /></svg>
 );
+export const IconPrint = ({ size, className }: P) => (
+  <svg {...s(size)} className={className} viewBox="0 0 24 24" {...stroke}><path d="M7 8V3h10v5" /><rect x="3" y="8" width="18" height="8" rx="2" /><path d="M7 14h10v7H7z" /></svg>
+);
 export const IconEye = ({ size, className }: P) => (
   <svg {...s(size)} className={className} viewBox="0 0 24 24" {...stroke}><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7Z" /><circle cx="12" cy="12" r="3" /></svg>
 );

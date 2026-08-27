@@ -6,10 +6,11 @@ import { IconClock } from './Icons';
 /**
  * انتخاب ساعت — دو فهرست کشویی: ساعت و دقیقه.
  *
- * پیش‌تر از `input[type=time]` بومی استفاده می‌شد، ولی قالبش را مرورگر از
- * زبان سیستم می‌گیرد و روی خیلی از دستگاه‌ها AM/PM نشان می‌داد؛ هیچ راه
- * استانداردی هم برای اجبار به ۲۴ساعته نیست. با دو select، قالب همیشه
- * ۲۴ساعته است، ارقام فارسی‌اند و روی موبایل هم چرخ بومی باز می‌شود.
+ * `input[type=time]` بومی قالبش را از زبان سیستم می‌گیرد و روی خیلی از
+ * دستگاه‌ها AM/PM نشان می‌داد؛ راه استانداردی هم برای اجبار به ۲۴ساعته نیست.
+ *
+ * خودِ کادر ltr است تا مثل هر ساعتی خوانده شود — ساعت سمت چپ، دقیقه سمت
+ * راست — و زیر هرکدام نامش نوشته شده تا با هم اشتباه گرفته نشوند.
  *
  * مقدار داخلی برنامه ساعت اعشاری است (۱۴:۳۰ → ۱۴.۵).
  */
@@ -30,16 +31,25 @@ export default function TimePicker({
 
   return (
     <div className="tp">
-      <IconClock size={15} />
-      <select id={id} className="tp-sel num" value={hour} aria-label="ساعت"
-        onChange={(e) => set(Number(e.target.value), minute)}>
-        {hours.map((h) => <option key={h} value={h}>{two(h)}</option>)}
-      </select>
+      <span className="tp-unit">
+        <select id={id} className="tp-sel num" value={hour} aria-label="ساعت"
+          onChange={(e) => set(Number(e.target.value), minute)}>
+          {hours.map((h) => <option key={h} value={h}>{two(h)}</option>)}
+        </select>
+        <small>ساعت</small>
+      </span>
+
       <b className="tp-sep">:</b>
-      <select className="tp-sel num" value={minute} aria-label="دقیقه"
-        onChange={(e) => set(hour, Number(e.target.value))}>
-        {minutes.map((m) => <option key={m} value={m}>{two(m)}</option>)}
-      </select>
+
+      <span className="tp-unit">
+        <select className="tp-sel num" value={minute} aria-label="دقیقه"
+          onChange={(e) => set(hour, Number(e.target.value))}>
+          {minutes.map((m) => <option key={m} value={m}>{two(m)}</option>)}
+        </select>
+        <small>دقیقه</small>
+      </span>
+
+      <IconClock size={15} />
     </div>
   );
 }

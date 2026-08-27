@@ -13,7 +13,7 @@ import {
   jMonths, jWeekdays, jWeekdaysShort, jMonthLength, faWeekday, jToDate, dateToJ, addDays, sameJ,
   toGregorian, type JDate,
 } from '@/lib/jalali';
-import { IconChevron, IconBack, IconX } from './Icons';
+import { IconChevron, IconBack, IconX, IconPrint } from './Icons';
 
 type View = 'day' | 'week' | 'month' | 'year';
 // روز از ۶ صبح تا نیمه‌شب — جلسهٔ ۷ صبح هم باید دیده شود
@@ -113,6 +113,12 @@ export default function Calendar() {
           <button className="arw" onClick={() => nav(1)} aria-label="بعدی"><IconChevron size={18} /></button>
         </div>
         <h3 className="cal-title">{title}</h3>
+        {view === 'week' && (
+          <button className="cal-print" onClick={() => window.print()}
+            title="چاپ برنامهٔ هفته">
+            <IconPrint size={16} />چاپ هفته
+          </button>
+        )}
       </div>
 
       <div className="cal-view">
@@ -215,6 +221,63 @@ function WeekView({ cur, meetingsOn, open, onDay, color }: { cur: JDate; meeting
           })}
         </div>
       </div>
+      <WeekPrint days={days} meetingsOn={meetingsOn} />
+    </div>
+  );
+}
+
+/**
+ * نسخهٔ چاپیِ برنامهٔ هفته — روی صفحه دیده نمی‌شود و فقط هنگام چاپ ظاهر
+ * می‌شود. جدول شبکه‌ایِ ساعتی روی کاغذ خوانا نیست، پس اینجا هر روز یک بخش
+ * است با فهرست جلسه‌هایش: زمان، عنوان و محل.
+ */
+function WeekPrint({ days, meetingsOn }: { days: JDate[]; meetingsOn: (j: JDate) => Meeting[] }) {
+  const store = useStore();
+  const where = (m: Meeting) =>
+    m.type === 'online' ? 'جلسهٔ آنلاین' : (store.rooms[m.room]?.name ?? '—');
+  const from = days[0];
+  const to = days[days.length - 1];
+  const range = from.jm === to.jm
+    ? `${toFa(from.jd)} تا ${toFa(to.jd)} ${jMonths[from.jm - 1]} ${toFa(from.jy)}`
+    : `${toFa(from.jd)} ${jMonths[from.jm - 1]} تا ${toFa(to.jd)} ${jMonths[to.jm - 1]} ${toFa(to.jy)}`;
+  const total = days.reduce((n, j) => n + meetingsOn(j).length, 0);
+
+  return (
+    <div className="print-week">
+      <div className="pw-head">
+        <b>برنامهٔ هفتگی جلسات</b>
+        <span className="num">{range}</span>
+      </div>
+
+      {total === 0 && <p className="pw-empty">در این هفته جلسه‌ای ثبت نشده است.</p>}
+
+      {days.map((j, i) => {
+        const items = meetingsOn(j);
+        if (!items.length) return null;
+        return (
+          <section className="pw-day" key={i}>
+            <h4>
+              {jWeekdays[faWeekday(j.jy, j.jm, j.jd)]}
+              <span className="num">{toFa(j.jd)} {jMonths[j.jm - 1]}</span>
+              <em className="num">{toFa(items.length)} جلسه</em>
+            </h4>
+            <table>
+              <thead>
+                <tr><th>زمان</th><th>عنوان</th><th>محل</th></tr>
+              </thead>
+              <tbody>
+                {items.map((m) => (
+                  <tr key={m.id}>
+                    <td className="num pw-time">{fmtTime(m.start)} – {fmtTime(m.end)}</td>
+                    <td>{m.title}</td>
+                    <td>{where(m)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </section>
+        );
+      })}
     </div>
   );
 }
@@ -245,7 +308,7 @@ function MonthView({ cur, meetingsOn, onDay, color }: { cur: JDate; meetingsOn: 
               <span className="mchips only-desktop">
                 {items.slice(0, 3).map((m) => (
                   <i key={m.id} className="chip" style={{ background: `color-mix(in srgb,${color(m)} 15%,transparent)`, color: color(m) }}>
-                    <em style={{ background: color(m) }} />{m.title}
+                    <em style={{ background: color(m) }} /><span>{m.title}</span>
                   </i>
                 ))}
                 {items.length > 3 && <i className="more num">+{toFa(items.length - 3)}</i>}

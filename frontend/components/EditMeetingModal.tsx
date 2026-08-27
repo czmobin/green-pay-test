@@ -71,7 +71,14 @@ export default function EditMeetingModal(
       priority, meetLink: type === 'online' ? meetLink.trim() : '', parts, guests,
     });
     setSaving(false);
-    if (updated) { store.toast('جلسه به‌روزرسانی شد', 'ok'); dismiss(); }
+    if (!updated) return;
+    // بک‌اند فقط وقتی زمان یا محل عوض شده باشد پیامک می‌فرستد؛ همان را می‌گوییم
+    // تا ویرایش‌کننده بداند خبر به شرکت‌کنندگان رسیده است.
+    const sent = updated.smsSent ?? 0;
+    store.toast(sent > 0
+      ? `جلسه به‌روزرسانی شد — پیامک تغییر برای ${toFa(sent)} نفر رفت`
+      : 'جلسه به‌روزرسانی شد', 'ok');
+    dismiss();
   }
 
   return (

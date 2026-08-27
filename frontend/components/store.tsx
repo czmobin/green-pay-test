@@ -6,7 +6,7 @@ import type {
 } from '@/lib/types';
 import {
   api, loadToken, setTokens, UnauthorizedError,
-  type Conflict, type MeetingPatch, type MeetingReminderHint, type MinutePatch,
+  type Conflict, type CreatedMeeting, type MeetingPatch, type MeetingReminderHint, type MinutePatch,
   type NewMeeting, type NewMinute, type RoomConflict,
 } from '@/lib/api';
 import { IconCheck, IconX } from './Icons';
@@ -51,7 +51,7 @@ interface Store {
   getMeeting: (id: string) => Meeting | undefined;
   canEdit: (m: Meeting) => boolean;
   createMeeting: (m: NewMeeting) => Promise<Meeting | null>;
-  updateMeeting: (id: string, patch: MeetingPatch) => Promise<Meeting | null>;
+  updateMeeting: (id: string, patch: MeetingPatch) => Promise<CreatedMeeting | null>;
   addAgenda: (meetingId: string, item: { title: string; dur: number }) => Promise<void>;
   updateAgenda: (meetingId: string, id: string, item: { title?: string; dur?: number }) => Promise<void>;
   deleteAgenda: (meetingId: string, id: string) => Promise<void>;

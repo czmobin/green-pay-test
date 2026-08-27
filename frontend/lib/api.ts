@@ -177,6 +177,9 @@ export interface RoomConflict {
 export type CreatedMeeting = Meeting & {
   conflicts?: Conflict[];
   roomConflicts?: RoomConflict[];
+  /** پیامک خبررسانی: ساخت جلسه، و در ویرایش فقط وقتی زمان یا محل عوض شده */
+  smsSent?: number;
+  smsFailed?: number;
 };
 
 export interface NewMinute {

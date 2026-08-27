@@ -649,16 +649,20 @@ select.field-in option{direction:rtl;text-align:right}
 .dp-foot{margin-top:10px;padding-top:9px;border-top:1px solid var(--line);text-align:center}
 .dp-foot button{font-size:12.5px;font-weight:700;color:var(--brand)}
 
-/* انتخاب ساعت: دو کشویی ۲۴ساعته داخل یک کادر واحد */
-.tp{display:flex;align-items:center;gap:6px;height:38px;padding:0 11px;
-  border:1px solid var(--line-strong);border-radius:10px;background:var(--panel);
-  transition:.15s}
+/* انتخاب ساعت: دو کشویی ۲۴ساعته داخل یک کادر واحد.
+   کادر ltr است تا ساعت سمت چپ و دقیقه سمت راست بنشیند، مثل هر ساعتی. */
+.tp{direction:ltr;display:flex;align-items:center;gap:4px;min-height:44px;padding:4px 10px;
+  border:1px solid var(--line-strong);border-radius:10px;background:var(--panel);transition:.15s}
 .tp:focus-within{border-color:var(--brand);box-shadow:0 0 0 3px color-mix(in srgb,var(--brand) 14%,transparent)}
-.tp > svg{color:var(--muted);flex:0 0 auto}
-.tp-sel{flex:1;min-width:0;border:0;background:transparent;color:var(--ink);outline:none;
-  font:inherit;font-size:14px;font-weight:600;text-align:center;cursor:pointer;
-  appearance:none;padding:0}
-.tp-sep{font-size:14px;font-weight:700;color:var(--muted);flex:0 0 auto}
+.tp > svg{color:var(--muted);flex:0 0 auto;margin-inline-start:auto}
+.tp-unit{display:flex;flex-direction:column;align-items:center;min-width:0}
+.tp-unit small{font-size:9px;color:var(--muted);font-weight:700;line-height:1;margin-top:1px;
+  direction:rtl}
+.tp-sel{border:0;background:transparent;color:var(--ink);outline:none;font:inherit;
+  font-size:15px;font-weight:700;text-align:center;cursor:pointer;appearance:none;
+  padding:0 2px;line-height:1.3}
+.tp-sep{font-size:15px;font-weight:800;color:var(--muted);flex:0 0 auto;align-self:flex-start;
+  margin-top:5px}
 
 /* دکمهٔ حذف در فهرست تعریف‌ها */
 .def-del{width:32px;height:32px;border-radius:9px;display:grid;place-items:center;flex:0 0 auto;
@@ -984,6 +988,11 @@ select.field-in option{direction:rtl;text-align:right}
 .cal-nav .today-btn{border:1px solid var(--line-strong);background:var(--panel);border-radius:10px;padding:8px 14px;font-weight:700;font-size:12.5px;color:var(--ink-soft)}
 .cal-nav .today-btn:hover{border-color:var(--brand);color:var(--brand)}
 .cal-title{margin:0;font-size:16.5px;font-weight:800;letter-spacing:-.3px}
+.cal-print{margin-inline-start:auto;display:inline-flex;align-items:center;gap:6px;
+  border:1px solid var(--line-strong);background:var(--panel);border-radius:10px;
+  padding:8px 13px;font-weight:700;font-size:12.5px;color:var(--ink-soft);transition:.15s}
+.cal-print:hover{border-color:var(--brand);color:var(--brand)}
+.cal-print svg{flex:0 0 auto}
 
 /* time grid (day + week) */
 .cal-time{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow);overflow:hidden}
@@ -1017,10 +1026,12 @@ select.field-in option{direction:rtl;text-align:right}
 
 /* month */
 .month{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow);overflow:hidden}
-.mhead{display:grid;grid-template-columns:repeat(7,1fr);border-bottom:1px solid var(--line);background:var(--panel-2)}
+/* minmax(0,1fr) نه 1fr: با 1fr، عنوان بلندِ یک جلسه ستون را پهن می‌کرد و
+   ستون‌ها با سرصفحه‌ها از تراز درمی‌آمدند. */
+.mhead{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));border-bottom:1px solid var(--line);background:var(--panel-2)}
 .mhead div{padding:9px 2px;text-align:center;font-size:10.5px;font-weight:700;color:var(--muted)}
-.mgrid{display:grid;grid-template-columns:repeat(7,1fr)}
-.mcell{border-inline-start:1px solid var(--line);border-bottom:1px solid var(--line);min-height:62px;padding:5px 4px;
+.mgrid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr))}
+.mcell{min-width:0;overflow:hidden;border-inline-start:1px solid var(--line);border-bottom:1px solid var(--line);min-height:62px;padding:5px 4px;
   display:flex;flex-direction:column;gap:4px;text-align:start;background:var(--panel);transition:.1s}
 /* خانهٔ اولِ هر سطر (در RTL سمت راست) لبه‌اش با کادر بیرونی یکی است */
 .mcell:nth-child(7n+1){border-inline-start:0}
@@ -1033,9 +1044,12 @@ select.field-in option{direction:rtl;text-align:right}
 .mcell .mdots{display:flex;gap:3px;flex-wrap:wrap;padding-inline-start:2px}
 .mcell .mdots i{width:6px;height:6px;border-radius:50%}
 .mcell .mchips{display:flex;flex-direction:column;gap:3px;min-width:0}
-.mcell .mchips .chip{display:flex;align-items:center;gap:4px;font-size:10.5px;font-weight:700;padding:2px 6px;border-radius:6px;
-  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-style:normal}
+.mcell .mchips .chip{display:flex;align-items:center;gap:4px;font-size:10.5px;font-weight:700;
+  padding:2px 6px;border-radius:6px;min-width:0;overflow:hidden;font-style:normal}
 .mcell .mchips .chip em{width:5px;height:5px;border-radius:50%;flex:0 0 auto}
+/* عنوان در span جداست، نه متنِ لخت: روی یک ظرفِ flex، سه‌نقطه به متنِ بی‌نام
+   نمی‌چسبد و عنوان بلند فقط بریده می‌شد. */
+.mcell .mchips .chip span{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .mcell .mchips .more{font-size:10px;color:var(--muted);font-weight:700;font-style:normal;padding-inline-start:5px}
 
 /* year */
@@ -1639,4 +1653,53 @@ select.field-in option{direction:rtl;text-align:right}
     width:auto;max-width:none;max-height:calc(100dvh - var(--topbar-h) - 24px)}
   .cf-panel{position:fixed;top:calc(var(--topbar-h) + 8px);inset-inline:12px;width:auto;max-width:none}
   .um-panel{position:fixed;top:calc(var(--topbar-h) + 8px);inset-inline-end:12px;inset-inline-start:auto;width:min(250px,calc(100vw - 24px))}
+}
+
+/* ===================== چاپ برنامهٔ هفتگی ===================== */
+/* بلوکِ چاپ روی صفحه دیده نمی‌شود و فقط روی کاغذ باز می‌شود. */
+.print-week{display:none}
+
+@media print{
+  @page{size:A4;margin:14mm 12mm}
+
+  /* پوستهٔ برنامه قدبسته و اسکرول‌دار است (100dvh با overflow:hidden)؛ روی
+     کاغذ باید باز شود، وگرنه فقط همان یک صفحهٔ اولِ دیدرس چاپ می‌شود. */
+  html,body{height:auto;overflow:visible;background:#fff;color:#000}
+  .shell,.main{display:block;height:auto;min-height:0;overflow:visible}
+  .content{display:block;height:auto;overflow:visible;padding:0}
+  .cal-scroll{overflow:visible}
+  /* اگر انیمیشن ورود هنوز تمام نشده باشد، صفحه نیمه‌محو چاپ می‌شود */
+  .cal-view{opacity:1!important;visibility:visible!important;transform:none!important}
+
+  /* هرچه به کاغذ ربطی ندارد. جدولِ ساعتیِ هفته هم می‌رود چون جای آن را
+     همین بلوک چاپ می‌گیرد؛ نمای روز و ماه دست‌نخورده می‌مانند. */
+  .sidebar,.topbar,.bottomnav,.page-head,.cal-switch,.cal-toolbar,.cal-time.wk,
+  .modal-overlay,.notif-panel,.cf-overlay,.cf-panel,.um-panel,.toaster{display:none!important}
+
+  /* رنگ‌ها اینجا ثابت‌اند، نه از توکن‌ها: خروجی در تم تیره هم باید همان
+     سیاهِ روی سفید باشد. */
+  .print-week{display:block;color:#000;font-size:10pt;line-height:1.7}
+  .pw-head{display:flex;align-items:baseline;justify-content:space-between;gap:12pt;
+    border-bottom:1.5pt solid #000;padding-bottom:5pt;margin-bottom:10pt}
+  .pw-head b{font-size:14pt;font-weight:800}
+  .pw-head span{font-size:10pt;color:#333}
+  .pw-empty{text-align:center;color:#555;padding:20pt 0}
+
+  .pw-day{break-inside:avoid;margin-bottom:9pt}
+  .pw-day h4{display:flex;align-items:baseline;gap:7pt;margin:0 0 3pt;
+    font-size:11pt;font-weight:800;break-after:avoid}
+  .pw-day h4 span{font-weight:700;color:#333}
+  .pw-day h4 em{margin-inline-start:auto;font-style:normal;font-size:9pt;color:#555;font-weight:700}
+
+  .pw-day table{width:100%;border-collapse:collapse;table-layout:fixed}
+  /* اگر جدولِ یک روز بین دو صفحه شکست، سرستون‌ها تکرار شوند */
+  .pw-day thead{display:table-header-group}
+  .pw-day tr{break-inside:avoid}
+  .pw-day th,.pw-day td{border:.6pt solid #888;padding:3.5pt 6pt;text-align:start;
+    vertical-align:top;overflow-wrap:anywhere}
+  .pw-day th{font-size:9pt;font-weight:700;background:#eee;
+    -webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .pw-day td{font-size:10pt}
+  .pw-day th:first-child,.pw-day .pw-time{width:28mm;white-space:nowrap}
+  .pw-day th:last-child,.pw-day td:last-child{width:38mm}
 }

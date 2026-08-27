@@ -180,6 +180,37 @@ def notify_created(meeting, creator) -> tuple[int, int]:
     return ok, bad
 
 
+def notify_changed(meeting, editor, what: list[str]) -> tuple[int, int]:
+    """
+    وقتی زمان یا محل جلسه عوض شد، به شرکت‌کنندگان خبر می‌دهد.
+
+    `what` می‌گوید چه چیزی عوض شده تا متن پیامک همان را بگوید؛ تغییر عنوان یا
+    اولویت پیامک ندارد، چون کسی برنامه‌اش را بابت آن‌ها عوض نمی‌کند.
+    """
+    from .jalali import fa_date, fa_digits, fa_weekday
+    from .sms import send_text
+
+    local = timezone.localtime(meeting.start)
+    clock = fa_digits(f'{local.hour:02d}:{local.minute:02d}')
+    when = f'{fa_weekday(local.date())} {fa_date(local.date())} ساعت {clock}'
+    where = meeting.location.name if meeting.location_id else 'جلسهٔ آنلاین'
+    lines = [f'{" و ".join(what)} جلسه «{meeting.title}» تغییر کرد.',
+             f'زمان تازه: {when}',
+             f'محل: {where}',
+             'گرین‌پی']
+    text = '\n'.join(lines)
+
+    ok = bad = 0
+    for mp in meeting.meeting_participants.select_related('user'):
+        if mp.is_guest or mp.user_id == getattr(editor, 'id', None) or not mp.user.phone:
+            continue
+        if send_text(mp.user.phone, text, tag='greenpay-meeting-changed').sent:
+            ok += 1
+        else:
+            bad += 1
+    return ok, bad
+
+
 def notify_cancelled(meeting) -> tuple[int, int]:
     """به همهٔ شرکت‌کنندگانِ دارای شماره خبر لغو را پیامک می‌کند."""
     from .jalali import fa_date, fa_digits, fa_weekday
@@ -396,6 +427,9 @@ class MeetingViewSet(viewsets.ModelViewSet):
         meeting = self.get_object()
         assert_can_edit(request.user, meeting)
         d = request.data
+        # وضعیت پیش از ویرایش، برای تشخیص اینکه زمان یا محل عوض شده
+        was_start, was_end = meeting.start, meeting.end
+        was_room = meeting.location_id
 
         simple = {'title': 'title', 'priority': 'priority', 'status': 'status'}
         for src, field in simple.items():
@@ -441,7 +475,26 @@ class MeetingViewSet(viewsets.ModelViewSet):
                               'response': MeetingParticipant.Response.PENDING})
 
         meeting.refresh_from_db()
+
+        # مقایسه بعد از refresh انجام می‌شود، نه بلافاصله بعد از save: مقدارِ
+        # آمده از درخواست رشته است («۳») و کلید ذخیره‌شده عدد (۳)؛ مقایسهٔ خام
+        # همیشه «عوض شده» می‌داد و هر ویرایشِ ساده — حتی اصلاح عنوان — برای همه
+        # پیامکِ «محل جلسه تغییر کرد» می‌فرستاد.
+        changed = []
+        if meeting.start != was_start or meeting.end != was_end:
+            changed.append('زمان')
+        if meeting.location_id != was_room:
+            changed.append('محل')
+
+        sms_ok = sms_bad = 0
+        if changed and meeting.status != Meeting.Status.CANCELLED:
+            try:
+                sms_ok, sms_bad = notify_changed(meeting, request.user, changed)
+            except Exception:                               # noqa: BLE001
+                logger.exception('پیامک تغییر جلسه فرستاده نشد')
+
         data = MeetingSerializer(meeting).data
+        data['smsSent'], data['smsFailed'] = sms_ok, sms_bad
         data['conflicts'] = find_conflicts(
             meeting.start, meeting.end,
             [str(p.user_id) for p in meeting.meeting_participants.all()],

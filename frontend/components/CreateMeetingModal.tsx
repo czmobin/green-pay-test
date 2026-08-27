@@ -12,6 +12,9 @@ import { IconX, IconPlus, IconRoom, IconVideo, IconSearch } from './Icons';
 
 const PRIORITIES: Priority[] = ['low', 'normal', 'high', 'critical'];
 
+/** چند نفر پیش از جستجو در فهرست شرکت‌کنندگان نشان داده می‌شوند */
+const PEOPLE_SHOWN = 20;
+
 /** فاصله‌های آمادهٔ یادآور (دقیقه) */
 const LEADS = [0, 15, 30, 60, 120, 1440] as const;
 
@@ -75,8 +78,8 @@ export default function CreateMeetingModal() {
   const today = todayISO();
   const selectedDate = date || today;
 
-  /* پیشنهاد: ۱۰ نفری که کاربر جاری بیشترین جلسهٔ مشترک را با آن‌ها داشته،
-     به‌ترتیبِ همان تکرار. بقیه با جستجو پیدا می‌شوند. */
+  /* پیشنهاد: پرتکرارترین هم‌جلسه‌ای‌های کاربر جاری، به‌ترتیبِ همان تکرار.
+     بقیه با جستجو پیدا می‌شوند. */
   const frequent = useMemo(() => {
     const count = new Map<string, number>();
     store.meetings
@@ -84,12 +87,12 @@ export default function CreateMeetingModal() {
       .forEach((m) => m.parts.forEach((id) => count.set(id, (count.get(id) ?? 0) + 1)));
     return Object.values(store.people)
       .sort((a, b) => (count.get(b.id) ?? 0) - (count.get(a.id) ?? 0) || a.name.localeCompare(b.name))
-      .slice(0, 10)
+      .slice(0, PEOPLE_SHOWN)
       .map((p) => p.id);
   }, [store.meetings, store.people, store.currentUser]);
 
   /**
-   * حداکثر ۱۰ نفر، به‌ترتیب پرتکرارترین. انتخاب‌شده‌ها اول می‌آیند تا هیچ‌وقت
+   * حداکثر PEOPLE_SHOWN نفر، به‌ترتیب پرتکرارترین. انتخاب‌شده‌ها اول می‌آیند تا هیچ‌وقت
    * از فهرست بیرون نیفتند؛ بقیه با جستجو پیدا می‌شوند.
    */
   const filteredPeople = useMemo(() => {
@@ -97,7 +100,7 @@ export default function CreateMeetingModal() {
     const all = Object.values(store.people);
     if (nq) return all.filter((p) => normalizeFa(p.name + ' ' + p.role).includes(nq));
     const ids = [...selectedParts, ...frequent.filter((id) => !selectedParts.includes(id))];
-    return ids.slice(0, 10)
+    return ids.slice(0, PEOPLE_SHOWN)
       .map((id) => store.people[id])
       .filter((p): p is NonNullable<typeof p> => Boolean(p));
   }, [pq, store.people, frequent, selectedParts]);
