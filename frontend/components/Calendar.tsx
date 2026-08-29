@@ -226,27 +226,112 @@ function WeekView({ cur, meetingsOn, open, onDay, color }: { cur: JDate; meeting
   );
 }
 
+/** بازهٔ تاریخِ هفته، برای سرصفحهٔ هر دو نمای چاپی. */
+function weekRange(days: JDate[]): string {
+  const from = days[0];
+  const to = days[days.length - 1];
+  return from.jm === to.jm
+    ? `${toFa(from.jd)} تا ${toFa(to.jd)} ${jMonths[from.jm - 1]} ${toFa(from.jy)}`
+    : `${toFa(from.jd)} ${jMonths[from.jm - 1]} تا ${toFa(to.jd)} ${jMonths[to.jm - 1]} ${toFa(to.jy)}`;
+}
+
 /**
- * نسخهٔ چاپیِ برنامهٔ هفته — روی صفحه دیده نمی‌شود و فقط هنگام چاپ ظاهر
- * می‌شود. جدول شبکه‌ایِ ساعتی روی کاغذ خوانا نیست، پس اینجا هر روز یک بخش
- * است با فهرست جلسه‌هایش: زمان، عنوان و محل.
+ * نسخهٔ چاپیِ هفته — دو نما پشت سر هم، هرکدام روی برگهٔ خودش.
+ *
+ * نمای تقویمی برای وقتی است که کاربر می‌خواهد شکلِ هفته را ببیند: کجا شلوغ
+ * است و کجا خالی. نمای فهرستی برای وقتی که جزئیات لازم است و باید خوانده
+ * شود. هیچ‌کدام جای دیگری را نمی‌گیرد، پس هر دو چاپ می‌شوند.
  */
 function WeekPrint({ days, meetingsOn }: { days: JDate[]; meetingsOn: (j: JDate) => Meeting[] }) {
+  return (
+    <div className="print-week">
+      <WeekPrintGrid days={days} meetingsOn={meetingsOn} />
+      <WeekPrintList days={days} meetingsOn={meetingsOn} />
+    </div>
+  );
+}
+
+/**
+ * نمای تقویمیِ چاپ — شبکهٔ ساعت × روز.
+ *
+ * بازهٔ ساعت‌ها از خودِ جلسه‌ها درمی‌آید نه از ۶ تا ۲۴ ثابت: هفته‌ای که همهٔ
+ * جلسه‌هایش بعدازظهر است، نباید نصف برگه را خالی چاپ کند.
+ *
+ * جلسه در خانهٔ **ساعت شروعش** می‌نشیند و بازهٔ کاملش را می‌نویسد. کشیدنِ
+ * جلسه روی چند ردیف (rowspan) با جلسه‌های هم‌پوشان می‌شکند و روی کاغذ هم
+ * چیزی به خواننده اضافه نمی‌کند.
+ */
+function WeekPrintGrid({ days, meetingsOn }: { days: JDate[]; meetingsOn: (j: JDate) => Meeting[] }) {
+  const store = useStore();
+  const where = (m: Meeting) =>
+    m.type === 'online' ? 'آنلاین' : (store.rooms[m.room]?.name ?? '—');
+
+  const all = days.flatMap((j) => meetingsOn(j));
+  if (!all.length) return null;
+
+  const first = Math.max(START, Math.floor(Math.min(...all.map((m) => m.start))));
+  const last = Math.min(END, Math.ceil(Math.max(...all.map((m) => m.end))));
+  const hours = Array.from({ length: Math.max(1, last - first) }, (_, i) => first + i);
+
+  return (
+    <section className="pw-grid-page">
+      <div className="pw-head">
+        <b>تقویم هفتگی جلسات</b>
+        <span className="num">{weekRange(days)}</span>
+      </div>
+
+      <table className="pw-grid">
+        <thead>
+          <tr>
+            <th className="pw-hcol">ساعت</th>
+            {days.map((j, i) => (
+              <th key={i}>
+                {jWeekdays[faWeekday(j.jy, j.jm, j.jd)]}
+                <span className="num">{toFa(j.jd)} {jMonths[j.jm - 1]}</span>
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {hours.map((h) => (
+            <tr key={h}>
+              <th className="pw-hcol num">{toFa(h)}:۰۰</th>
+              {days.map((j, i) => {
+                const here = meetingsOn(j).filter((m) => Math.floor(m.start) === h);
+                return (
+                  <td key={i}>
+                    {here.map((m) => (
+                      <div className="pw-cell" key={m.id}>
+                        <b>{m.title}</b>
+                        <span className="num">{fmtTime(m.start)}–{fmtTime(m.end)}</span>
+                        <span>{where(m)}</span>
+                      </div>
+                    ))}
+                  </td>
+                );
+              })}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </section>
+  );
+}
+
+/**
+ * نمای فهرستیِ چاپ — هر روز یک بخش، با زمان و عنوان و محل.
+ */
+function WeekPrintList({ days, meetingsOn }: { days: JDate[]; meetingsOn: (j: JDate) => Meeting[] }) {
   const store = useStore();
   const where = (m: Meeting) =>
     m.type === 'online' ? 'جلسهٔ آنلاین' : (store.rooms[m.room]?.name ?? '—');
-  const from = days[0];
-  const to = days[days.length - 1];
-  const range = from.jm === to.jm
-    ? `${toFa(from.jd)} تا ${toFa(to.jd)} ${jMonths[from.jm - 1]} ${toFa(from.jy)}`
-    : `${toFa(from.jd)} ${jMonths[from.jm - 1]} تا ${toFa(to.jd)} ${jMonths[to.jm - 1]} ${toFa(to.jy)}`;
   const total = days.reduce((n, j) => n + meetingsOn(j).length, 0);
 
   return (
-    <div className="print-week">
+    <section className="pw-list-page">
       <div className="pw-head">
         <b>برنامهٔ هفتگی جلسات</b>
-        <span className="num">{range}</span>
+        <span className="num">{weekRange(days)}</span>
       </div>
 
       {total === 0 && <p className="pw-empty">در این هفته جلسه‌ای ثبت نشده است.</p>}
@@ -278,7 +363,7 @@ function WeekPrint({ days, meetingsOn }: { days: JDate[]; meetingsOn: (j: JDate)
           </section>
         );
       })}
-    </div>
+    </section>
   );
 }
 

@@ -519,8 +519,15 @@ select.field-in option{direction:rtl;text-align:right}
   .modal{border-radius:22px;max-height:88vh}
   .modal-head .grip{display:none}
   .toaster{inset-inline:auto;inset-inline-start:22px;bottom:22px;align-items:flex-start;padding:0}
-  .detail-layout{display:grid;grid-template-columns:1fr 340px;gap:18px;align-items:start}
-  .detail-layout .d-aside{position:sticky;top:18px}
+  /* minmax(0,1fr) نه 1fr: کفِ ذاتیِ ستون برابر min-content است و نوارِ
+     nowrapِ افرادِ صورت‌جلسه (.p-buckets) ستون را پهن می‌کرد تا کل شبکه از
+     عرض صفحه بیرون بزند. در موبایل شبکه‌ای نیست و همین باگ دیده نمی‌شد. */
+  .detail-layout{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:18px;align-items:start}
+  .detail-layout .d-main{min-width:0}
+  .detail-layout .d-aside{position:sticky;top:18px;min-width:0;
+    /* ستون کناری بلندتر از دیدرس، چسبندگی را بی‌اثر می‌کند؛ با سقفِ ارتفاع،
+       فهرست شرکت‌کنندگانِ بلند داخل خودش اسکرول می‌خورد. */
+    max-height:calc(100vh - 36px);overflow-y:auto;overscroll-behavior:contain}
 }
 
 @media (min-width:900px){
@@ -651,18 +658,25 @@ select.field-in option{direction:rtl;text-align:right}
 
 /* انتخاب ساعت: دو کشویی ۲۴ساعته داخل یک کادر واحد.
    کادر ltr است تا ساعت سمت چپ و دقیقه سمت راست بنشیند، مثل هر ساعتی. */
-.tp{direction:ltr;display:flex;align-items:center;gap:4px;min-height:44px;padding:4px 10px;
+/* کادر ltr است تا ساعت سمت چپ و دقیقه سمت راست بنشیند، مثل هر ساعتی.
+   آیکون position:absolute است تا از مرکزِ گروهِ ساعت/دقیقه چیزی کم نکند؛
+   وقتی هم‌ردهٔ آن‌ها بود، گروه به یک سمت می‌افتاد. */
+.tp{direction:ltr;position:relative;display:flex;align-items:center;justify-content:center;
+  min-height:44px;padding:4px 34px;
   border:1px solid var(--line-strong);border-radius:10px;background:var(--panel);transition:.15s}
 .tp:focus-within{border-color:var(--brand);box-shadow:0 0 0 3px color-mix(in srgb,var(--brand) 14%,transparent)}
-.tp > svg{color:var(--muted);flex:0 0 auto;margin-inline-start:auto}
-.tp-unit{display:flex;flex-direction:column;align-items:center;min-width:0}
-.tp-unit small{font-size:9px;color:var(--muted);font-weight:700;line-height:1;margin-top:1px;
-  direction:rtl}
+.tp > svg{color:var(--muted);position:absolute;inset-inline-end:11px;top:50%;translate:0 -50%;
+  pointer-events:none}
+
+/* ردیف اول مقدارها، ردیف دوم برچسب‌ها — دونقطه بدون عددِ جادویی هم‌تراز
+   عددها می‌ماند چون در همان ردیف است. */
+.tp-grid{display:grid;grid-template-columns:auto auto auto;grid-template-rows:auto auto;
+  align-items:center;justify-items:center;column-gap:5px;row-gap:1px}
+.tp-grid > small{font-size:9px;color:var(--muted);font-weight:700;line-height:1;direction:rtl}
 .tp-sel{border:0;background:transparent;color:var(--ink);outline:none;font:inherit;
-  font-size:15px;font-weight:700;text-align:center;cursor:pointer;appearance:none;
-  padding:0 2px;line-height:1.3}
-.tp-sep{font-size:15px;font-weight:800;color:var(--muted);flex:0 0 auto;align-self:flex-start;
-  margin-top:5px}
+  font-size:15px;font-weight:700;text-align:center;text-align-last:center;cursor:pointer;
+  appearance:none;padding:0 2px;line-height:1.3}
+.tp-sep{font-size:15px;font-weight:800;color:var(--muted);line-height:1.3}
 
 /* دکمهٔ حذف در فهرست تعریف‌ها */
 .def-del{width:32px;height:32px;border-radius:9px;display:grid;place-items:center;flex:0 0 auto;
@@ -1681,6 +1695,31 @@ select.field-in option{direction:rtl;text-align:right}
   .print-week{display:block;color:#000;font-size:10pt;line-height:1.7}
   .pw-head{display:flex;align-items:baseline;justify-content:space-between;gap:12pt;
     border-bottom:1.5pt solid #000;padding-bottom:5pt;margin-bottom:10pt}
+
+  /* --- نمای تقویمی: شبکهٔ ساعت × روز ---------------------------------
+     هفت ستون روی برگهٔ عمودی له می‌شود، پس این بخش صفحهٔ نام‌دار خودش را
+     دارد و افقی چاپ می‌شود. مرورگری که صفحهٔ نام‌دار را نشناسد، همان
+     عمودی چاپ می‌کند و جدول فقط تنگ‌تر می‌شود — نه خراب. */
+  @page landscape{size:A4 landscape;margin:12mm 10mm}
+  .pw-grid-page{page:landscape;break-after:page}
+
+  .pw-grid{width:100%;border-collapse:collapse;table-layout:fixed}
+  .pw-grid th,.pw-grid td{border:.6pt solid #888;vertical-align:top;padding:2pt 3pt}
+  .pw-grid thead th{font-size:8.5pt;font-weight:700;background:#eee;text-align:center;
+    -webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .pw-grid thead th span{display:block;font-weight:600;color:#333;font-size:7.5pt}
+  /* سرستون ساعت باریک است تا هفت ستونِ روز جا بگیرند */
+  .pw-grid .pw-hcol{width:13mm;font-size:8pt;font-weight:700;text-align:center;
+    background:#f4f4f4;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .pw-grid tbody tr{break-inside:avoid}
+  .pw-grid tbody td{height:11mm}
+  .pw-cell{border:.5pt solid #555;border-radius:1.5mm;padding:1pt 2pt;margin-bottom:1.5pt;
+    font-size:7.5pt;line-height:1.4}
+  .pw-cell b{display:block;font-weight:700;overflow-wrap:anywhere}
+  .pw-cell span{display:block;color:#333}
+
+  /* --- نمای فهرستی --------------------------------------------------- */
+  .pw-list-page{page:auto}
   .pw-head b{font-size:14pt;font-weight:800}
   .pw-head span{font-size:10pt;color:#333}
   .pw-empty{text-align:center;color:#555;padding:20pt 0}

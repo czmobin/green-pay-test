@@ -12,6 +12,10 @@ import { IconClock } from './Icons';
  * خودِ کادر ltr است تا مثل هر ساعتی خوانده شود — ساعت سمت چپ، دقیقه سمت
  * راست — و زیر هرکدام نامش نوشته شده تا با هم اشتباه گرفته نشوند.
  *
+ * چیدمان یک گرید دوردیفه است، نه چند ستونِ کنار هم: ردیف بالا مقدارها و
+ * ردیف پایین برچسب‌ها. با ستون‌های جدا، دونقطه باید با یک `margin-top`
+ * حدسی هم‌تراز عددها می‌شد و با هر تغییر اندازهٔ قلم از تراز درمی‌آمد.
+ *
  * مقدار داخلی برنامه ساعت اعشاری است (۱۴:۳۰ → ۱۴.۵).
  */
 export default function TimePicker({
@@ -31,23 +35,22 @@ export default function TimePicker({
 
   return (
     <div className="tp">
-      <span className="tp-unit">
+      {/* گرید: ردیف اول مقدارها، ردیف دوم برچسب‌ها — ترتیب DOM همان چیدمان است */}
+      <div className="tp-grid">
         <select id={id} className="tp-sel num" value={hour} aria-label="ساعت"
           onChange={(e) => set(Number(e.target.value), minute)}>
           {hours.map((h) => <option key={h} value={h}>{two(h)}</option>)}
         </select>
-        <small>ساعت</small>
-      </span>
-
-      <b className="tp-sep">:</b>
-
-      <span className="tp-unit">
+        <b className="tp-sep" aria-hidden>:</b>
         <select className="tp-sel num" value={minute} aria-label="دقیقه"
           onChange={(e) => set(hour, Number(e.target.value))}>
           {minutes.map((m) => <option key={m} value={m}>{two(m)}</option>)}
         </select>
+
+        <small>ساعت</small>
+        <span />
         <small>دقیقه</small>
-      </span>
+      </div>
 
       <IconClock size={15} />
     </div>
