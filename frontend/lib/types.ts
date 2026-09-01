@@ -5,7 +5,13 @@ export const roleLabels: Record<string, string> = {
   admin: 'ادمین', ceo: 'مدیرعامل', executive: 'مدیر اجرایی', member: 'کاربر عادی', user: 'کاربر عادی',
 };
 /** دامنهٔ نمایش جلسات برای مدیرها */
-export type Scope = 'mine' | 'all';
+/**
+ * دامنهٔ نمایش جلسات.
+ *
+ * `ceo` فقط برای ادمین معنا دارد: «جلسه‌هایی که مدیرعامل در آن‌هاست».
+ * خودِ مدیرعامل همین را زیر «جلسه‌های من» می‌بیند، پس تبِ جدا برایش تکرار است.
+ */
+export type Scope = 'mine' | 'all' | 'ceo';
 
 export type MeetingType = 'in_person' | 'online';
 export type MeetingStatus = 'confirmed' | 'pending' | 'cancelled' | 'done';

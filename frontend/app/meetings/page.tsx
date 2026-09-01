@@ -160,15 +160,19 @@ export default function MeetingsPage() {
         <h1>{
           statusFilter === 'pending' ? 'در انتظار تأیید'
             : dayFilter ? `جلسه‌های ${faWeekdayOf(dayFilter)} ${faDateShort(dayFilter)}`
-              : store.canSwitchScope && store.scope === 'mine' ? 'جلسه‌های من' : 'همهٔ جلسات'
+              : !store.canSwitchScope ? 'همهٔ جلسات'
+                : store.scope === 'mine' ? 'جلسه‌های من'
+                  : store.scope === 'ceo' ? 'جلسه‌های مدیرعامل' : 'همهٔ جلسات'
         }</h1>
         <p>جستجو در عنوان، مهمان، محل، دستورجلسه و صورت‌جلسه — یا فیلتر بر اساس دسته.</p>
         {store.canSwitchScope && (
           <p className="scope-hint">
             {store.scope === 'mine'
               ? <>نمایش <b className="num">{toFa(store.mineCount)}</b> جلسه از <b className="num">{toFa(store.meetings.length)}</b> جلسهٔ سازمان — آن‌هایی که خودتان در آن‌ها شرکت دارید.</>
-              : <>نمایش هر <b className="num">{toFa(store.meetings.length)}</b> جلسهٔ سازمان.</>}
-            {store.mineCount === store.meetings.length && store.meetings.length > 0 && (
+              : store.scope === 'ceo'
+                ? <>نمایش <b className="num">{toFa(store.ceoCount)}</b> جلسه از <b className="num">{toFa(store.meetings.length)}</b> جلسهٔ سازمان — آن‌هایی که مدیرعامل در آن‌ها شرکت دارد.</>
+                : <>نمایش هر <b className="num">{toFa(store.meetings.length)}</b> جلسهٔ سازمان.</>}
+            {store.scope === 'mine' && store.mineCount === store.meetings.length && store.meetings.length > 0 && (
               <> شما در همهٔ جلسه‌ها حضور دارید، پس دو حالت این کلید یکی است.</>
             )}
           </p>

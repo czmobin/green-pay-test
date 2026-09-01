@@ -87,6 +87,10 @@ interface Store {
   /** دامنهٔ نمایش جلسات — «mine» فقط جلسه‌های خودم، «all» جلسه‌های همه */
   scope: Scope;
   setScope: (s: Scope) => void;
+  /** شمار جلسه‌های مدیرعامل — کنار نام تب نشان داده می‌شود. */
+  ceoCount: number;
+  /** تب «مدیرعامل» فقط برای ادمین، و فقط وقتی مدیرعاملی تعریف شده باشد. */
+  canSeeCeoScope: boolean;
   /** تعداد جلسه‌های خودِ کاربر — کنار کلید دامنه نشان داده می‌شود */
   mineCount: number;
   /** تعداد کل جلسه‌های لغونشده */
@@ -156,6 +160,9 @@ export default function Providers({ children }: { children: React.ReactNode }) {
     if (scopeTouched.current) return;
     let saved: string | null = null;
     try { saved = localStorage.getItem('gp-scope'); } catch { /* حالت خصوصی مرورگر */ }
+    // «مدیرعامل» فقط برای ادمین معتبر است؛ اگر نقش کاربر عوض شده باشد، مقدارِ
+    // مانده در حافظهٔ مرورگر نباید دامنه‌ای را باز کند که دیگر حقش نیست.
+    if (saved === 'ceo' && r === 'admin') { setScopeState('ceo'); return; }
     if (saved === 'mine' || saved === 'all') { setScopeState(saved); return; }
     setScopeState(r === 'admin' ? 'all' : 'mine');
   }, []);
@@ -472,11 +479,30 @@ export default function Providers({ children }: { children: React.ReactNode }) {
   // و خودم در آن نیستم (مثلاً جلسه‌ای که برای دیگران تنظیم کرده‌ام).
   const mine = useCallback((m: Meeting) => m.parts.includes(currentUser), [currentUser]);
 
+  /**
+   * شناسهٔ افرادی که سطح دسترسی‌شان مدیرعامل است.
+   *
+   * مجموعه است نه یک شناسهٔ تکی: سازمان امروز یک مدیرعامل دارد، ولی اگر فردا
+   * دو نفر شدند این تب باید هر دو را نشان دهد نه اینکه بی‌صدا یکی را بیندازد.
+   */
+  const ceoIds = useMemo(
+    () => Object.values(people).filter((p) => p.accessRole === 'ceo').map((p) => p.id),
+    [people]);
+
+  /** جلسه‌ای که دست‌کم یک مدیرعامل در آن شرکت دارد. */
+  const isCeoMeeting = useCallback(
+    (m: Meeting) => ceoIds.some((id) => m.parts.includes(id)),
+    [ceoIds]);
+
   const liveCount = useMemo(() => meetings.filter((m) => m.status !== 'cancelled').length, [meetings]);
 
   const mineCount = useMemo(
     () => meetings.filter((m) => m.status !== 'cancelled' && mine(m)).length,
     [meetings, mine]);
+
+  const ceoCount = useMemo(
+    () => meetings.filter((m) => m.status !== 'cancelled' && isCeoMeeting(m)).length,
+    [meetings, isCeoMeeting]);
 
   /**
    * فهرست‌های اپ (داشبورد، جلسات، تقویم) جلسهٔ لغوشده را نشان نمی‌دهند؛
@@ -485,8 +511,12 @@ export default function Providers({ children }: { children: React.ReactNode }) {
    */
   const visibleMeetings = useMemo(() => {
     const live = meetings.filter((m) => m.status !== 'cancelled');
-    return (!isManager || scope === 'mine') ? live.filter(mine) : live;
-  }, [meetings, isManager, scope, mine]);
+    if (!isManager || scope === 'mine') return live.filter(mine);
+    // دامنهٔ مدیرعامل فقط دستِ ادمین است؛ شرطِ نقش اینجا هم تکرار می‌شود تا
+    // اگر روزی جای دیگری scope را ست کرد، داده از مرزش بیرون نزند.
+    if (scope === 'ceo') return role === 'admin' ? live.filter(isCeoMeeting) : live.filter(mine);
+    return live;
+  }, [meetings, isManager, role, scope, mine, isCeoMeeting]);
 
   /**
    * پاسخ خودِ کاربر به دعوت — پیش‌تر «در انتظار» روی وضعیت کل جلسه بود، یعنی
@@ -525,7 +555,9 @@ export default function Providers({ children }: { children: React.ReactNode }) {
     isAdmin: role === 'admin',
     myResponse, myInvites,
     addGuest, importPeople,
-    role, scope, setScope, mineCount, liveCount, canSwitchScope: isManager, currentUser, setRole, setCurrentUser,
+    role, scope, setScope, mineCount, liveCount, ceoCount,
+    canSwitchScope: isManager, canSeeCeoScope: role === 'admin' && ceoIds.length > 0,
+    currentUser, setRole, setCurrentUser,
     gcalConnected, connectGcal, smsEnabled, toggleSms,
     conflicts, roomConflicts,
     dismissConflicts: () => { setConflicts([]); setRoomConflicts([]); },
@@ -535,7 +567,7 @@ export default function Providers({ children }: { children: React.ReactNode }) {
     ready, error, reload, meetings, visibleMeetings, minutes, reminders, people, guests, rooms, orgs, orgKinds, categories,
     getMeeting, canEdit, createMeeting, updateMeeting, addAgenda, updateAgendaItem, deleteAgendaItem,
     respondMeeting, cancelMeeting, syncMeeting, addMinute, deleteMinute, toggleDone, updateMinute,
-    addPerson, addGuest, importPeople, addRoom, addOrg, deletePerson, deleteRoom, deleteOrg, updateRoom, role, isManager, myResponse, myInvites, scope, setScope, mineCount, liveCount,
+    addPerson, addGuest, importPeople, addRoom, addOrg, deletePerson, deleteRoom, deleteOrg, updateRoom, role, isManager, myResponse, myInvites, scope, setScope, mineCount, liveCount, ceoCount, ceoIds,
     currentUser, gcalConnected, connectGcal, smsEnabled, toggleSms,
     createOpen, toast, toggleTheme]);
 
