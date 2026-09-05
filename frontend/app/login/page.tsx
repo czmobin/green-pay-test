@@ -270,7 +270,7 @@ export default function LoginPage() {
         <aside className="login-aside only-desktop">
           <div className="lg-badge">جلسات، صورت‌جلسه و یادآورها در یک‌جا</div>
           <div className="lg-badge">تقویم شمسی با نمای روز، هفته، ماه و سال</div>
-          <div className="lg-badge">همگام‌سازی با Google Calendar</div>
+          <div className="lg-badge">همگام‌سازی با Outlook سازمانی</div>
         </aside>
 
         <main className="login-card lg-card">

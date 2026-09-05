@@ -9,7 +9,6 @@
   Meeting ─< AgendaItem                         (دستور جلسه)
   Meeting ─< Minutes (به‌ازای هر شرکت‌کننده/عمومی) ─< MinuteEntry ─< Attachment
   User ─< Notification                          (اعلان ۳۰ دقیقه قبل + پیامک)
-  User ─ GoogleCalendarConnection               (calendar موازی گوگل)
 """
 import re
 from datetime import timedelta
@@ -160,9 +159,6 @@ class Meeting(models.Model):
     )
     start = models.DateTimeField('شروع')
     end = models.DateTimeField('پایان')
-
-    google_synced = models.BooleanField('همگام با Google Calendar', default=False)
-    google_event_id = models.CharField(max_length=255, blank=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -442,20 +438,45 @@ class OtpCode(models.Model):
         return not self.is_used and not self.is_expired and self.attempts < self.MAX_ATTEMPTS
 
 
-class GoogleCalendarConnection(models.Model):
-    """اتصال حساب Google برای ساخت calendar موازی و همگام‌سازی رویدادها."""
-    user = models.OneToOneField(
-        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='google_calendar',
+class CalendarShare(models.Model):
+    """
+    اشتراک تقویم — «مبدأ» (owner) تقویم جلساتش را به «مقصد» (viewer) نشان می‌دهد.
+
+    دو چیز جدا از هم‌اند و همین‌جا از هم جدا نگه داشته می‌شوند:
+
+      • دیدن — با وجودِ همین ردیف. مقصد هر جلسه‌ای را که مبدأ می‌بیند (سازنده
+        یا شرکت‌کننده‌اش باشد) در فهرست و تقویم می‌بیند.
+      • نوشتنِ صورت‌جلسه — پیش‌فرض خاموش، و فقط مبدأ می‌تواند روشنش کند.
+        `default=False` عمداً در سطح دیتابیس است، نه در فرم؛ هر مسیر دیگری
+        هم که ردیف بسازد، خاموش می‌سازد.
+
+    حذف اشتراک از هر دو طرف ممکن است: مبدأ دسترسی را پس می‌گیرد، مقصد تقویمی
+    را که نمی‌خواهد از دید خودش برمی‌دارد.
+    """
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='calendar_shares_out',
+        verbose_name='صاحب تقویم',
     )
-    is_connected = models.BooleanField('متصل', default=False)
-    calendar_id = models.CharField('شناسهٔ کلندر موازی', max_length=255, blank=True)
-    access_token = models.CharField(max_length=255, blank=True)
-    refresh_token = models.CharField(max_length=255, blank=True)
-    synced_at = models.DateTimeField('آخرین همگام‌سازی', null=True, blank=True)
+    viewer = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='calendar_shares_in',
+        verbose_name='بیننده',
+    )
+    can_write_minutes = models.BooleanField(
+        'اجازهٔ نوشتن صورت‌جلسه', default=False,
+        help_text='پیش‌فرض خاموش؛ فقط صاحب تقویم می‌تواند روشنش کند.',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        verbose_name = 'اتصال Google Calendar'
-        verbose_name_plural = 'اتصال‌های Google Calendar'
+        verbose_name = 'اشتراک تقویم'
+        verbose_name_plural = 'اشتراک‌های تقویم'
+        ordering = ['owner_id', 'viewer_id']
+        constraints = [
+            models.UniqueConstraint(fields=['owner', 'viewer'], name='uniq_calendar_share'),
+            models.CheckConstraint(check=~models.Q(owner=models.F('viewer')),
+                                   name='calendar_share_not_self'),
+        ]
 
     def __str__(self):
-        return f'Google Calendar — {self.user}'
+        return f'{self.owner} → {self.viewer}'

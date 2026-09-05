@@ -2,7 +2,7 @@
  * کلاینت API — در production فرانت و بک هم‌دامنه‌اند و nginx مسیر /api را
  * به Django می‌دهد؛ برای توسعهٔ محلی می‌توان NEXT_PUBLIC_API_URL را ست کرد.
  */
-import type { AgendaItem, Category, Guest, Meeting, Minute, MinuteType, OrgKind, Organization, Person, Room } from './types';
+import type { AgendaItem, CalendarShare, Category, Guest, Meeting, Minute, MinuteType, OrgKind, Organization, Person, Room } from './types';
 
 const BASE = (process.env.NEXT_PUBLIC_API_URL || '/api').replace(/\/$/, '');
 const ACCESS_KEY = 'gp-access';
@@ -90,7 +90,8 @@ export interface Bootstrap {
   /** یادآور پیامکیِ خودِ کاربر برای هر جلسه — کلید: شناسهٔ جلسه */
   reminders: Record<string, MeetingReminderHint>;
   currentUser: string | null;
-  gcalConnected: boolean;
+  sharedWithMe: CalendarShare[];
+  sharedByMe: CalendarShare[];
   smsEnabled: boolean;
 }
 
@@ -141,7 +142,6 @@ export interface NewMeeting {
   organizer: string;
   parts: string[];
   guests?: string[];
-  synced?: boolean;
   priority?: Meeting['priority'];
   meetLink?: string;
   /** فاصلهٔ یادآور پیش‌فرض برای همهٔ شرکت‌کنندگان (دقیقه؛ صفر = خاموش) */
@@ -331,7 +331,6 @@ export const api = {
   getReminder: (id: string) => request<MeetingReminder>(`/meetings/${id}/reminder/`),
   setReminder: (id: string, body: { leadMinutes?: number; enabled?: boolean }) =>
     post<MeetingReminder>(`/meetings/${id}/reminder/`, body),
-  syncMeeting: (id: string) => post<Meeting>(`/meetings/${id}/sync/`),
 
   createMinute: (m: NewMinute) => post<Minute>('/entries/', m),
   deleteMinute: (id: string) => request<void>(`/entries/${id}/`, { method: 'DELETE' }),
@@ -355,6 +354,14 @@ export const api = {
   updateRoom: (id: string, patch: { name?: string; cap?: string; address?: string; lat?: number | null; lng?: number | null }) =>
     request<Room>(`/locations/${id}/`, { method: 'PATCH', body: JSON.stringify(patch) }),
 
-  setGcal: (connected: boolean) => post<{ gcalConnected: boolean }>('/settings/gcal/', { connected }),
+  listShares: () => request<CalendarShare[]>('/calendar-shares/'),
+  createShare: (viewer: string, canWriteMinutes = false) =>
+    post<CalendarShare>('/calendar-shares/', { viewer, canWriteMinutes }),
+  setShareWrite: (id: string, canWriteMinutes: boolean) =>
+    request<CalendarShare>(`/calendar-shares/${id}/`, {
+      method: 'PATCH', body: JSON.stringify({ canWriteMinutes }),
+    }),
+  deleteShare: (id: string) => request<void>(`/calendar-shares/${id}/`, { method: 'DELETE' }),
+
   setSms: (enabled: boolean) => post<{ smsEnabled: boolean }>('/settings/sms/', { enabled }),
 };

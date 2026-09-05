@@ -12,7 +12,7 @@ from django.utils import timezone
 from rest_framework import serializers
 
 from .models import (
-    AgendaItem, Attachment, Category, Location, Meeting, MeetingParticipant,
+    AgendaItem, Attachment, CalendarShare, Category, Location, Meeting, MeetingParticipant,
     MeetingReminder, MinuteEntry, Minutes, Organization, OrganizationKind, User,
 )
 
@@ -93,6 +93,43 @@ class PersonSerializer(serializers.ModelSerializer):
         return obj.get_full_name() or obj.username
 
 
+class CalendarShareSerializer(serializers.ModelSerializer):
+    """
+    یک ردیف اشتراک تقویم.
+
+    `owner`/`viewer` شناسهٔ رشته‌ای‌اند تا با بقیهٔ API یکدست باشند (فرانت
+    همه‌جا شناسه را رشته نگه می‌دارد). نام‌ها هم می‌آیند چون فهرست اشتراک‌ها
+    در تنظیمات باید بدون جست‌وجو در `people` خوانا باشد.
+    """
+    id = serializers.CharField(source='pk', read_only=True)
+    owner = serializers.CharField(source='owner_id', read_only=True)
+    viewer = serializers.CharField(source='viewer_id', read_only=True)
+    ownerName = serializers.SerializerMethodField()
+    viewerName = serializers.SerializerMethodField()
+    canWriteMinutes = serializers.BooleanField(source='can_write_minutes', required=False)
+
+    class Meta:
+        model = CalendarShare
+        fields = ['id', 'owner', 'viewer', 'ownerName', 'viewerName', 'canWriteMinutes']
+
+    def get_ownerName(self, obj) -> str:
+        return obj.owner.get_full_name() or obj.owner.username
+
+    def get_viewerName(self, obj) -> str:
+        return obj.viewer.get_full_name() or obj.viewer.username
+
+
+class CalendarShareCreateSerializer(serializers.Serializer):
+    """
+    ساخت اشتراک — مبدأ همیشه خودِ کاربر است و از بدنه خوانده نمی‌شود.
+
+    اگر `owner` قابل فرستادن بود، هرکس می‌توانست تقویم دیگری را به نام او
+    با خودش به اشتراک بگذارد؛ یعنی همان چیزی که این فیچر باید جلویش را بگیرد.
+    """
+    viewer = serializers.PrimaryKeyRelatedField(queryset=User.objects.filter(is_external=False))
+    canWriteMinutes = serializers.BooleanField(required=False, default=False)
+
+
 class GuestSerializer(serializers.ModelSerializer):
     """مهمان خارج از سازمان — نام سازمانش به‌صورت متن برگردانده می‌شود."""
     id = serializers.CharField(source='pk', read_only=True)
@@ -128,7 +165,6 @@ class MeetingSerializer(serializers.ModelSerializer):
     type = serializers.CharField(source='meeting_type')
     room = serializers.CharField(source='location_id')
     organizer = serializers.CharField(source='organizer_id')
-    synced = serializers.BooleanField(source='google_synced')
     date = serializers.SerializerMethodField()
     start = serializers.SerializerMethodField()
     end = serializers.SerializerMethodField()
@@ -145,7 +181,7 @@ class MeetingSerializer(serializers.ModelSerializer):
     class Meta:
         model = Meeting
         fields = ['id', 'title', 'category', 'type', 'status', 'priority', 'date', 'start', 'end',
-                  'room', 'organizer', 'parts', 'guests', 'partStatus', 'synced', 'meetLink',
+                  'room', 'organizer', 'parts', 'guests', 'partStatus', 'meetLink',
                   'agenda', 'cancelReason', 'cancelledAt', 'cancelledBy']
 
     def get_cancelledAt(self, obj):
@@ -191,12 +227,16 @@ class MinuteEntrySerializer(serializers.ModelSerializer):
     doneAt = serializers.SerializerMethodField()
     agendaItem = serializers.CharField(source='agenda_item_id', read_only=True)
     editedAt = serializers.SerializerMethodField()
+    # نویسندهٔ آیتم — رابط از روی همین تصمیم می‌گیرد دکمهٔ ویرایش را نشان بدهد
+    # یا نه (هم‌سو با `can_edit_entry`: نویسنده همیشه می‌تواند نوشتهٔ خودش را
+    # اصلاح کند، حتی وقتی اجازهٔ نوشتنِ عمومی‌اش پس گرفته شده باشد).
+    createdBy = serializers.CharField(source='created_by_id', read_only=True)
 
     class Meta:
         model = MinuteEntry
         fields = ['id', 'meeting', 'type', 'text', 'createdAt', 'participant',
                   'done', 'doneAt', 'when', 'remindDate', 'remindHour',
-                  'who', 'phone', 'fileName', 'agendaItem', 'editedAt']
+                  'who', 'phone', 'fileName', 'agendaItem', 'editedAt', 'createdBy']
 
     def get_doneAt(self, obj):
         return int(obj.done_at.timestamp() * 1000) if obj.done_at else None
@@ -239,7 +279,6 @@ class MeetingCreateSerializer(serializers.Serializer):
     organizer = serializers.PrimaryKeyRelatedField(queryset=User.objects.all())
     parts = serializers.ListField(child=serializers.CharField(), required=False, default=list)
     guests = serializers.ListField(child=serializers.CharField(), required=False, default=list)
-    synced = serializers.BooleanField(required=False, default=False)
     priority = serializers.ChoiceField(choices=Meeting.Priority.choices,
                                        required=False, default=Meeting.Priority.NORMAL)
     meetLink = serializers.CharField(required=False, allow_blank=True, default='')
@@ -265,7 +304,6 @@ class MeetingCreateSerializer(serializers.Serializer):
             organizer=validated['organizer'],
             start=from_date_hour(validated['date'], validated['start']),
             end=from_date_hour(validated['date'], validated['end']),
-            google_synced=validated.get('synced', False),
         )
         # برگزارکننده خودش پذیرفته حساب می‌شود؛ بقیه دعوت‌اند و باید پاسخ بدهند
         # — بدون این، فهرست «دعوت‌های در انتظار پاسخ» هیچ‌وقت چیزی نشان نمی‌دهد.
@@ -300,6 +338,21 @@ class MeetingCreateSerializer(serializers.Serializer):
 class MinuteEntryCreateSerializer(serializers.Serializer):
     """افزودن آیتم به صورت‌جلسه؛ سطلِ (جلسه، شرکت‌کننده) در صورت نبود ساخته می‌شود."""
     meeting = serializers.PrimaryKeyRelatedField(queryset=Meeting.objects.all())
+
+    def get_fields(self):
+        """
+        جلسه فقط از میان جلسه‌های قابل‌دیدِ همین کاربر حل می‌شود.
+
+        پیش‌تر روی `Meeting.objects.all()` حل می‌شد؛ یعنی شناسهٔ جلسه‌ای که
+        کاربر حق دیدنش را نداشت هم معتبر شمرده می‌شد. حالا چنین شناسه‌ای
+        پیش از هر بررسی دیگری «نامعتبر» است — و وجود/نبودِ جلسه هم لو نمی‌رود.
+        """
+        fields = super().get_fields()
+        request = self.context.get('request')
+        if request is not None:
+            from .views import meetings_queryset
+            fields['meeting'].queryset = meetings_queryset(request.user)
+        return fields
     participant = serializers.PrimaryKeyRelatedField(
         queryset=User.objects.all(), required=False, allow_null=True)
     type = serializers.ChoiceField(choices=MinuteEntry.Type.choices)

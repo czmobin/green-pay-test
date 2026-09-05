@@ -13,6 +13,7 @@ router.register('organizations', views.OrganizationViewSet, basename='organizati
 router.register('people', views.PersonViewSet, basename='person')
 router.register('guests', views.GuestViewSet, basename='guest')
 router.register('locations', views.LocationViewSet, basename='location')
+router.register('calendar-shares', views.CalendarShareViewSet, basename='calendar-share')
 
 urlpatterns = [
     # ورود با کد یک‌بارمصرف
@@ -28,7 +29,6 @@ urlpatterns = [
 
     path('bootstrap/', views.bootstrap, name='bootstrap'),
     path('reports/full/', reports.full_report, name='full-report'),
-    path('settings/gcal/', views.set_gcal, name='set-gcal'),
     path('settings/sms/', views.set_sms, name='set-sms'),
     path('', include(router.urls)),
 ]

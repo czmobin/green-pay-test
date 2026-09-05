@@ -1,8 +1,8 @@
 'use client';
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import type {
-  AgendaItem, Category, Guest, InviteResponse, Meeting, Minute, OrgKind, Organization, Person,
-  Role, Room, Scope,
+  AgendaItem, CalendarShare, Category, Guest, InviteResponse, Meeting, Minute, OrgKind,
+  Organization, Person, Role, Room, Scope,
 } from '@/lib/types';
 import {
   api, loadToken, setTokens, UnauthorizedError,
@@ -57,7 +57,6 @@ interface Store {
   deleteAgenda: (meetingId: string, id: string) => Promise<void>;
   respondMeeting: (id: string, accept: boolean) => Promise<void>;
   cancelMeeting: (id: string, reason: string) => Promise<{ smsSent: number; smsFailed: number } | null>;
-  syncMeeting: (id: string) => Promise<void>;
 
   addMinute: (m: NewMinute) => Promise<void>;
   deleteMinute: (meetingId: string, id: string) => Promise<void>;
@@ -91,17 +90,38 @@ interface Store {
   ceoCount: number;
   /** تب «مدیرعامل» فقط برای ادمین، و فقط وقتی مدیرعاملی تعریف شده باشد. */
   canSeeCeoScope: boolean;
+  /** تب «همه» فقط برای نقش‌های مدیریتی — گیرندهٔ اشتراک حق دیدن همهٔ سازمان را ندارد. */
+  canSeeAllScope: boolean;
   /** تعداد جلسه‌های خودِ کاربر — کنار کلید دامنه نشان داده می‌شود */
   mineCount: number;
   /** تعداد کل جلسه‌های لغونشده */
   liveCount: number;
-  /** فقط ادمین و مدیرعامل می‌توانند دامنه را عوض کنند */
+  /** ادمین و مدیرعامل، به‌علاوهٔ هرکسی که تقویمی با او به اشتراک گذاشته شده */
   canSwitchScope: boolean;
+
+  /* اشتراک تقویم */
+  /** تقویم‌هایی که دیگران با من به اشتراک گذاشته‌اند */
+  sharedWithMe: CalendarShare[];
+  /** کسانی که من تقویمم را با آن‌ها به اشتراک گذاشته‌ام */
+  sharedByMe: CalendarShare[];
+  /** در دامنهٔ «اشتراکی»، تقویم کدام نفر دیده می‌شود — null یعنی همه */
+  sharedOwner: string | null;
+  setSharedOwner: (id: string | null) => void;
+  /** شمار جلسه‌های تقویم‌های اشتراکی — کنار نام تب */
+  sharedCount: number;
+  addShare: (viewer: string) => Promise<void>;
+  setShareWrite: (id: string, canWrite: boolean) => Promise<void>;
+  removeShare: (id: string) => Promise<void>;
+  /**
+   * آیا می‌توانم در صورت‌جلسهٔ این جلسه بنویسم؟
+   * تکرارِ سمت‌کلاینتِ همان قاعدهٔ بک‌اند — فقط برای اینکه رابط از پیش
+   * غیرفعال شود، نه به‌عنوان کنترل دسترسی.
+   */
+  canWriteMinutes: (m: Meeting) => boolean;
+
   currentUser: string;
   setRole: (r: Role) => void;
   setCurrentUser: (id: string) => void;
-  gcalConnected: boolean;
-  connectGcal: () => Promise<void>;
   smsEnabled: boolean;
   toggleSms: () => Promise<void>;
 
@@ -144,10 +164,12 @@ export default function Providers({ children }: { children: React.ReactNode }) {
   const [categories, setCategories] = useState<Record<string, Category>>({});
 
   const [role, setRole] = useState<Role>('ceo');
-  const [scope, setScopeState] = useState<Scope>('mine');
+  const [rawScope, setScopeState] = useState<Scope>('mine');
   const scopeTouched = useRef(false);
   const [currentUser, setCurrentUser] = useState<string>('');
-  const [gcalConnected, setGcal] = useState(false);
+  const [sharedWithMe, setSharedWithMe] = useState<CalendarShare[]>([]);
+  const [sharedByMe, setSharedByMe] = useState<CalendarShare[]>([]);
+  const [sharedOwner, setSharedOwner] = useState<string | null>(null);
   const [smsEnabled, setSms] = useState(false);
 
   const [createOpen, setCreateOpen] = useState(false);
@@ -229,7 +251,8 @@ export default function Providers({ children }: { children: React.ReactNode }) {
       setOrgs(d.organizations);
       setOrgKinds(d.orgKinds ?? {});
       setCategories(d.categories);
-      setGcal(d.gcalConnected);
+      setSharedWithMe(d.sharedWithMe ?? []);
+      setSharedByMe(d.sharedByMe ?? []);
       setSms(d.smsEnabled);
       setCurrentUser((cur) => cur || d.currentUser || '');
       setError(null);
@@ -347,10 +370,6 @@ export default function Providers({ children }: { children: React.ReactNode }) {
     return out;
   }, [guarded]);
 
-  const syncMeeting = useCallback(async (id: string) => {
-    await guarded(async () => upsertMeeting(await api.syncMeeting(id)));
-  }, [guarded]);
-
   /* ---------- صورت‌جلسه ---------- */
   const addMinute = useCallback(async (payload: NewMinute) => {
     await guarded(async () => {
@@ -418,18 +437,37 @@ export default function Providers({ children }: { children: React.ReactNode }) {
     await guarded(async () => { await api.deleteOrg(id); setOrgs((s) => dropFrom(s, id)); });
   }, [guarded]);
 
-  /* ---------- تنظیمات ---------- */
-  const connectGcal = useCallback(async () => {
-    if (gcalConnected) { toast('تقویم Google از قبل متصل است', 'info'); return; }
-    toast('در حال اتصال به حساب Google…', 'load');
+  /* ---------- اشتراک تقویم ---------- */
+  const addShare = useCallback(async (viewer: string) => {
     await guarded(async () => {
-      await api.setGcal(true);
-      setGcal(true);
-      await reload();               // جلسات همگام‌شده را دوباره می‌خوانیم
-      toast('Google Calendar با موفقیت متصل شد', 'ok');
+      const share = await api.createShare(viewer);
+      setSharedByMe((s) => [...s.filter((x) => x.id !== share.id), share]);
+      toast('تقویم شما با این نفر به اشتراک گذاشته شد', 'ok');
     });
-  }, [gcalConnected, guarded, reload, toast]);
+  }, [guarded, toast]);
 
+  const setShareWrite = useCallback(async (id: string, canWrite: boolean) => {
+    await guarded(async () => {
+      const share = await api.setShareWrite(id, canWrite);
+      setSharedByMe((s) => s.map((x) => (x.id === id ? share : x)));
+      toast(canWrite ? 'اجازهٔ نوشتن صورت‌جلسه روشن شد' : 'اجازهٔ نوشتن صورت‌جلسه خاموش شد', 'ok');
+    });
+  }, [guarded, toast]);
+
+  const removeShare = useCallback(async (id: string) => {
+    await guarded(async () => {
+      await api.deleteShare(id);
+      setSharedByMe((s) => s.filter((x) => x.id !== id));
+      setSharedWithMe((s) => s.filter((x) => x.id !== id));
+      // تقویمی که برداشته شد نباید انتخاب بماند وگرنه تب خالی می‌ماند.
+      setSharedOwner(null);
+      // جلسه‌های آن تقویم دیگر نباید دیده شوند؛ فهرست از سرور تازه می‌شود.
+      await reload();
+      toast('اشتراک برداشته شد', 'ok');
+    });
+  }, [guarded, reload, toast]);
+
+  /* ---------- تنظیمات ---------- */
   const toggleSms = useCallback(async () => {
     const next = !smsEnabled;
     await guarded(async () => {
@@ -494,6 +532,42 @@ export default function Providers({ children }: { children: React.ReactNode }) {
     (m: Meeting) => ceoIds.some((id) => m.parts.includes(id)),
     [ceoIds]);
 
+  /**
+   * شناسهٔ مبدأهایی که تقویمشان الان دیده می‌شود — همه، یا فقط انتخاب‌شده.
+   *
+   * اگر مبدأ انتخاب‌شده دیگر در فهرست نباشد (اشتراک پس گرفته شده)، فهرست خالی
+   * می‌شود نه اینکه بی‌صدا به «همه» برگردد؛ تب خالی از تبِ اشتباه بهتر است.
+   */
+  /**
+   * دامنهٔ مؤثر — اگر آخرین اشتراک برداشته شود، «اشتراکی» دیگر معنا ندارد و
+   * کاربر نباید روی تبی گیر کند که نه دیده می‌شود نه چیزی نشان می‌دهد.
+   */
+  const scope: Scope = (rawScope === 'shared' && sharedWithMe.length === 0) ? 'mine' : rawScope;
+
+  const sharedOwnerIds = useMemo(() => {
+    const all = sharedWithMe.map((s) => s.owner);
+    return sharedOwner === null ? all : all.filter((id) => id === sharedOwner);
+  }, [sharedWithMe, sharedOwner]);
+
+  /** جلسه‌ای که روی تقویم یکی از این مبدأهاست — سازنده یا شرکت‌کننده. */
+  const onSharedCalendar = useCallback(
+    (m: Meeting, owners: string[]) =>
+      owners.some((id) => m.organizer === id || m.parts.includes(id)),
+    []);
+
+  /**
+   * اجازهٔ نوشتن صورت‌جلسه — تکرار دقیق قاعدهٔ `can_write_minutes` بک‌اند.
+   *
+   * اینجا فقط برای این است که ویرایشگر از پیش غیرفعال شود؛ کنترل واقعی سمت
+   * سرور است. اگر این دو از هم دور بیفتند، بدترین حالت یک ۴۰۳ ناغافل است.
+   */
+  const canWriteMinutes = useCallback((m: Meeting) => {
+    if (m.organizer === currentUser || isManagerRole(role)) return true;
+    if (m.parts.includes(currentUser)) return true;
+    return sharedWithMe.some((s) => s.canWriteMinutes
+      && (m.organizer === s.owner || m.parts.includes(s.owner)));
+  }, [currentUser, role, sharedWithMe]);
+
   const liveCount = useMemo(() => meetings.filter((m) => m.status !== 'cancelled').length, [meetings]);
 
   const mineCount = useMemo(
@@ -504,6 +578,11 @@ export default function Providers({ children }: { children: React.ReactNode }) {
     () => meetings.filter((m) => m.status !== 'cancelled' && isCeoMeeting(m)).length,
     [meetings, isCeoMeeting]);
 
+  const sharedCount = useMemo(
+    () => meetings.filter((m) => m.status !== 'cancelled'
+      && onSharedCalendar(m, sharedOwnerIds)).length,
+    [meetings, onSharedCalendar, sharedOwnerIds]);
+
   /**
    * فهرست‌های اپ (داشبورد، جلسات، تقویم) جلسهٔ لغوشده را نشان نمی‌دهند؛
    * صفحهٔ خودِ جلسه از store.getMeeting می‌آید و همچنان باز می‌شود تا لینک‌های
@@ -511,12 +590,17 @@ export default function Providers({ children }: { children: React.ReactNode }) {
    */
   const visibleMeetings = useMemo(() => {
     const live = meetings.filter((m) => m.status !== 'cancelled');
+    // دامنهٔ اشتراکی پیش از شرط «مدیر است یا نه» می‌آید: کاربر عادی هم می‌تواند
+    // گیرندهٔ اشتراک باشد و بدون این، جلسه‌های اشتراکی بی‌صدا دور ریخته می‌شدند.
+    if (scope === 'shared') {
+      return sharedOwnerIds.length ? live.filter((m) => onSharedCalendar(m, sharedOwnerIds)) : [];
+    }
     if (!isManager || scope === 'mine') return live.filter(mine);
     // دامنهٔ مدیرعامل فقط دستِ ادمین است؛ شرطِ نقش اینجا هم تکرار می‌شود تا
     // اگر روزی جای دیگری scope را ست کرد، داده از مرزش بیرون نزند.
     if (scope === 'ceo') return role === 'admin' ? live.filter(isCeoMeeting) : live.filter(mine);
     return live;
-  }, [meetings, isManager, role, scope, mine, isCeoMeeting]);
+  }, [meetings, isManager, role, scope, mine, isCeoMeeting, sharedOwnerIds, onSharedCalendar]);
 
   /**
    * پاسخ خودِ کاربر به دعوت — پیش‌تر «در انتظار» روی وضعیت کل جلسه بود، یعنی
@@ -547,7 +631,7 @@ export default function Providers({ children }: { children: React.ReactNode }) {
     meetings, visibleMeetings, minutes, reminders, people, guests, rooms, orgs, orgKinds, categories,
     getMeeting, canEdit, createMeeting, updateMeeting,
     addAgenda, updateAgenda: updateAgendaItem, deleteAgenda: deleteAgendaItem,
-    respondMeeting, cancelMeeting, syncMeeting,
+    respondMeeting, cancelMeeting,
     addMinute, deleteMinute, toggleDone, updateMinute,
     addPerson, addRoom, addOrg,
     deletePerson, deleteRoom, deleteOrg, updateRoom,
@@ -556,9 +640,13 @@ export default function Providers({ children }: { children: React.ReactNode }) {
     myResponse, myInvites,
     addGuest, importPeople,
     role, scope, setScope, mineCount, liveCount, ceoCount,
-    canSwitchScope: isManager, canSeeCeoScope: role === 'admin' && ceoIds.length > 0,
+    canSwitchScope: isManager || sharedWithMe.length > 0,
+    canSeeAllScope: isManager,
+    canSeeCeoScope: role === 'admin' && ceoIds.length > 0,
+    sharedWithMe, sharedByMe, sharedOwner, setSharedOwner, sharedCount,
+    addShare, setShareWrite, removeShare, canWriteMinutes,
     currentUser, setRole, setCurrentUser,
-    gcalConnected, connectGcal, smsEnabled, toggleSms,
+    smsEnabled, toggleSms,
     conflicts, roomConflicts,
     dismissConflicts: () => { setConflicts([]); setRoomConflicts([]); },
     createOpen, openCreate: () => setCreateOpen(true), closeCreate: () => setCreateOpen(false),
@@ -566,9 +654,10 @@ export default function Providers({ children }: { children: React.ReactNode }) {
   }), [conflicts, roomConflicts, authed, authChecked, needsProfile, me, signIn, completeProfile, signOut,
     ready, error, reload, meetings, visibleMeetings, minutes, reminders, people, guests, rooms, orgs, orgKinds, categories,
     getMeeting, canEdit, createMeeting, updateMeeting, addAgenda, updateAgendaItem, deleteAgendaItem,
-    respondMeeting, cancelMeeting, syncMeeting, addMinute, deleteMinute, toggleDone, updateMinute,
+    respondMeeting, cancelMeeting, addMinute, deleteMinute, toggleDone, updateMinute,
     addPerson, addGuest, importPeople, addRoom, addOrg, deletePerson, deleteRoom, deleteOrg, updateRoom, role, isManager, myResponse, myInvites, scope, setScope, mineCount, liveCount, ceoCount, ceoIds,
-    currentUser, gcalConnected, connectGcal, smsEnabled, toggleSms,
+    sharedWithMe, sharedByMe, sharedOwner, sharedCount, addShare, setShareWrite, removeShare, canWriteMinutes,
+    currentUser, smsEnabled, toggleSms,
     createOpen, toast, toggleTheme]);
 
   return (

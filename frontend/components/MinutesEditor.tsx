@@ -27,6 +27,13 @@ export default function MinutesEditor({ meeting }: { meeting: Meeting }) {
   const [agendaItem, setAgendaItem] = useState('');   // اختیاری — این آیتم ذیل کدام بند مطرح شد
 
   const [saving, setSaving] = useState(false);
+  /**
+   * اجازهٔ نوشتن — برای تقویمی که فقط «دیدن»‌اش به ما داده شده، خاموش است.
+   *
+   * ویرایشگر به‌جای اینکه بگذارد کاربر بنویسد و بعد ۴۰۳ بگیرد، از همان اول
+   * غیرفعال می‌شود و می‌گوید چه چیزی کم است.
+   */
+  const canWrite = store.canWriteMinutes(meeting);
   const bucketList = list.filter((m) => (activeP === 'general' ? !m.participant : m.participant === activeP));
   const bucketOf = (pid: string) => list.filter((m) => (pid === 'general' ? !m.participant : m.participant === pid)).length;
 
@@ -84,7 +91,13 @@ export default function MinutesEditor({ meeting }: { meeting: Meeting }) {
         </button>
       </div>
 
-      {/* composer */}
+      {/* composer — فقط وقتی اجازهٔ نوشتن هست */}
+      {!canWrite ? (
+        <p className="minutes-readonly">
+          این تقویم فقط برای دیدن با شما به اشتراک گذاشته شده است.
+          برای نوشتن در صورت‌جلسه، صاحب تقویم باید «اجازهٔ نوشتن صورت‌جلسه» را روشن کند.
+        </p>
+      ) : (
       <div className="composer">
         <div className="type-picker">
           {order.map((t) => (
@@ -130,6 +143,7 @@ export default function MinutesEditor({ meeting }: { meeting: Meeting }) {
           </button>
         </div>
       </div>
+      )}
 
       {/* list (of active bucket) */}
       {bucketList.length === 0 ? (
@@ -141,14 +155,16 @@ export default function MinutesEditor({ meeting }: { meeting: Meeting }) {
         </div>
       ) : (
         <div className="minute-list">
-          {bucketList.map((m) => <MinuteRow key={m.id} m={m} mid={meeting.id} agenda={meeting.agenda} />)}
+          {bucketList.map((m) => <MinuteRow key={m.id} m={m} mid={meeting.id} agenda={meeting.agenda} canWrite={canWrite} />)}
         </div>
       )}
     </section>
   );
 }
 
-function MinuteRow({ m, mid, agenda }: { m: Minute; mid: string; agenda: AgendaItem[] }) {
+function MinuteRow({ m, mid, agenda, canWrite }: {
+  m: Minute; mid: string; agenda: AgendaItem[]; canWrite: boolean;
+}) {
   const store = useStore();
   const meta = minuteMeta[m.type];
   const hasFile = m.type === 'letter' || m.type === 'file';
@@ -230,7 +246,9 @@ function MinuteRow({ m, mid, agenda }: { m: Minute; mid: string; agenda: AgendaI
   return (
     <div className={'minute' + (m.done ? ' done' : '')}>
       {DONEABLE.has(m.type) ? (
-        <button className={'done-check' + (m.done ? ' on' : '')} onClick={() => store.toggleDone(mid, m.id)} aria-label="انجام شد">
+        <button className={'done-check' + (m.done ? ' on' : '')} disabled={!canWrite}
+          onClick={() => store.toggleDone(mid, m.id)} aria-label="انجام شد"
+          title={canWrite ? 'انجام شد' : 'برای تیک‌زدن اجازهٔ نوشتن صورت‌جلسه لازم است'}>
           {m.done && <IconCheck size={13} />}
         </button>
       ) : (
@@ -259,10 +277,14 @@ function MinuteRow({ m, mid, agenda }: { m: Minute; mid: string; agenda: AgendaI
           {m.editedAt && <span className="edited">ویرایش‌شده</span>}
         </div>
       </div>
-      <span className="mtools">
-        <button className="mdel" onClick={startEdit} aria-label="ویرایش"><IconEdit size={15} /></button>
-        <button className="mdel" onClick={() => store.deleteMinute(mid, m.id)} aria-label="حذف"><IconTrash size={16} /></button>
-      </span>
+      {/* نویسندهٔ آیتم همیشه می‌تواند نوشتهٔ خودش را اصلاح یا پاک کند — همان
+          قاعدهٔ `can_edit_entry` بک‌اند؛ بقیه اجازهٔ نوشتن لازم دارند. */}
+      {(canWrite || (m.createdBy && m.createdBy === store.currentUser)) && (
+        <span className="mtools">
+          <button className="mdel" onClick={startEdit} aria-label="ویرایش"><IconEdit size={15} /></button>
+          <button className="mdel" onClick={() => store.deleteMinute(mid, m.id)} aria-label="حذف"><IconTrash size={16} /></button>
+        </span>
+      )}
     </div>
   );
 }

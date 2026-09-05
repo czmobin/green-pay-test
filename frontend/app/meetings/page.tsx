@@ -154,6 +154,16 @@ export default function MeetingsPage() {
 
   const scope = useReveal(['.page-head', '.searchbar', '.filters', '.date-group', '.mrow']);
 
+  // عنوانِ دامنهٔ اشتراکی: با یک مبدأ نامش می‌آید، با چند تا عنوان جمعی —
+  // «تقویم اشتراکی» بدون نام، در سازمانی که چند نفر تقویم می‌فرستند، بی‌معناست.
+  const owners = store.sharedWithMe;
+  const picked = owners.find((o) => o.owner === store.sharedOwner);
+  const sharedWho = picked ? `تقویم ${picked.ownerName}`
+    : owners.length === 1 ? `تقویم ${owners[0].ownerName}`
+      : `${toFa(owners.length)} تقویم اشتراکی`;
+  const sharedTitle = picked ? `جلسه‌های ${picked.ownerName}`
+    : owners.length === 1 ? `جلسه‌های ${owners[0].ownerName}` : 'تقویم‌های اشتراکی';
+
   return (
     <div ref={scope}>
       <div className="page-head">
@@ -162,7 +172,8 @@ export default function MeetingsPage() {
             : dayFilter ? `جلسه‌های ${faWeekdayOf(dayFilter)} ${faDateShort(dayFilter)}`
               : !store.canSwitchScope ? 'همهٔ جلسات'
                 : store.scope === 'mine' ? 'جلسه‌های من'
-                  : store.scope === 'ceo' ? 'جلسه‌های مدیرعامل' : 'همهٔ جلسات'
+                  : store.scope === 'ceo' ? 'جلسه‌های مدیرعامل'
+                    : store.scope === 'shared' ? sharedTitle : 'همهٔ جلسات'
         }</h1>
         <p>جستجو در عنوان، مهمان، محل، دستورجلسه و صورت‌جلسه — یا فیلتر بر اساس دسته.</p>
         {store.canSwitchScope && (
@@ -171,7 +182,9 @@ export default function MeetingsPage() {
               ? <>نمایش <b className="num">{toFa(store.mineCount)}</b> جلسه از <b className="num">{toFa(store.meetings.length)}</b> جلسهٔ سازمان — آن‌هایی که خودتان در آن‌ها شرکت دارید.</>
               : store.scope === 'ceo'
                 ? <>نمایش <b className="num">{toFa(store.ceoCount)}</b> جلسه از <b className="num">{toFa(store.meetings.length)}</b> جلسهٔ سازمان — آن‌هایی که مدیرعامل در آن‌ها شرکت دارد.</>
-                : <>نمایش هر <b className="num">{toFa(store.meetings.length)}</b> جلسهٔ سازمان.</>}
+                : store.scope === 'shared'
+                  ? <>نمایش <b className="num">{toFa(store.sharedCount)}</b> جلسه از {sharedWho} — دیدن این تقویم به شما داده شده است؛ نوشتن صورت‌جلسه جداگانه اجازه می‌خواهد.</>
+                  : <>نمایش هر <b className="num">{toFa(store.meetings.length)}</b> جلسهٔ سازمان.</>}
             {store.scope === 'mine' && store.mineCount === store.meetings.length && store.meetings.length > 0 && (
               <> شما در همهٔ جلسه‌ها حضور دارید، پس دو حالت این کلید یکی است.</>
             )}

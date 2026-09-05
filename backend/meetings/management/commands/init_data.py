@@ -11,7 +11,7 @@ from django.core.management.base import BaseCommand
 from django.db import transaction
 
 from meetings.models import (
-    AgendaItem, Attachment, Category, GoogleCalendarConnection, Location, Meeting,
+    AgendaItem, Attachment, Category, Location, Meeting,
     MeetingParticipant, MinuteEntry, Minutes, Notification, Organization,
     OrganizationKind, User,
 )
@@ -50,7 +50,6 @@ class Command(BaseCommand):
             MeetingParticipant.objects.all().delete()
             Notification.objects.all().delete()
             Meeting.objects.all().delete()
-            GoogleCalendarConnection.objects.all().delete()
             Location.objects.all().delete()
             User.objects.filter(is_superuser=False).delete()
             Organization.objects.all().delete()

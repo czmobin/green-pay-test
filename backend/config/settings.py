@@ -104,6 +104,10 @@ DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
         'NAME': BASE_DIR / 'db.sqlite3',
+        # همگام‌سازی Outlook هر دقیقه از یک پروسهٔ جدا می‌نویسد، هم‌زمان با
+        # gunicorn. بدون این مهلت، هم‌زمانی به «database is locked» می‌خورد.
+        # (WAL هم در meetings/apps.py روی هر اتصال روشن می‌شود.)
+        'OPTIONS': {'timeout': 20},
     }
 }
 # نمونهٔ PostgreSQL:
@@ -162,6 +166,32 @@ SIMPLE_JWT = {
 # --- ورود با کد یک‌بارمصرف (کاوه‌نگار) ---
 KAVENEGAR_API_KEY = os.environ.get('KAVENEGAR_API_KEY', '')
 KAVENEGAR_OTP_TEMPLATE = os.environ.get('KAVENEGAR_OTP_TEMPLATE', 'contractOtpLogin')
+
+# --- Outlook / Microsoft Graph ---
+# دسترسی app-only (client credentials): کاربران با کد یک‌بارمصرف وارد می‌شوند و
+# هیچ‌وقت با مایکروسافت لاگین نمی‌کنند، پس OAuth هر کاربر جواب نمی‌دهد.
+# دامنهٔ دسترسی با New-ApplicationAccessPolicy در Exchange محدود می‌شود.
+OUTLOOK_ENABLED = os.environ.get('OUTLOOK_ENABLED', '0') == '1'
+OUTLOOK_TENANT_ID = os.environ.get('OUTLOOK_TENANT_ID', '')
+OUTLOOK_CLIENT_ID = os.environ.get('OUTLOOK_CLIENT_ID', '')
+OUTLOOK_CLIENT_SECRET = os.environ.get('OUTLOOK_CLIENT_SECRET', '')
+OUTLOOK_MAIL_DOMAIN = os.environ.get('OUTLOOK_MAIL_DOMAIN', 'greenpay360.ir')
+# فقط این صندوق‌ها لمس می‌شوند (خالی = همهٔ صندوق‌های ثبت‌شده). برای اولین
+# اجرای واقعی روی tenant، یک صندوق آزمایشی اینجا بگذارید.
+OUTLOOK_MAILBOX_ALLOWLIST = [
+    a.strip().lower() for a in os.environ.get('OUTLOOK_MAILBOX_ALLOWLIST', '').split(',') if a.strip()
+]
+# بازهٔ ثابتِ calendarView — توکن delta بازه را در خودش رمز می‌کند، پس بازهٔ
+# غلتان هر اجرا توکن را باطل و همگام‌سازی را به full-sync گران تبدیل می‌کند.
+OUTLOOK_WINDOW_PAST_DAYS = int(os.environ.get('OUTLOOK_WINDOW_PAST_DAYS', '30'))
+OUTLOOK_WINDOW_FUTURE_DAYS = int(os.environ.get('OUTLOOK_WINDOW_FUTURE_DAYS', '180'))
+# هر صندوق حداکثر به این فاصله pull می‌شود؛ push هر بار انجام می‌شود.
+OUTLOOK_PULL_INTERVAL_SECONDS = int(os.environ.get('OUTLOOK_PULL_INTERVAL_SECONDS', '300'))
+# سقف occurrenceهای یک سری تکرارشونده — بدون آن یک «استندآپ روزانه» دیتابیس را پر می‌کند.
+OUTLOOK_MAX_OCCURRENCES = int(os.environ.get('OUTLOOK_MAX_OCCURRENCES', '100'))
+OUTLOOK_HTTP_TIMEOUT = int(os.environ.get('OUTLOOK_HTTP_TIMEOUT', '20'))
+# مسیر فیکسچرهای JSON برای تست بدون tenant واقعی (فقط توسعه/تست).
+OUTLOOK_FAKE_DIR = os.environ.get('OUTLOOK_FAKE_DIR', '')
 
 # پیشگام رایان — پیامک متن‌آزاد برای یادآور جلسه (توکن فقط از محیط، هرگز در مخزن)
 PISHGAM_SMS_TOKEN = os.environ.get('PISHGAM_SMS_TOKEN', '')

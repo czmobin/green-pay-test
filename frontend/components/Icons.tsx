@@ -76,10 +76,6 @@ export const IconCall = ({ size, className }: P) => (
   <svg {...s(size)} className={className} viewBox="0 0 24 24" {...stroke}><path d="M5 3h3.5l1.5 5-2 1.5a12 12 0 0 0 5 5l1.5-2 5 1.5V21a1 1 0 0 1-1 1A17 17 0 0 1 4 5a1 1 0 0 1 1-2Z" /></svg>
 );
 
-export const IconGoogle = ({ size, className }: P) => (
-  <svg {...s(size)} className={className} viewBox="0 0 24 24"><path fill="#4285F4" d="M18 3h-1V1.5h-2V3H9V1.5H7V3H6a3 3 0 0 0-3 3v1h18V6a3 3 0 0 0-3-3Z" /><path fill="#34A853" d="M3 8v10a3 3 0 0 0 3 3h5V8Z" /><path fill="#FBBC05" d="M21 8h-8v13h5a3 3 0 0 0 3-3Z" /><path fill="#EA4335" d="M14.5 11.2h-2.1v1.4h1.2c-.1.6-.7 1.1-1.2 1.1-.8 0-1.4-.7-1.4-1.5s.6-1.5 1.4-1.5c.4 0 .7.1.9.4l1-1c-.5-.5-1.1-.7-1.9-.7-1.6 0-2.8 1.3-2.8 2.9s1.2 2.9 2.8 2.9c1.6 0 2.7-1.1 2.7-2.8 0-.3 0-.5-.1-.6Z" /></svg>
-);
-
 export const IconMoon = ({ size, className }: P) => (
   <svg {...s(size)} className={className} viewBox="0 0 24 24" {...stroke}><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5Z" /></svg>
 );
@@ -127,6 +123,10 @@ export const IconEye = ({ size, className }: P) => (
 );
 export const IconEyeOff = ({ size, className }: P) => (
   <svg {...s(size)} className={className} viewBox="0 0 24 24" {...stroke}><path d="M4 4l16 16" /><path d="M9.9 5.2A9.8 9.8 0 0 1 12 5c6.4 0 10 7 10 7a17 17 0 0 1-3.3 4.2M6.6 7.1A17 17 0 0 0 2 12s3.6 7 10 7a9.7 9.7 0 0 0 4.2-.9" /><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2" /></svg>
+);
+/* «اشتراک تقویم»: دو نفر که یک تقویم را می‌بینند */
+export const IconShare = ({ size, className }: P) => (
+  <svg {...s(size)} className={className} viewBox="0 0 24 24" {...stroke}><circle cx="17.5" cy="5.5" r="2.5" /><circle cx="6.5" cy="12" r="2.5" /><circle cx="17.5" cy="18.5" r="2.5" /><path d="M8.8 10.8 15.2 6.8M8.8 13.2l6.4 4" /></svg>
 );
 export const IconUser = ({ size, className }: P) => (
   <svg {...s(size)} className={className} viewBox="0 0 24 24" {...stroke}><circle cx="12" cy="8" r="4" /><path d="M4 21c0-4 3.6-6 8-6s8 2 8 6" /></svg>

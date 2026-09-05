@@ -4,7 +4,7 @@ from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from .models import (
     MeetingReminder,
     Organization, OrganizationKind, User, Location, Category, Meeting, MeetingParticipant,
-    AgendaItem, Minutes, MinuteEntry, Attachment, Notification, GoogleCalendarConnection,
+    AgendaItem, Minutes, MinuteEntry, Attachment, Notification, CalendarShare,
 )
 
 
@@ -96,7 +96,16 @@ class MeetingReminderAdmin(admin.ModelAdmin):
     list_filter = ('enabled', 'lead_minutes')
     search_fields = ('meeting__title', 'user__first_name', 'user__last_name', 'user__phone')
     autocomplete_fields = ()
-admin.site.register(GoogleCalendarConnection)
+
+
+@admin.register(CalendarShare)
+class CalendarShareAdmin(admin.ModelAdmin):
+    list_display = ('owner', 'viewer', 'can_write_minutes', 'created_at')
+    list_filter = ('can_write_minutes',)
+    search_fields = ('owner__first_name', 'owner__last_name', 'owner__username',
+                     'viewer__first_name', 'viewer__last_name', 'viewer__username')
+    autocomplete_fields = ('owner', 'viewer')
+
 
 admin.site.site_header = 'مدیریت جلسات گرین‌پی'
 admin.site.site_title = 'گرین‌پی'

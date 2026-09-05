@@ -10,8 +10,21 @@ export const roleLabels: Record<string, string> = {
  *
  * `ceo` فقط برای ادمین معنا دارد: «جلسه‌هایی که مدیرعامل در آن‌هاست».
  * خودِ مدیرعامل همین را زیر «جلسه‌های من» می‌بیند، پس تبِ جدا برایش تکرار است.
+ *
+ * `shared` یعنی تقویم‌هایی که دیگران با من به اشتراک گذاشته‌اند. چون ممکن است
+ * چند نفر باشند، `sharedOwner` مشخص می‌کند کدامشان — و `null` یعنی همه.
  */
-export type Scope = 'mine' | 'all' | 'ceo';
+export type Scope = 'mine' | 'all' | 'ceo' | 'shared';
+
+/** یک ردیف اشتراک تقویم — همان شکلی که bootstrap می‌دهد. */
+export interface CalendarShare {
+  id: string;
+  owner: string;
+  viewer: string;
+  ownerName: string;
+  viewerName: string;
+  canWriteMinutes: boolean;
+}
 
 export type MeetingType = 'in_person' | 'online';
 export type MeetingStatus = 'confirmed' | 'pending' | 'cancelled' | 'done';
@@ -93,7 +106,6 @@ export interface Meeting {
   guests: string[]; // guest ids
   /** پاسخ دعوت هر شرکت‌کننده — کلید: شناسهٔ فرد */
   partStatus?: Record<string, InviteResponse>;
-  synced: boolean;
   agenda: AgendaItem[];
 }
 
@@ -115,6 +127,8 @@ export interface Minute {
   /** بند دستور جلسه‌ای که این آیتم ذیل آن مطرح شد (اختیاری) */
   agendaItem?: string | null;
   editedAt?: number | null;
+  /** نویسندهٔ آیتم — نویسنده همیشه می‌تواند نوشتهٔ خودش را اصلاح کند */
+  createdBy?: string | null;
   // call
   who?: string;
   phone?: string;

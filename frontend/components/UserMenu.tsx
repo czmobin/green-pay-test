@@ -4,8 +4,8 @@ import Link from 'next/link';
 import { useStore } from './store';
 import { api } from '@/lib/api';
 import PasswordDialog from './PasswordDialog';
-import { initials } from '@/lib/data';
-import { IconSun, IconMoon, IconLogout, IconCheck, IconReport, IconSettings, IconAlert } from './Icons';
+import { initials, toFa } from '@/lib/data';
+import { IconSun, IconMoon, IconLogout, IconCheck, IconReport, IconSettings, IconAlert, IconShare } from './Icons';
 
 const roleLabels: Record<string, string> = {
   admin: 'ادمین', ceo: 'مدیرعامل', user: 'کاربر عادی', member: 'کاربر عادی',
@@ -84,6 +84,15 @@ export default function UserMenu() {
           )}
           <Link href="/settings" className="um-item only-mobile" onClick={() => setOpen(false)}>
             <IconSettings size={16} />تعریف‌ها
+          </Link>
+
+          {/* اشتراک تقویم روی دسکتاپ هم اینجاست: کاری شخصی است و کسی آن را زیر
+              «تعریف‌ها»ی سازمان نمی‌گردد. */}
+          <Link href="/settings?tab=shares" className="um-item" onClick={() => setOpen(false)}>
+            <IconShare size={16} />اشتراک تقویم
+            {store.sharedWithMe.length > 0 && (
+              <b className="um-badge num">{toFa(store.sharedWithMe.length)}</b>
+            )}
           </Link>
 
           <div className="um-section">نمایش</div>

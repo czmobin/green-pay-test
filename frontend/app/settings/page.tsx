@@ -1,5 +1,6 @@
 'use client';
 import React, { useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useStore } from '@/components/store';
 import { useReveal } from '@/components/useReveal';
 import { initials, avatarPalette, toFa } from '@/lib/data';
@@ -7,15 +8,18 @@ import { roleLabels } from '@/lib/types';
 import LocationDialog, { parseCoord } from '@/components/LocationDialog';
 import type { Room } from '@/lib/types';
 
-import { IconBuilding, IconRoom, IconPlus, IconTrash, IconAlert } from '@/components/Icons';
+import { IconBuilding, IconRoom, IconPlus, IconTrash, IconAlert, IconShare } from '@/components/Icons';
 import PeopleImport from '@/components/PeopleImport';
+import CalendarShares from '@/components/CalendarShares';
 
-type Tab = 'orgs' | 'people' | 'locations';
+type Tab = 'orgs' | 'people' | 'locations' | 'shares';
 
 
 export default function Settings() {
   const store = useStore();
-  const [tab, setTab] = useState<Tab>('orgs');
+  // ورودِ مستقیم از منوی کاربر به تب اشتراک تقویم (?tab=shares)
+  const params = useSearchParams();
+  const [tab, setTab] = useState<Tab>(params.get('tab') === 'shares' ? 'shares' : 'orgs');
   const [busy, setBusy] = useState(false);
 
   const [oName, setOName] = useState('');
@@ -80,13 +84,19 @@ export default function Settings() {
     <div ref={scope}>
       <div className="page-head">
         <h1>تعریف‌ها</h1>
-        <p>سازمان‌ها، افراد و محل‌های جلسه را مدیریت کنید — همه‌جا در فرم ساخت جلسه در دسترس‌اند.</p>
+        <p>سازمان‌ها، افراد و محل‌های جلسه را مدیریت کنید — همه‌جا در فرم ساخت جلسه در دسترس‌اند. اشتراک تقویم هم از همین‌جا تنظیم می‌شود.</p>
       </div>
 
       <div className="filters">
         <button className={'chip-btn' + (tab === 'orgs' ? ' active' : '')} onClick={() => setTab('orgs')}>سازمان‌ها</button>
         <button className={'chip-btn' + (tab === 'people' ? ' active' : '')} onClick={() => setTab('people')}>افراد</button>
         <button className={'chip-btn' + (tab === 'locations' ? ' active' : '')} onClick={() => setTab('locations')}>محل‌ها</button>
+        <button className={'chip-btn' + (tab === 'shares' ? ' active' : '')} onClick={() => setTab('shares')}>
+          <IconShare size={14} />اشتراک تقویم
+          {store.sharedByMe.length + store.sharedWithMe.length > 0 && (
+            <b className="num">{toFa(store.sharedByMe.length + store.sharedWithMe.length)}</b>
+          )}
+        </button>
       </div>
 
       {/* ORGANIZATIONS */}
@@ -233,6 +243,9 @@ export default function Settings() {
           </div>
         </>
       )}
+
+      {/* CALENDAR SHARES */}
+      {tab === 'shares' && <CalendarShares />}
 
       {detail && <LocationDialog room={detail} editable onClose={() => setDetail(null)} />}
     </div>

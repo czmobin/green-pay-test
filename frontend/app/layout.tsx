@@ -12,7 +12,7 @@ const vazir = Vazirmatn({
 
 export const metadata: Metadata = {
   title: 'گرین‌پی · اتاق جلسات',
-  description: 'پنل مدیریت جلسات سازمانی گرین‌پی — تقویم، صورت‌جلسه و اتصال Google Calendar',
+  description: 'پنل مدیریت جلسات سازمانی گرین‌پی — تقویم، صورت‌جلسه و اتصال Outlook',
 };
 
 export const viewport: Viewport = {

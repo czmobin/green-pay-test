@@ -11,11 +11,12 @@ from django.conf import settings
 from rest_framework.exceptions import PermissionDenied, ValidationError
 
 from .models import (
-    AgendaItem, Category, GoogleCalendarConnection, Location, Meeting, MeetingParticipant,
+    AgendaItem, CalendarShare, Category, Location, Meeting, MeetingParticipant,
     MeetingReminder, MinuteEntry, Organization, OrganizationKind, User,
 )
 from .serializers import (
-    AgendaItemSerializer, CategorySerializer, GuestSerializer, LocationCreateSerializer,
+    AgendaItemSerializer, CalendarShareCreateSerializer, CalendarShareSerializer,
+    CategorySerializer, GuestSerializer, LocationCreateSerializer,
     LocationSerializer, MeetingCreateSerializer, MeetingSerializer, MinuteEntryCreateSerializer,
     MinuteEntrySerializer, OrganizationCreateSerializer, OrganizationKindSerializer,
     OrganizationSerializer, PersonCreateSerializer, PersonSerializer, from_date_hour,
@@ -288,6 +289,11 @@ def ceo_meeting_ids():
             .values('pk'))
 
 
+def shared_owner_ids(user):
+    """شناسهٔ کسانی که تقویمشان را با این کاربر به اشتراک گذاشته‌اند."""
+    return CalendarShare.objects.filter(viewer=user).values('owner')
+
+
 def meetings_queryset(user=None):
     """
     جلسات قابل مشاهده برای این کاربر.
@@ -299,6 +305,14 @@ def meetings_queryset(user=None):
         می‌شوند. جلسهٔ شخصیِ مدیرعامل (که کسی جز خودش در آن نیست) با همین
         قاعده فقط برای خودش و ادمین می‌ماند.
       • کاربر عادی — فقط جلسه‌هایی که خودش در آن‌هاست.
+
+    به‌علاوهٔ همهٔ این‌ها: تقویم‌هایی که دیگران با او به اشتراک گذاشته‌اند
+    (`CalendarShare`). «تقویم مبدأ» یعنی جلسه‌هایی که مبدأ سازنده یا
+    شرکت‌کنندهٔ آن‌هاست — دقیقاً همان چیزی که خودش می‌بیند.
+
+    این تابع تنها گلوگاه دید سرور است؛ `entries_queryset`، `bootstrap`،
+    گزارش‌ها و هشدار تداخل همه از همین‌جا مشتق می‌شوند، پس اشتراک با یک
+    تغییر همه‌جا درست عمل می‌کند.
     """
     qs = (Meeting.objects
           .select_related('category', 'location', 'organizer')
@@ -307,11 +321,13 @@ def meetings_queryset(user=None):
     if user is None or is_admin(user):
         return qs
 
+    owners = shared_owner_ids(user)
     mine = Q(organizer=user) | Q(participants=user)
+    shared = Q(organizer__in=owners) | Q(participants__in=owners)
     if is_manager(user):
-        qs = qs.filter(mine | ~Q(pk__in=ceo_meeting_ids()))
+        qs = qs.filter(mine | shared | ~Q(pk__in=ceo_meeting_ids()))
     else:
-        qs = qs.filter(mine)
+        qs = qs.filter(mine | shared)
     return qs.distinct()
 
 
@@ -343,7 +359,9 @@ def bootstrap(request):
     for row in MinuteEntrySerializer(entries_queryset(request.user), many=True).data:
         minutes.setdefault(row['meeting'], []).append(row)
 
-    gcal = GoogleCalendarConnection.objects.filter(user=ceo).first() if ceo else None
+    shares = (CalendarShare.objects
+              .filter(Q(owner=request.user) | Q(viewer=request.user))
+              .select_related('owner', 'viewer'))
 
     # یادآور پیامکیِ خودِ کاربر برای هر جلسه — کارت جلسه از همین می‌فهمد که
     # یادآور تنظیم شده، حتی وقتی هیچ آیتم یادآوری در صورت‌جلسه نیست.
@@ -373,7 +391,12 @@ def bootstrap(request):
         'currentUser': str(request.user.pk),
         'currentRole': request.user.role,
         'isManager': is_manager(request.user),
-        'gcalConnected': bool(gcal and gcal.is_connected),
+        # اشتراک‌های تقویم — فرانت با داشتن فهرست مبدأها خودش تشخیص می‌دهد
+        # هر جلسه مالِ تقویم کیست؛ سریالایزر جلسه دست‌نخورده می‌ماند.
+        'sharedWithMe': CalendarShareSerializer(
+            shares.filter(viewer=request.user), many=True).data,
+        'sharedByMe': CalendarShareSerializer(
+            shares.filter(owner=request.user), many=True).data,
         'smsEnabled': bool(ceo and ceo.sms_enabled),
     })
 
@@ -596,18 +619,47 @@ class MeetingViewSet(viewsets.ModelViewSet):
             row.save()
         return Response(reminder_state(meeting, request.user))
 
-    @action(detail=True, methods=['post'])
-    def sync(self, request, pk=None):
-        """همگام‌سازی با Google Calendar."""
-        meeting = self.get_object()
-        meeting.google_synced = True
-        meeting.save(update_fields=['google_synced'])
-        return Response(MeetingSerializer(meeting).data)
+def can_write_minutes(user, meeting) -> bool:
+    """
+    آیا این کاربر اجازهٔ نوشتن در صورت‌جلسهٔ این جلسه را دارد؟
+
+    سه راه:
+      • سازندهٔ جلسه یا نقش مدیریتی (همان `can_edit_meeting`).
+      • شرکت‌کنندهٔ خودِ جلسه — صورت‌جلسه را کسی می‌نویسد که در جلسه بوده.
+      • کسی که یکی از حاضران تقویمش را با او به اشتراک گذاشته **و**
+        `can_write_minutes` را روشن کرده. پیش‌فرض خاموش است، پس دیدنِ
+        تقویم به‌تنهایی اجازهٔ نوشتن نمی‌دهد.
+
+    پیش از این هیچ دروازه‌ای وجود نداشت: `POST /api/entries/` و
+    `entries/<id>/toggle/` هیچ کنترلی نداشتند، پس هر کاربر احرازشده
+    می‌توانست در صورت‌جلسهٔ هر جلسه‌ای — حتی جلسه‌ای که حق دیدنش را نداشت —
+    آیتم ثبت کند. این تابع همان دروازهٔ نبوده است.
+    """
+    if can_edit_meeting(user, meeting):
+        return True
+    if meeting.participants.filter(pk=user.pk).exists():
+        return True
+    owner_ids = [meeting.organizer_id,
+                 *meeting.meeting_participants.values_list('user_id', flat=True)]
+    return CalendarShare.objects.filter(
+        viewer=user, owner_id__in=owner_ids, can_write_minutes=True).exists()
+
+
+def assert_can_write_minutes(user, meeting):
+    if not can_write_minutes(user, meeting):
+        raise PermissionDenied(
+            'برای نوشتن در صورت‌جلسهٔ این جلسه دسترسی ندارید؛ '
+            'صاحب تقویم باید اجازهٔ نوشتن صورت‌جلسه را روشن کند.')
 
 
 def can_edit_entry(user, entry) -> bool:
-    """نویسندهٔ آیتم، سازندهٔ جلسه، مدیرعامل و ادمین می‌توانند ویرایش کنند."""
-    return entry.created_by_id == user.id or can_edit_meeting(user, entry.minutes.meeting)
+    """
+    نویسندهٔ آیتم، یا هرکسی که اجازهٔ نوشتن در صورت‌جلسهٔ این جلسه را دارد.
+
+    نویسندهٔ آیتم عمداً بدون شرط اضافه می‌ماند: اگر دسترسی اشتراکی‌اش بعداً
+    برداشته شود، هنوز باید بتواند نوشتهٔ خودش را اصلاح یا پاک کند.
+    """
+    return entry.created_by_id == user.id or can_write_minutes(user, entry.minutes.meeting)
 
 
 class MinuteEntryViewSet(viewsets.ModelViewSet):
@@ -618,8 +670,11 @@ class MinuteEntryViewSet(viewsets.ModelViewSet):
         return entries_queryset(self.request.user)
 
     def create(self, request, *args, **kwargs):
-        write = MinuteEntryCreateSerializer(data=request.data)
+        # سریالایزر جلسه را در دامنهٔ دید همین کاربر حل می‌کند (context)، پس
+        # جلسهٔ نادیدنی اصلاً اعتبارسنجی نمی‌شود؛ اجازهٔ نوشتن جدا بررسی می‌شود.
+        write = MinuteEntryCreateSerializer(data=request.data, context={'request': request})
         write.is_valid(raise_exception=True)
+        assert_can_write_minutes(request.user, write.validated_data['meeting'])
         entry = write.save()
         entry.created_by = request.user
         entry.save(update_fields=['created_by'])
@@ -671,6 +726,7 @@ class MinuteEntryViewSet(viewsets.ModelViewSet):
     def toggle(self, request, pk=None):
         """تیک انجام‌شدن — برای یادآور و تماس تلفنی."""
         entry = self.get_object()
+        assert_can_write_minutes(request.user, entry.minutes.meeting)
         entry.is_done = not entry.is_done
         entry.done_at = timezone.now() if entry.is_done else None
         entry.save(update_fields=['is_done', 'done_at'])
@@ -758,6 +814,67 @@ class PersonViewSet(ManagerOnlyDeleteMixin, viewsets.ModelViewSet):
         return Response(result)
 
 
+class CalendarShareViewSet(viewsets.ModelViewSet):
+    """
+    اشتراک تقویم — «تقویم من را چه کسانی می‌بینند» و «تقویم چه کسانی را می‌بینم».
+
+    قاعدهٔ مالکیت در همهٔ عملیات یکی است و اینجا نوشته شده تا در چند جا تکرار
+    نشود: **فقط مبدأ** اشتراک را می‌سازد و اجازهٔ نوشتن صورت‌جلسه را عوض
+    می‌کند؛ حذف را هر دو طرف می‌توانند (مبدأ پس می‌گیرد، مقصد از دید خودش
+    برمی‌دارد).
+    """
+    serializer_class = CalendarShareSerializer
+
+    def get_queryset(self):
+        user = self.request.user
+        return (CalendarShare.objects
+                .filter(Q(owner=user) | Q(viewer=user))
+                .select_related('owner', 'viewer'))
+
+    def create(self, request, *args, **kwargs):
+        write = CalendarShareCreateSerializer(data=request.data)
+        write.is_valid(raise_exception=True)
+        viewer = write.validated_data['viewer']
+        if viewer.pk == request.user.pk:
+            raise ValidationError({'viewer': 'تقویم خودتان از قبل برای خودتان دیدنی است.'})
+
+        share, created = CalendarShare.objects.get_or_create(
+            owner=request.user, viewer=viewer,
+            defaults={'can_write_minutes': write.validated_data.get('canWriteMinutes', False)},
+        )
+        if not created:
+            # اشتراک تکراری خطا نیست؛ همان ردیف با تنظیم تازه برمی‌گردد.
+            flag = write.validated_data.get('canWriteMinutes')
+            if flag is not None and flag != share.can_write_minutes:
+                share.can_write_minutes = flag
+                share.save(update_fields=['can_write_minutes', 'updated_at'])
+        return Response(CalendarShareSerializer(share).data,
+                        status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
+
+    def update(self, request, *args, **kwargs):
+        return self._edit(request)
+
+    def partial_update(self, request, *args, **kwargs):
+        return self._edit(request)
+
+    def _edit(self, request):
+        """تنها چیز قابل تغییر: اجازهٔ نوشتن صورت‌جلسه — و فقط دستِ مبدأ."""
+        share = self.get_object()
+        if share.owner_id != request.user.pk:
+            raise PermissionDenied('فقط صاحب تقویم می‌تواند اجازهٔ نوشتن صورت‌جلسه را عوض کند.')
+        if 'canWriteMinutes' not in (request.data or {}):
+            raise ValidationError({'detail': 'چیزی برای تغییر فرستاده نشده است.'})
+        share.can_write_minutes = bool(request.data['canWriteMinutes'])
+        share.save(update_fields=['can_write_minutes', 'updated_at'])
+        return Response(CalendarShareSerializer(share).data)
+
+    def perform_destroy(self, instance):
+        # get_queryset از قبل به همین دو طرف محدود است؛ این فقط صریح‌ترش می‌کند.
+        if self.request.user.pk not in (instance.owner_id, instance.viewer_id):
+            raise PermissionDenied('این اشتراک به شما مربوط نیست.')
+        instance.delete()
+
+
 class GuestViewSet(viewsets.ModelViewSet):
     """
     مهمان خارجی — هر کاربری می‌تواند برای دعوت به جلسهٔ خودش یکی بسازد.
@@ -835,20 +952,6 @@ class LocationViewSet(ManagerOnlyDeleteMixin, viewsets.ModelViewSet):
             raise ValidationError({'detail': 'چیزی برای تغییر فرستاده نشده است.'})
         loc.save(update_fields=fields)
         return Response(LocationSerializer(loc).data)
-
-
-@api_view(['POST'])
-def set_gcal(request):
-    """اتصال/قطع اتصال Google Calendar برای کاربر جاری (دمو: مدیرعامل)."""
-    connected = bool(request.data.get('connected', True))
-    user = User.objects.filter(role=User.Role.CEO).first() or User.objects.filter(is_external=False).first()
-    conn, _ = GoogleCalendarConnection.objects.get_or_create(user=user)
-    conn.is_connected = connected
-    conn.calendar_id = 'greenpay-meetings' if connected else ''
-    conn.save(update_fields=['is_connected', 'calendar_id'])
-    if connected:
-        Meeting.objects.filter(google_synced=False).update(google_synced=True)
-    return Response({'gcalConnected': connected})
 
 
 @api_view(['POST'])
