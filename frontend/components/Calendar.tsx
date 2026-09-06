@@ -251,37 +251,55 @@ function WeekPrint({ days, meetingsOn }: { days: JDate[]; meetingsOn: (j: JDate)
   );
 }
 
-/**
- * چیدنِ جلسه‌های یک روز در «خط»های کنار هم، فقط جایی که واقعاً هم‌پوشانی هست.
- *
- * تعداد خط‌ها به‌ازای هر خوشهٔ هم‌پوشان حساب می‌شود نه برای کل روز؛ وگرنه یک
- * تداخل در ساعت ۹ همهٔ جلسه‌های آن روز را نصف‌عرض می‌کرد.
- */
-function packDay(items: Meeting[]): Map<string, { lane: number; lanes: number }> {
-  const out = new Map<string, { lane: number; lanes: number }>();
-  const sorted = [...items].sort((a, b) => a.start - b.start || b.end - a.end);
+type PrintCard = { m: Meeting; solo: boolean; dur: number };
+type PrintCluster = { top: number; cards: PrintCard[] };
 
-  let cluster: Meeting[] = [];
-  let clusterEnd = -Infinity;
+/**
+ * چیدنِ جلسه‌های یک روز برای چاپ — خوشه به خوشه.
+ *
+ * هر خوشهٔ هم‌پوشان یک جعبهٔ لنگرانداخته روی **زمان شروع واقعی‌اش** است، و
+ * کارت‌های داخلش پشت سر هم و تمام‌عرض می‌آیند:
+ *
+ *   • کارت تنها ارتفاعش را از **مدتش** می‌گیرد — جلسهٔ ۱۴ تا ۱۶ دقیقاً دو
+ *     ردیف ساعت.
+ *   • کارتِ داخل خوشه ارتفاعش را از **محتوایش** می‌گیرد.
+ *
+ * چرا این تفاوت: پیش‌تر هم‌پوشان‌ها کنار هم و نصف‌عرض می‌نشستند، پس جلسهٔ
+ * سه‌ساعته دو ردیف فضای خالی داشت و جلسهٔ نیم‌ساعته‌ی کنارش در ستونی باریک
+ * عنوانش وسط کلمه بریده می‌شد — و فضای خالیِ آن یکی به دردش نمی‌خورد چون در
+ * ستون دیگری بود. حالا هیچ کارتی فضای بی‌استفاده نگه نمی‌دارد و هر کدام
+ * تمام عرض ستون را دارد.
+ *
+ * لنگرِ هر خوشه جداست و انباشته نمی‌شود: اگر موقعیتِ خوشه از روی کارت قبلی
+ * حساب می‌شد، فشرده‌شدنِ یک خوشه همهٔ ساعت‌های بعدِ آن روز را بالا می‌کشید.
+ */
+function layoutPrintDay(items: Meeting[], first: number, last: number): PrintCluster[] {
+  const sorted = [...items].sort((a, b) => a.start - b.start || b.end - a.end);
+  const clip = (h: number) => Math.max(first, Math.min(h, last));
+
+  const out: PrintCluster[] = [];
+  let cur: Meeting[] = [];
+  let curEnd = -Infinity;
 
   const flush = () => {
-    if (!cluster.length) return;
-    const laneEnds: number[] = [];
-    const laneOf = new Map<string, number>();
-    for (const m of cluster) {
-      let li = laneEnds.findIndex((e) => e <= m.start + 1e-9);
-      if (li < 0) { laneEnds.push(m.end); li = laneEnds.length - 1; } else laneEnds[li] = m.end;
-      laneOf.set(m.id, li);
-    }
-    for (const m of cluster) out.set(m.id, { lane: laneOf.get(m.id) ?? 0, lanes: laneEnds.length });
-    cluster = [];
-    clusterEnd = -Infinity;
+    if (!cur.length) return;
+    const top = clip(cur[0].start) - first;
+    out.push({
+      top,
+      cards: cur.map((m) => ({
+        m,
+        solo: cur.length === 1,
+        dur: clip(m.end) - clip(m.start),
+      })),
+    });
+    cur = [];
+    curEnd = -Infinity;
   };
 
   for (const m of sorted) {
-    if (cluster.length && m.start >= clusterEnd) flush();
-    cluster.push(m);
-    clusterEnd = Math.max(clusterEnd, m.end);
+    if (cur.length && m.start >= curEnd) flush();
+    cur.push(m);
+    curEnd = Math.max(curEnd, m.end);
   }
   flush();
   return out;
@@ -295,8 +313,8 @@ function packDay(items: Meeting[]): Map<string, { lane: number; lanes: number }>
  *
  * پیش‌تر هر جلسه فقط در خانهٔ **ساعت شروعش** می‌نشست، پس جلسهٔ ۱۴ تا ۱۶ روی
  * کاغذ به‌اندازهٔ یک خانه دیده می‌شد — برچسبش درست بود ولی ارتفاعش دروغ
- * می‌گفت. حالا مثل نمای هفتگیِ روی صفحه، بلوک با `top`/`height` از روی
- * زمان واقعی کشیده می‌شود، و جلسه‌های هم‌پوشان کنار هم می‌نشینند.
+ * می‌گفت. حالا ارتفاع کارت از مدت واقعی می‌آید؛ چیدمانش را
+ * `layoutPrintDay` تعیین می‌کند.
  *
  * ارتفاع هر ساعت را CSS از روی `--span` حساب می‌کند تا شبکه همیشه در یک
  * برگهٔ افقی جا شود؛ هفتهٔ شلوغ فشرده‌تر چاپ می‌شود، نه بریده.
@@ -338,37 +356,32 @@ function WeekPrintGrid({ days, meetingsOn }: { days: JDate[]; meetingsOn: (j: JD
           <div className="pwg-hours">
             {hours.map((h) => <div className="pwg-h num" key={h}>{toFa(h)}:۰۰</div>)}
           </div>
-          {days.map((j, di) => {
-            const items = meetingsOn(j);
-            const pack = packDay(items);
-            return (
-              <div className="pwg-col" key={di}>
-                {hours.map((h) => <div className="pwg-slot" key={h} />)}
-                {items.map((m) => {
-                  // بریدن به بازهٔ چاپ‌شده تا جلسه‌ای که از لبه بیرون می‌زند
-                  // شبکه را نشکند
-                  const from = Math.max(first, Math.min(m.start, last));
-                  const to = Math.max(from, Math.min(m.end, last));
-                  const { lane, lanes } = pack.get(m.id) ?? { lane: 0, lanes: 1 };
-                  return (
-                    <div className="pwg-ev" key={m.id} style={{
-                      top: `calc(var(--ph) * ${from - first})`,
-                      height: `calc(var(--ph) * ${Math.max(to - from, 0.34)} - .6mm)`,
-                      insetInlineStart: `${(lane / lanes) * 100}%`,
-                      width: `calc(${100 / lanes}% - .5mm)`,
-                    }}>
+          {days.map((j, di) => (
+            <div className="pwg-col" key={di}>
+              {/* خط‌های ساعت پس‌زمینه‌اند و ارتفاع ستون را می‌سازند */}
+              {hours.map((h) => <div className="pwg-slot" key={h} />)}
+              {/* هر خوشه روی زمان شروع خودش لنگر می‌اندازد؛ کارت‌های داخلش
+                  در جریان عادی پشت سر هم می‌آیند. */}
+              {layoutPrintDay(meetingsOn(j), first, last).map((cl) => (
+                <div className="pwg-cluster" key={cl.cards[0].m.id}
+                  style={{ top: `calc(var(--ph) * ${cl.top.toFixed(3)})` }}>
+                  {cl.cards.map(({ m, solo, dur }) => (
+                    <div className="pwg-ev" key={m.id}
+                      style={solo
+                        ? { minHeight: `calc(var(--ph) * ${dur.toFixed(3)} - .8mm)` }
+                        : undefined}>
                       <b>{m.title}</b>
-                      {/* زمان و محل روی یک خط: بلوکِ نیم‌ساعته جای سه خط ندارد
+                      {/* زمان و محل روی یک خط: کارت نیم‌ساعته جای سه خط ندارد
                           و خط سوم بریده می‌شد */}
                       <span className="pwg-meta">
                         <i className="num">{fmtTime(m.start)}–{fmtTime(m.end)}</i> · {where(m)}
                       </span>
                     </div>
-                  );
-                })}
-              </div>
-            );
-          })}
+                  ))}
+                </div>
+              ))}
+            </div>
+          ))}
         </div>
       </div>
     </section>

@@ -1784,6 +1784,7 @@ select.field-in option{direction:rtl;text-align:right}
   .pwg-head .pwg-corner{font-size:8pt}
 
   .pwg-hours,.pwg-col{position:relative;border:.6pt solid #888;border-top:0}
+  .pwg-col{overflow:hidden}
   .pwg-hours{border-inline-end:0}
   .pwg-col{border-inline-start:0}
 
@@ -1793,9 +1794,16 @@ select.field-in option{direction:rtl;text-align:right}
   .pwg-h{font-size:7.5pt;font-weight:700;text-align:center;line-height:1;padding-top:.6mm;
     background:#f4f4f4;-webkit-print-color-adjust:exact;print-color-adjust:exact}
 
-  .pwg-ev{position:absolute;overflow:hidden;box-sizing:border-box;
+  /* هر خوشه یک جعبهٔ لنگرانداخته روی زمان شروعش است؛ کارت‌های داخلش در
+     جریان عادی‌اند تا کارتی که محتوایش بیشتر جا می‌خواهد بعدی را هل بدهد،
+     نه اینکه رویش بیفتد. overflow:hidden روی ستون است تا سرریزِ یک روز
+     شلوغ به روز بعد نزند. */
+  .pwg-cluster{position:absolute;inset-inline:.4mm}
+  .pwg-ev{overflow:hidden;box-sizing:border-box;margin-bottom:.8mm;
     border:.5pt solid #333;border-radius:1.2mm;padding:.4mm .8mm;
     font-size:7pt;line-height:1.25;background:#fff}
+  /* کارت تنها ارتفاعش را از مدتش می‌گیرد (min-height در JS ست می‌شود)؛
+     کارتِ داخل خوشهٔ هم‌پوشان از محتوایش، تا فضای خالی برای بقیه بماند. */
   .pwg-ev b{display:block;font-weight:700;overflow-wrap:anywhere}
   /* می‌پیچد نه اینکه با «…» بریده شود: ستونِ باریکِ جلسه‌های هم‌پوشان جای یک
      خط ندارد، ولی چون بلندند جای دو خط دارند. ساعت خودش نمی‌شکند. */
