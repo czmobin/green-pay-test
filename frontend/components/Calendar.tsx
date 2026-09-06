@@ -252,14 +252,54 @@ function WeekPrint({ days, meetingsOn }: { days: JDate[]; meetingsOn: (j: JDate)
 }
 
 /**
- * نمای تقویمیِ چاپ — شبکهٔ ساعت × روز.
+ * چیدنِ جلسه‌های یک روز در «خط»های کنار هم، فقط جایی که واقعاً هم‌پوشانی هست.
+ *
+ * تعداد خط‌ها به‌ازای هر خوشهٔ هم‌پوشان حساب می‌شود نه برای کل روز؛ وگرنه یک
+ * تداخل در ساعت ۹ همهٔ جلسه‌های آن روز را نصف‌عرض می‌کرد.
+ */
+function packDay(items: Meeting[]): Map<string, { lane: number; lanes: number }> {
+  const out = new Map<string, { lane: number; lanes: number }>();
+  const sorted = [...items].sort((a, b) => a.start - b.start || b.end - a.end);
+
+  let cluster: Meeting[] = [];
+  let clusterEnd = -Infinity;
+
+  const flush = () => {
+    if (!cluster.length) return;
+    const laneEnds: number[] = [];
+    const laneOf = new Map<string, number>();
+    for (const m of cluster) {
+      let li = laneEnds.findIndex((e) => e <= m.start + 1e-9);
+      if (li < 0) { laneEnds.push(m.end); li = laneEnds.length - 1; } else laneEnds[li] = m.end;
+      laneOf.set(m.id, li);
+    }
+    for (const m of cluster) out.set(m.id, { lane: laneOf.get(m.id) ?? 0, lanes: laneEnds.length });
+    cluster = [];
+    clusterEnd = -Infinity;
+  };
+
+  for (const m of sorted) {
+    if (cluster.length && m.start >= clusterEnd) flush();
+    cluster.push(m);
+    clusterEnd = Math.max(clusterEnd, m.end);
+  }
+  flush();
+  return out;
+}
+
+/**
+ * نمای تقویمیِ چاپ — شبکهٔ ساعت × روز، با بلوکِ هم‌اندازهٔ زمانِ واقعی.
  *
  * بازهٔ ساعت‌ها از خودِ جلسه‌ها درمی‌آید نه از ۶ تا ۲۴ ثابت: هفته‌ای که همهٔ
  * جلسه‌هایش بعدازظهر است، نباید نصف برگه را خالی چاپ کند.
  *
- * جلسه در خانهٔ **ساعت شروعش** می‌نشیند و بازهٔ کاملش را می‌نویسد. کشیدنِ
- * جلسه روی چند ردیف (rowspan) با جلسه‌های هم‌پوشان می‌شکند و روی کاغذ هم
- * چیزی به خواننده اضافه نمی‌کند.
+ * پیش‌تر هر جلسه فقط در خانهٔ **ساعت شروعش** می‌نشست، پس جلسهٔ ۱۴ تا ۱۶ روی
+ * کاغذ به‌اندازهٔ یک خانه دیده می‌شد — برچسبش درست بود ولی ارتفاعش دروغ
+ * می‌گفت. حالا مثل نمای هفتگیِ روی صفحه، بلوک با `top`/`height` از روی
+ * زمان واقعی کشیده می‌شود، و جلسه‌های هم‌پوشان کنار هم می‌نشینند.
+ *
+ * ارتفاع هر ساعت از تعداد ساعت‌های هفته حساب می‌شود تا شبکه در یک برگهٔ
+ * افقی جا شود؛ هفتهٔ شلوغ فشرده‌تر چاپ می‌شود، نه بریده.
  */
 function WeekPrintGrid({ days, meetingsOn }: { days: JDate[]; meetingsOn: (j: JDate) => Meeting[] }) {
   const store = useStore();
@@ -271,7 +311,11 @@ function WeekPrintGrid({ days, meetingsOn }: { days: JDate[]; meetingsOn: (j: JD
 
   const first = Math.max(START, Math.floor(Math.min(...all.map((m) => m.start))));
   const last = Math.min(END, Math.ceil(Math.max(...all.map((m) => m.end))));
-  const hours = Array.from({ length: Math.max(1, last - first) }, (_, i) => first + i);
+  const span = Math.max(1, last - first);
+  const hours = Array.from({ length: span }, (_, i) => first + i);
+
+  // ارتفاع مفیدِ یک برگهٔ A4 افقی منهای سرصفحه‌ها، بر حسب میلی‌متر
+  const PH = Math.max(7, Math.min(18, 165 / span));
 
   return (
     <section className="pw-grid-page">
@@ -280,40 +324,54 @@ function WeekPrintGrid({ days, meetingsOn }: { days: JDate[]; meetingsOn: (j: JD
         <span className="num">{weekRange(days)}</span>
       </div>
 
-      <table className="pw-grid">
-        <thead>
-          <tr>
-            <th className="pw-hcol">ساعت</th>
-            {days.map((j, i) => (
-              <th key={i}>
-                {jWeekdays[faWeekday(j.jy, j.jm, j.jd)]}
-                <span className="num">{toFa(j.jd)} {jMonths[j.jm - 1]}</span>
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {hours.map((h) => (
-            <tr key={h}>
-              <th className="pw-hcol num">{toFa(h)}:۰۰</th>
-              {days.map((j, i) => {
-                const here = meetingsOn(j).filter((m) => Math.floor(m.start) === h);
-                return (
-                  <td key={i}>
-                    {here.map((m) => (
-                      <div className="pw-cell" key={m.id}>
-                        <b>{m.title}</b>
-                        <span className="num">{fmtTime(m.start)}–{fmtTime(m.end)}</span>
-                        <span>{where(m)}</span>
-                      </div>
-                    ))}
-                  </td>
-                );
-              })}
-            </tr>
+      <div className="pwg" style={{ ['--ph' as string]: `${PH}mm` }}>
+        <div className="pwg-row pwg-head">
+          <div className="pwg-corner">ساعت</div>
+          {days.map((j, i) => (
+            <div className="pwg-dh" key={i}>
+              {jWeekdays[faWeekday(j.jy, j.jm, j.jd)]}
+              <span className="num">{toFa(j.jd)} {jMonths[j.jm - 1]}</span>
+            </div>
           ))}
-        </tbody>
-      </table>
+        </div>
+
+        <div className="pwg-row pwg-body">
+          <div className="pwg-hours">
+            {hours.map((h) => <div className="pwg-h num" key={h}>{toFa(h)}:۰۰</div>)}
+          </div>
+          {days.map((j, di) => {
+            const items = meetingsOn(j);
+            const pack = packDay(items);
+            return (
+              <div className="pwg-col" key={di}>
+                {hours.map((h) => <div className="pwg-slot" key={h} />)}
+                {items.map((m) => {
+                  // بریدن به بازهٔ چاپ‌شده تا جلسه‌ای که از لبه بیرون می‌زند
+                  // شبکه را نشکند
+                  const from = Math.max(first, Math.min(m.start, last));
+                  const to = Math.max(from, Math.min(m.end, last));
+                  const { lane, lanes } = pack.get(m.id) ?? { lane: 0, lanes: 1 };
+                  return (
+                    <div className="pwg-ev" key={m.id} style={{
+                      top: `calc(var(--ph) * ${from - first})`,
+                      height: `calc(var(--ph) * ${Math.max(to - from, 0.34)} - .6mm)`,
+                      insetInlineStart: `${(lane / lanes) * 100}%`,
+                      width: `calc(${100 / lanes}% - .5mm)`,
+                    }}>
+                      <b>{m.title}</b>
+                      {/* زمان و محل روی یک خط: بلوکِ نیم‌ساعته جای سه خط ندارد
+                          و خط سوم بریده می‌شد */}
+                      <span className="pwg-meta">
+                        <i className="num">{fmtTime(m.start)}–{fmtTime(m.end)}</i> · {where(m)}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })}
+        </div>
+      </div>
     </section>
   );
 }

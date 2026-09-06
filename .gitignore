@@ -38,6 +38,9 @@ venv/
 __pycache__/
 *.py[cod]
 *.sqlite3
+# فایل‌های جانبی WAL — از وقتی journal_mode=WAL روشن شد کنار دیتابیس ساخته می‌شوند
+*.sqlite3-wal
+*.sqlite3-shm
 backend/media/
 backend/staticfiles/
 .env

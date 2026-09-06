@@ -109,7 +109,8 @@ interface Store {
   setSharedOwner: (id: string | null) => void;
   /** شمار جلسه‌های تقویم‌های اشتراکی — کنار نام تب */
   sharedCount: number;
-  addShare: (viewer: string) => Promise<void>;
+  /** اشتراک تقویم با یک یا چند نفر — همه در یک عملیات */
+  addShare: (viewers: string[]) => Promise<void>;
   setShareWrite: (id: string, canWrite: boolean) => Promise<void>;
   removeShare: (id: string) => Promise<void>;
   /**
@@ -449,11 +450,20 @@ export default function Providers({ children }: { children: React.ReactNode }) {
   }, [guarded]);
 
   /* ---------- اشتراک تقویم ---------- */
-  const addShare = useCallback(async (viewer: string) => {
+  const addShare = useCallback(async (viewers: string[]) => {
+    if (!viewers.length) return;
     await guarded(async () => {
-      const share = await api.createShare(viewer);
-      setSharedByMe((s) => [...s.filter((x) => x.id !== share.id), share]);
-      toast('تقویم شما با این نفر به اشتراک گذاشته شد', 'ok');
+      // پشت‌سرهم و نه موازی: تعدادشان انگشت‌شمار است و اگر یکی رد شود،
+      // بقیه‌ای که رفته‌اند سرِ جایشان می‌مانند.
+      const made: CalendarShare[] = [];
+      for (const viewer of viewers) made.push(await api.createShare(viewer));
+      setSharedByMe((s) => {
+        const ids = new Set(made.map((x) => x.id));
+        return [...s.filter((x) => !ids.has(x.id)), ...made];
+      });
+      toast(made.length === 1
+        ? 'تقویم شما با این نفر به اشتراک گذاشته شد'
+        : `تقویم شما با ${made.length} نفر به اشتراک گذاشته شد`, 'ok');
     });
   }, [guarded, toast]);
 

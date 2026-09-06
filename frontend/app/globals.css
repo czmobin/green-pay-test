@@ -1088,6 +1088,12 @@ select.field-in option{direction:rtl;text-align:right}
 }
 
 /* ===================== اشتراک تقویم (صفحهٔ تعریف‌ها) ===================== */
+/* فرم اشتراک انتخابگرِ چندنفره دارد، پس ستونی می‌چیند نه ردیفی */
+.share-form-body{display:block}
+.share-form-body .field{margin-bottom:12px}
+.share-form-body .btn{width:100%;justify-content:center}
+.share-empty-inline{font-size:12px;color:var(--muted);padding:8px}
+
 /* تبِ اشتراک آیکون و شمارنده دارد؛ بدون این، متن و عدد به هم می‌چسبند */
 .chip-btn.chip-share{display:inline-flex;align-items:center;gap:7px}
 .chip-btn.chip-share b{font-size:11px;font-weight:800;padding:1px 7px;border-radius:999px;
@@ -1758,20 +1764,37 @@ select.field-in option{direction:rtl;text-align:right}
   @page landscape{size:A4 landscape;margin:12mm 10mm}
   .pw-grid-page{page:landscape;break-after:page}
 
-  .pw-grid{width:100%;border-collapse:collapse;table-layout:fixed}
-  .pw-grid th,.pw-grid td{border:.6pt solid #888;vertical-align:top;padding:2pt 3pt}
-  .pw-grid thead th{font-size:8.5pt;font-weight:700;background:#eee;text-align:center;
+  /* شبکه‌ای که ارتفاعش زمان را می‌گوید: هر جلسه با top/height از روی ساعت
+     واقعی کشیده می‌شود، پس جلسهٔ ۱۴ تا ۱۶ دقیقاً دو ردیف ساعت را می‌گیرد.
+     minmax(0,1fr) و نه 1fr: کف min-content باعث می‌شود عنوانِ بلندِ یک جلسه
+     ستون را پهن کند و هفت ستون از برگه بیرون بزند. */
+  .pwg{break-inside:avoid}
+  .pwg-row{display:grid;grid-template-columns:13mm repeat(7,minmax(0,1fr))}
+
+  .pwg-head .pwg-corner,.pwg-dh{border:.6pt solid #888;padding:2pt 1pt;text-align:center;
+    font-size:8.5pt;font-weight:700;background:#eee;
     -webkit-print-color-adjust:exact;print-color-adjust:exact}
-  .pw-grid thead th span{display:block;font-weight:600;color:#333;font-size:7.5pt}
-  /* سرستون ساعت باریک است تا هفت ستونِ روز جا بگیرند */
-  .pw-grid .pw-hcol{width:13mm;font-size:8pt;font-weight:700;text-align:center;
+  .pwg-dh span{display:block;font-weight:600;color:#333;font-size:7.5pt}
+  .pwg-head .pwg-corner{font-size:8pt}
+
+  .pwg-hours,.pwg-col{position:relative;border:.6pt solid #888;border-top:0}
+  .pwg-hours{border-inline-end:0}
+  .pwg-col{border-inline-start:0}
+
+  /* خط ساعت‌ها؛ ارتفاعشان همان واحدی است که بلوک‌ها با آن حساب می‌شوند */
+  .pwg-h,.pwg-slot{height:var(--ph);box-sizing:border-box;border-top:.4pt solid #bbb}
+  .pwg-hours .pwg-h:first-child,.pwg-col .pwg-slot:first-child{border-top:0}
+  .pwg-h{font-size:7.5pt;font-weight:700;text-align:center;line-height:1;padding-top:.6mm;
     background:#f4f4f4;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-  .pw-grid tbody tr{break-inside:avoid}
-  .pw-grid tbody td{height:11mm}
-  .pw-cell{border:.5pt solid #555;border-radius:1.5mm;padding:1pt 2pt;margin-bottom:1.5pt;
-    font-size:7.5pt;line-height:1.4}
-  .pw-cell b{display:block;font-weight:700;overflow-wrap:anywhere}
-  .pw-cell span{display:block;color:#333}
+
+  .pwg-ev{position:absolute;overflow:hidden;box-sizing:border-box;
+    border:.5pt solid #333;border-radius:1.2mm;padding:.4mm .8mm;
+    font-size:7pt;line-height:1.25;background:#fff}
+  .pwg-ev b{display:block;font-weight:700;overflow-wrap:anywhere}
+  /* می‌پیچد نه اینکه با «…» بریده شود: ستونِ باریکِ جلسه‌های هم‌پوشان جای یک
+     خط ندارد، ولی چون بلندند جای دو خط دارند. ساعت خودش نمی‌شکند. */
+  .pwg-meta{display:block;color:#333}
+  .pwg-meta i{font-style:normal;font-weight:700;white-space:nowrap}
 
   /* --- نمای فهرستی --------------------------------------------------- */
   .pw-list-page{page:auto}

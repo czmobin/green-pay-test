@@ -1,8 +1,11 @@
 'use client';
 import React, { useMemo, useState } from 'react';
 import { useStore } from './store';
-import { initials, toFa } from '@/lib/data';
-import { IconPlus, IconTrash, IconShare, IconEye, IconEdit } from './Icons';
+import { initials, normalizeFa, toFa } from '@/lib/data';
+import { IconPlus, IconTrash, IconShare, IconEye, IconEdit, IconSearch } from './Icons';
+
+/** چند نفر پیش از جستجو نشان داده می‌شوند — مثل فرم ساخت جلسه */
+const PEOPLE_SHOWN = 20;
 
 /**
  * مدیریت اشتراک تقویم — دو فهرست جدا، چون دو رابطهٔ متفاوت‌اند.
@@ -17,7 +20,8 @@ import { IconPlus, IconTrash, IconShare, IconEye, IconEdit } from './Icons';
  */
 export default function CalendarShares() {
   const store = useStore();
-  const [pick, setPick] = useState('');
+  const [picked, setPicked] = useState<string[]>([]);
+  const [q, setQ] = useState('');
   const [busy, setBusy] = useState(false);
 
   const already = useMemo(
@@ -31,37 +35,80 @@ export default function CalendarShares() {
       .sort((a, b) => a.name.localeCompare(b.name, 'fa')),
     [store.people, store.currentUser, already]);
 
+  /**
+   * فهرست نمایش — بدون جستجو فقط PEOPLE_SHOWN نفر، و بقیه با جستجو.
+   *
+   * انتخاب‌شده‌ها **همیشه** اول فهرست می‌مانند، حتی وقتی با جستجوی فعلی جور
+   * نیستند: وگرنه کاربر دو نفر انتخاب می‌کرد، کلمهٔ بعدی را تایپ می‌کرد و
+   * شمارنده می‌گفت «۲» در حالی که فقط یکی دیده می‌شد.
+   */
+  const shown = useMemo(() => {
+    const nq = normalizeFa(q);
+    const sel = candidates.filter((p) => picked.includes(p.id));
+    const rest = candidates.filter((p) => !picked.includes(p.id));
+    if (nq) return [...sel, ...rest.filter((p) => normalizeFa(p.name + ' ' + p.role).includes(nq))];
+    return [...sel, ...rest].slice(0, PEOPLE_SHOWN);
+  }, [candidates, picked, q]);
+
+  const hidden = candidates.length - shown.length;
   const person = (id: string) => store.people[id];
+  const toggle = (id: string) =>
+    setPicked((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
 
   async function add(e: React.FormEvent) {
     e.preventDefault();
-    if (!pick) { store.toast('اول یک نفر را انتخاب کنید', 'info'); return; }
+    if (!picked.length) { store.toast('اول دست‌کم یک نفر را انتخاب کنید', 'info'); return; }
     setBusy(true);
-    await store.addShare(pick);
+    await store.addShare(picked);
     setBusy(false);
-    setPick('');
+    setPicked([]);
+    setQ('');
   }
 
   return (
     <>
       <form className="card def-form" onSubmit={add}>
-        <div className="card-head"><h3>اشتراک تقویم من با یک نفر</h3></div>
-        <div className="def-form-body">
-          <div className="field"><label>این فرد تقویم من را ببیند</label>
-            <select className="field-in" value={pick} onChange={(e) => setPick(e.target.value)}>
-              <option value="">— انتخاب کنید —</option>
-              {candidates.map((p) => (
-                <option key={p.id} value={p.id}>{p.name}{p.role ? ` — ${p.role}` : ''}</option>
+        <div className="card-head"><h3>اشتراک تقویم من با دیگران</h3></div>
+        <div className="def-form-body share-form-body">
+          <div className="field">
+            <label>این افراد تقویم من را ببینند ({toFa(picked.length)})</label>
+            <div className="pp-search">
+              <IconSearch size={15} />
+              <input value={q} onChange={(e) => setQ(e.target.value)}
+                placeholder="جستجوی نام یا سمت…" />
+            </div>
+            <div className="people-pick">
+              {shown.map((p) => (
+                <button type="button" key={p.id}
+                  className={'ppick' + (picked.includes(p.id) ? ' active' : '')}
+                  onClick={() => toggle(p.id)}>
+                  <span className="ava sm" style={{ background: `linear-gradient(145deg,${p.color})` }}>
+                    {initials(p.name)}
+                  </span>
+                  {p.name}
+                </button>
               ))}
-            </select>
+              {shown.length === 0 && (
+                <div className="share-empty-inline">
+                  {candidates.length === 0
+                    ? 'تقویمتان با همه به اشتراک گذاشته شده است.'
+                    : 'کسی پیدا نشد.'}
+                </div>
+              )}
+            </div>
+            {!q && hidden > 0 && (
+              <div className="pp-more">{toFa(hidden)} نفر دیگر — برای دیدنشان جستجو کنید.</div>
+            )}
           </div>
-          <button className="btn btn-primary" type="submit" disabled={busy || !pick}>
-            <IconPlus size={16} />{busy ? 'در حال ذخیره…' : 'اشتراک‌گذاری'}
+          <button className="btn btn-primary" type="submit" disabled={busy || !picked.length}>
+            <IconPlus size={16} />
+            {busy ? 'در حال ذخیره…'
+              : picked.length > 1 ? `اشتراک‌گذاری با ${toFa(picked.length)} نفر` : 'اشتراک‌گذاری'}
           </button>
         </div>
         <p className="share-note">
-          با اشتراک‌گذاری، این فرد جلسه‌های تقویم شما را در فهرست و تقویم می‌بیند.
-          نوشتن در صورت‌جلسه <b>پیش‌فرض خاموش</b> است و فقط با کلید زیر روشن می‌شود.
+          با اشتراک‌گذاری، این افراد جلسه‌های تقویم شما را در فهرست و تقویم می‌بینند.
+          نوشتن در صورت‌جلسه <b>پیش‌فرض خاموش</b> است و برای هر نفر جداگانه با کلید زیر روشن می‌شود.
         </p>
       </form>
 
