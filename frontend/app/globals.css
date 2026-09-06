@@ -1768,7 +1768,13 @@ select.field-in option{direction:rtl;text-align:right}
      واقعی کشیده می‌شود، پس جلسهٔ ۱۴ تا ۱۶ دقیقاً دو ردیف ساعت را می‌گیرد.
      minmax(0,1fr) و نه 1fr: کف min-content باعث می‌شود عنوانِ بلندِ یک جلسه
      ستون را پهن کند و هفت ستون از برگه بیرون بزند. */
-  .pwg{break-inside:avoid}
+  /* بودجهٔ ارتفاع ردیف‌های ساعت: برگهٔ A4 افقی ۲۱۰ میلی‌متر است، منهای
+     حاشیه‌ها (۲۴)، سرصفحهٔ چاپ (~۱۱)، ردیف روزها (~۱۲) و کمی احتیاط.
+     چون --ph از همین بودجه تقسیم بر تعداد ساعت‌ها می‌آید، مجموع ردیف‌ها
+     هیچ‌وقت از بودجه رد نمی‌شود — جا شدن در یک صفحه اینجا یک ثابت است،
+     نه چیزی که با شلوغیِ هفته بشکند. سقف ۱۸ میلی‌متر برای وقتی است که
+     هفته فقط چند ساعت جلسه دارد و ردیف‌ها نباید غول‌پیکر شوند. */
+  .pwg{break-inside:avoid;--pw-budget:150mm;--ph:min(18mm,calc(var(--pw-budget) / var(--span)))}
   .pwg-row{display:grid;grid-template-columns:13mm repeat(7,minmax(0,1fr))}
 
   .pwg-head .pwg-corner,.pwg-dh{border:.6pt solid #888;padding:2pt 1pt;text-align:center;

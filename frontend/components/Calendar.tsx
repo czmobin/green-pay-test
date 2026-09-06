@@ -298,8 +298,8 @@ function packDay(items: Meeting[]): Map<string, { lane: number; lanes: number }>
  * می‌گفت. حالا مثل نمای هفتگیِ روی صفحه، بلوک با `top`/`height` از روی
  * زمان واقعی کشیده می‌شود، و جلسه‌های هم‌پوشان کنار هم می‌نشینند.
  *
- * ارتفاع هر ساعت از تعداد ساعت‌های هفته حساب می‌شود تا شبکه در یک برگهٔ
- * افقی جا شود؛ هفتهٔ شلوغ فشرده‌تر چاپ می‌شود، نه بریده.
+ * ارتفاع هر ساعت را CSS از روی `--span` حساب می‌کند تا شبکه همیشه در یک
+ * برگهٔ افقی جا شود؛ هفتهٔ شلوغ فشرده‌تر چاپ می‌شود، نه بریده.
  */
 function WeekPrintGrid({ days, meetingsOn }: { days: JDate[]; meetingsOn: (j: JDate) => Meeting[] }) {
   const store = useStore();
@@ -314,9 +314,6 @@ function WeekPrintGrid({ days, meetingsOn }: { days: JDate[]; meetingsOn: (j: JD
   const span = Math.max(1, last - first);
   const hours = Array.from({ length: span }, (_, i) => first + i);
 
-  // ارتفاع مفیدِ یک برگهٔ A4 افقی منهای سرصفحه‌ها، بر حسب میلی‌متر
-  const PH = Math.max(7, Math.min(18, 165 / span));
-
   return (
     <section className="pw-grid-page">
       <div className="pw-head">
@@ -324,7 +321,9 @@ function WeekPrintGrid({ days, meetingsOn }: { days: JDate[]; meetingsOn: (j: JD
         <span className="num">{weekRange(days)}</span>
       </div>
 
-      <div className="pwg" style={{ ['--ph' as string]: `${PH}mm` }}>
+      {/* فقط تعداد ساعت‌ها را می‌دهیم؛ ارتفاع هر ردیف را CSS از بودجهٔ برگه
+          درمی‌آورد، پس جا شدن در یک صفحه یک ثابتِ CSS است نه حدسِ JS. */}
+      <div className="pwg" style={{ ['--span' as string]: span }}>
         <div className="pwg-row pwg-head">
           <div className="pwg-corner">ساعت</div>
           {days.map((j, i) => (
