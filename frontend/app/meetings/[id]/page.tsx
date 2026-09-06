@@ -12,7 +12,7 @@ import { useReveal } from '@/components/useReveal';
 import { statusLabels, fmtTime, initials, toFa, priorityLabels, priorityColor, faDate, faWeekdayOf, isUrl, meetPlatform, meetingColor } from '@/lib/data';
 import {
   IconBack, IconClock, IconMapPin, IconUsers, IconList, IconChevron, IconVideo, IconEdit,
-  IconX, IconEye, IconAlert, IconCheck,
+  IconX, IconEye, IconAlert, IconCheck, IconShare,
 } from '@/components/Icons';
 
 export default function MeetingDetail() {
@@ -59,6 +59,15 @@ export default function MeetingDetail() {
           <span className="prio-chip" style={{ color: priorityColor[m.priority ?? 'normal'], background: `color-mix(in srgb,${priorityColor[m.priority ?? 'normal']} 14%,transparent)` }}>
             اولویت {priorityLabels[m.priority ?? 'normal']}
           </span>
+          {/* بدون این نشان، «چرا دکمهٔ ویرایش نیست؟» بی‌جواب می‌ماند */}
+          {m.outlookSynced && (
+            <span className="ol-chip" title={m.outlookReadonly
+              ? 'برگزارکنندهٔ این جلسه بیرون از سازمان است؛ ویرایشش فقط در Outlook ممکن است'
+              : 'این جلسه با Outlook همگام است؛ ویرایش فقط دستِ سازنده و ادمین است'}>
+              <IconShare size={13} />
+              {m.outlookReadonly ? 'Outlook — فقط خواندن' : 'همگام با Outlook'}
+            </span>
+          )}
         </div>
         {store.canEdit(m) && m.status !== 'cancelled' && (
           <div className="dt-actions">

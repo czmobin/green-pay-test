@@ -177,12 +177,17 @@ class MeetingSerializer(serializers.ModelSerializer):
     cancelReason = serializers.CharField(source='cancel_reason', read_only=True)
     cancelledAt = serializers.SerializerMethodField()
     cancelledBy = serializers.CharField(source='cancelled_by_id', read_only=True)
+    # رابط باید همان قاعده‌ای را ببیند که API اعمال می‌کند، وگرنه دکمهٔ ویرایشی
+    # نشان می‌دهد که سرور ردش می‌کند.
+    outlookSynced = serializers.BooleanField(source='outlook_synced', read_only=True)
+    outlookReadonly = serializers.BooleanField(source='outlook_readonly', read_only=True)
 
     class Meta:
         model = Meeting
         fields = ['id', 'title', 'category', 'type', 'status', 'priority', 'date', 'start', 'end',
                   'room', 'organizer', 'parts', 'guests', 'partStatus', 'meetLink',
-                  'agenda', 'cancelReason', 'cancelledAt', 'cancelledBy']
+                  'agenda', 'cancelReason', 'cancelledAt', 'cancelledBy',
+                  'outlookSynced', 'outlookReadonly']
 
     def get_cancelledAt(self, obj):
         return int(obj.cancelled_at.timestamp() * 1000) if obj.cancelled_at else None

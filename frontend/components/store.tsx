@@ -317,10 +317,21 @@ export default function Providers({ children }: { children: React.ReactNode }) {
       return created;
     }), [guarded]);
 
-  /** سازندهٔ جلسه، مدیرعامل و ادمین اجازهٔ ویرایش دارند (هم‌سو با قانون بک‌اند). */
-  const canEdit = useCallback((m: Meeting) =>
-    m.organizer === currentUser || isManagerRole(role),
-    [currentUser, role]);
+  /**
+   * اجازهٔ ویرایش — تکرار دقیق `can_edit_meeting` بک‌اند.
+   *
+   * جلسهٔ داخلی: سازنده و نقش‌های مدیریتی. جلسهٔ همگام با Outlook: فقط سازنده
+   * و ادمین — چون ویرایشِ آن به تقویم و موبایل همه می‌رود. جلسه‌ای که
+   * برگزارکننده‌اش بیرونی است: هیچ‌کس.
+   *
+   * اگر این دو از هم دور بیفتند، رابط دکمهٔ ویرایشی نشان می‌دهد که API ردش
+   * می‌کند — بدترین شکل ممکنِ این خطا.
+   */
+  const canEdit = useCallback((m: Meeting) => {
+    if (m.outlookReadonly) return false;
+    if (m.outlookSynced) return m.organizer === currentUser || role === 'admin';
+    return m.organizer === currentUser || isManagerRole(role);
+  }, [currentUser, role]);
 
   const updateMeeting = useCallback(async (id: string, patch: MeetingPatch) =>
     guarded(async () => {

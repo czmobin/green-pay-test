@@ -91,7 +91,7 @@ export default function Settings() {
         <button className={'chip-btn' + (tab === 'orgs' ? ' active' : '')} onClick={() => setTab('orgs')}>سازمان‌ها</button>
         <button className={'chip-btn' + (tab === 'people' ? ' active' : '')} onClick={() => setTab('people')}>افراد</button>
         <button className={'chip-btn' + (tab === 'locations' ? ' active' : '')} onClick={() => setTab('locations')}>محل‌ها</button>
-        <button className={'chip-btn' + (tab === 'shares' ? ' active' : '')} onClick={() => setTab('shares')}>
+        <button className={'chip-btn chip-share' + (tab === 'shares' ? ' active' : '')} onClick={() => setTab('shares')}>
           <IconShare size={14} />اشتراک تقویم
           {store.sharedByMe.length + store.sharedWithMe.length > 0 && (
             <b className="num">{toFa(store.sharedByMe.length + store.sharedWithMe.length)}</b>

@@ -68,7 +68,7 @@ ssh root@109.122.252.99 'cd /opt/greenpay/backend && set -a && . /etc/greenpay.e
 
 ### یادآور جلسه
 
-`greenpay-reminders.timer` هر ۵ دقیقه اجرا می‌شود و برای شرکت‌کنندگانی که زمان
+`greenpay-reminders.timer` هر دقیقه اجرا می‌شود و برای شرکت‌کنندگانی که زمان
 یادآورشان رسیده پیامک می‌فرستد. فاصلهٔ یادآور برای هر «جلسه × کاربر» جداگانه است؛
 هر کس از صفحهٔ جلسه می‌تواند فاصلهٔ خودش را عوض کند یا یادآور را خاموش کند.
 
@@ -96,6 +96,125 @@ ssh root@109.122.252.99 '/opt/greenpay/backend/.venv/bin/python \
 ssh root@109.122.252.99 'systemctl list-timers greenpay-reminders.timer --no-pager'
 ssh root@109.122.252.99 'journalctl -u greenpay-reminders -n 30 --no-pager'
 ```
+
+## همگام‌سازی Outlook
+
+جلسات دوطرفه با Outlook سازمانی (`@greenpay360.ir`) همگام می‌شوند: رویدادهای
+Outlook در سامانه می‌آیند و جلسه‌های سامانه در Outlook دیده می‌شوند.
+
+**پیش‌فرض خاموش است.** تا وقتی `OUTLOOK_ENABLED=1` نشود، هیچ درخواستی به
+مایکروسافت نمی‌رود و هیچ جلسه‌ای در صف ارسال نمی‌نشیند — پس روشن‌کردن بعدیِ
+کلید، انبوه جلسه‌های قدیمی را یک‌جا شلیک نمی‌کند. انتقالِ عمدیِ جلسه‌های
+موجود فقط با `outlook_sync --backfill --since` انجام می‌شود.
+
+### ۱. ثبت برنامه در Azure
+
+1. Azure Portal → **App registrations** → New registration (نوع: single tenant).
+2. **Certificates & secrets** → یک client secret بسازید و مقدارش را همان لحظه
+   بردارید (بعداً دیگر نشان داده نمی‌شود).
+3. **API permissions** → Microsoft Graph → **Application permissions** →
+   `Calendars.ReadWrite` → سپس **Grant admin consent**.
+   دسترسی delegated لازم نیست: کاربران با کد یک‌بارمصرف وارد می‌شوند و هیچ‌وقت
+   با حساب مایکروسافت لاگین نمی‌کنند.
+
+> `User.Read.All` را **اضافه نکنید**. تنها کاربردش پر کردن خودکار ایمیل‌هاست،
+> ولی `New-ApplicationAccessPolicy` آن را محدود نمی‌کند — یعنی برنامه اجازهٔ
+> خواندن کل دایرکتوری را می‌گیرد. برای این تعداد کاربر، فایل CSV کافی است.
+
+### ۲. محدود کردن دسترسی در Exchange
+
+`Calendars.ReadWrite` در سطح application یعنی **همهٔ** صندوق‌های سازمان.
+با یک گروه امنیتیِ mail-enabled محدودش کنید:
+
+```powershell
+Connect-ExchangeOnline
+New-DistributionGroup -Name "GreenPay Calendar Sync" `
+  -Type Security -PrimarySmtpAddress "gp-calsync@greenpay360.ir"
+Add-DistributionGroupMember -Identity "gp-calsync@greenpay360.ir" -Member "ali@greenpay360.ir"
+
+New-ApplicationAccessPolicy -AppId "<CLIENT_ID>" `
+  -PolicyScopeGroupId "gp-calsync@greenpay360.ir" `
+  -AccessRight RestrictAccess -Description "GreenPay meetings sync"
+
+# آزمون: باید Granted بدهد برای عضو گروه و Denied برای غیرعضو
+Test-ApplicationAccessPolicy -Identity "ali@greenpay360.ir" -AppId "<CLIENT_ID>"
+```
+
+اعمال شدن سیاست تا حدود یک ساعت طول می‌کشد.
+
+### ۳. کلیدها در `/etc/greenpay.env`
+
+| متغیر | کاربرد |
+|---|---|
+| `OUTLOOK_ENABLED` | `0` خاموش (پیش‌فرض) / `1` روشن |
+| `OUTLOOK_TENANT_ID` | Directory (tenant) ID |
+| `OUTLOOK_CLIENT_ID` | Application (client) ID |
+| `OUTLOOK_CLIENT_SECRET` | مقدار secret — نه شناسه‌اش |
+| `OUTLOOK_MAIL_DOMAIN` | پیش‌فرض `greenpay360.ir` |
+| `OUTLOOK_MAILBOX_ALLOWLIST` | برای اولین اجرای واقعی، فقط یک صندوق آزمایشی |
+| `OUTLOOK_PULL_INTERVAL_SECONDS` | فاصلهٔ واکشی هر صندوق (پیش‌فرض `300`) |
+| `OUTLOOK_MAX_OCCURRENCES` | سقف رخدادهای یک سری تکرارشونده (پیش‌فرض `100`) |
+
+### ۴. پر کردن ایمیل‌ها — پیش‌نیاز قطعی
+
+امروز `User.email` برای هیچ کاربری پر نیست (هویت در این سامانه شمارهٔ موبایل
+است)، ولی Graph صندوق‌ها را فقط با ایمیل می‌شناسد. تا این مرحله انجام نشود،
+همگام‌سازی تمیز اجرا می‌شود و **صفر** کار می‌کند.
+
+فایل CSV با ستون‌های نام/شماره و ایمیل بسازید، بعد:
+
+```bash
+# اول فقط گزارش — هیچ چیزی نوشته نمی‌شود
+ssh root@109.122.252.99 '/opt/greenpay/backend/.venv/bin/python \
+  /opt/greenpay/backend/manage.py outlook_users --source csv --file /root/people.csv'
+
+# بعد اعمال
+ssh root@109.122.252.99 '/opt/greenpay/backend/.venv/bin/python \
+  /opt/greenpay/backend/manage.py outlook_users --source csv --file /root/people.csv --apply'
+```
+
+تطبیقِ مبهم هرگز حدس زده نمی‌شود؛ آن‌ها را از پنل ادمین جنگو دستی وصل کنید.
+ایمیلِ اشتباه خطا نمی‌دهد — فقط دعوت را بی‌صدا به آدم دیگری می‌فرستد.
+
+### ۵. راه‌اندازی و عیب‌یابی
+
+```bash
+# وضعیت اتصال — خروجی‌اش قابل دادن به مدیر tenant است (تفکیک ۴۰۱ از ۴۰۳)
+ssh root@109.122.252.99 '/opt/greenpay/backend/.venv/bin/python \
+  /opt/greenpay/backend/manage.py outlook_sync --diagnose'
+
+# بگو چه می‌کردی، چیزی ننویس
+ssh root@109.122.252.99 '/opt/greenpay/backend/.venv/bin/python \
+  /opt/greenpay/backend/manage.py outlook_sync --dry-run'
+
+# فقط یک صندوق، با بازخوانی کامل
+ssh root@109.122.252.99 '/opt/greenpay/backend/.venv/bin/python \
+  /opt/greenpay/backend/manage.py outlook_sync --mailbox ali@greenpay360.ir --full'
+
+# انتقال عمدیِ جلسه‌های موجود (تنها راه فرستادن جلسه‌های قدیمی)
+ssh root@109.122.252.99 '/opt/greenpay/backend/.venv/bin/python \
+  /opt/greenpay/backend/manage.py outlook_sync --backfill --since 2026-09-01'
+
+ssh root@109.122.252.99 'systemctl list-timers greenpay-outlook.timer --no-pager'
+ssh root@109.122.252.99 'journalctl -u greenpay-outlook -n 40 --no-pager'
+```
+
+**۴۰۱ در برابر ۴۰۳:** ۴۰۱ یعنی کلیدها یا مجوزِ برنامه (سراسری است و کل اجرا
+متوقف می‌شود)؛ ۴۰۳ یعنی آن صندوقِ خاص زیر `ApplicationAccessPolicy` نیست —
+فقط همان صندوق عقب می‌نشیند و بقیه به کارشان ادامه می‌دهند.
+
+**دیتابیس:** با آمدن این تایمر، یک پروسهٔ جدا هر دقیقه در SQLite می‌نویسد در
+حالی که gunicorn می‌خواند. WAL و مهلت ۲۰ ثانیه‌ای روشن‌اند، ولی راه‌حل واقعی
+PostgreSQL است — بلوک آماده‌اش در `config/settings.py` کامنت‌شده است.
+
+## اشتراک تقویم
+
+هر کاربر از **تعریف‌ها ← اشتراک تقویم** (یا منوی کاربر) می‌تواند تقویم جلساتش
+را با هر کس دیگری به اشتراک بگذارد. گیرنده جلسه‌های او را در فهرست و تقویم
+می‌بیند، زیر تب «تقویم‌های اشتراکی».
+
+**نوشتن در صورت‌جلسه پیش‌فرض خاموش است** و فقط صاحب تقویم می‌تواند روشنش کند —
+این پیش‌فرض در سطح دیتابیس است، نه در رابط. تنظیمی در سرور لازم ندارد.
 
 ## TLS
 

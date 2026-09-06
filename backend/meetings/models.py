@@ -16,6 +16,7 @@ from datetime import timedelta
 from django.conf import settings
 from django.contrib.auth.models import AbstractUser
 from django.db import models
+from django.db.models.functions import Lower
 
 
 class OrganizationKind(models.Model):
@@ -73,9 +74,21 @@ class User(AbstractUser):
     class Meta:
         verbose_name = 'کاربر/فرد'
         verbose_name_plural = 'کاربران/افراد'
+        constraints = [
+            # صندوق Outlook با ایمیل شناخته می‌شود، پس دو کاربر با یک ایمیل
+            # یعنی دو نفر که یک تقویم دارند — و همگام‌سازی دیگر نمی‌داند جلسه
+            # را به کدامشان نسبت بدهد. خالی از قید مستثناست چون امروز ایمیلِ
+            # هیچ‌کس پر نیست و `AbstractUser.email` هم blank را مجاز می‌داند.
+            models.UniqueConstraint(
+                Lower('email'), condition=~models.Q(email=''), name='uniq_user_email_ci'),
+        ]
 
     def __str__(self):
         return self.get_full_name() or self.username
+
+    @property
+    def has_mailbox(self) -> bool:
+        return bool((self.email or '').strip())
 
 
 class Location(models.Model):
@@ -160,7 +173,35 @@ class Meeting(models.Model):
     start = models.DateTimeField('شروع')
     end = models.DateTimeField('پایان')
 
+    # محل به‌صورت متن آزاد — فقط برای جلسه‌هایی که از Outlook می‌آیند و محلشان
+    # با هیچ `Location` تعریف‌شده‌ای جور نیست. عمداً `Location` خودکار ساخته
+    # نمی‌شود: متن آزادِ Outlook یک picklist کوتاه را — که تشخیص تداخل اتاق
+    # رویش بنا شده — ظرف یک هفته بی‌ارزش می‌کند.
+    location_text = models.CharField('محل (متن آزاد)', max_length=255, blank=True)
+
     created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    # آخرین تغییرِ *انسانی* از داخل اپ. جدا از `updated_at` است چون آن یکی
+    # `auto_now` دارد و با نوشتنِ خودِ همگام‌سازی هم بالا می‌رود؛ اگر تشخیص
+    # تعارض به آن تکیه کند، هر واکشی تعارض به نظر می‌رسد.
+    local_changed_at = models.DateTimeField('آخرین تغییر محلی', null=True, blank=True)
+
+    # --- همگام‌سازی Outlook ---
+    # شناسهٔ یکتای رویداد در Outlook. برای occurrenceهای یک سری تکرارشونده
+    # به شکل «iCalUId|originalStart» است، وگرنه قید یکتا کل سری را در یک
+    # جلسه جمع می‌کند.
+    outlook_uid = models.CharField('شناسهٔ Outlook', max_length=512, blank=True, db_index=True)
+    outlook_synced = models.BooleanField('همگام با Outlook', default=False)
+    # جلسه‌ای که برگزارکننده‌اش بیرون از سازمان است: در اپ فقط خوانده می‌شود و
+    # هیچ‌وقت به Outlook فرستاده نمی‌شود.
+    outlook_readonly = models.BooleanField('فقط‌خواندنی (برگزارکنندهٔ بیرونی)', default=False)
+    # «تغییر محلی هست که هنوز نرفته». تنها نویسنده‌اش `mark_dirty()` است — که
+    # فقط از مسیر API انسانی صدا زده می‌شود. اعمال‌کنندهٔ تغییراتِ ورودی هرگز
+    # لمسش نمی‌کند، و ping-pong به‌خاطر همین ساختار ناممکن است، نه به‌خاطر یک
+    # حدسِ هوشمندانه.
+    outlook_dirty = models.BooleanField('در صف ارسال به Outlook', default=False)
+    outlook_conflict_at = models.DateTimeField('زمان تعارض', null=True, blank=True)
+    outlook_conflict_note = models.CharField('شرح تعارض', max_length=255, blank=True)
 
     cancel_reason = models.TextField('دلیل لغو', blank=True)
     cancelled_at = models.DateTimeField('زمان لغو', null=True, blank=True)
@@ -173,9 +214,46 @@ class Meeting(models.Model):
         verbose_name = 'جلسه'
         verbose_name_plural = 'جلسات'
         ordering = ['start']
+        constraints = [
+            # یک رویداد Outlook = یک جلسه. جلسه‌های محلی (که هنوز شناسه ندارند)
+            # از قید بیرون‌اند، وگرنه دومین جلسهٔ داخلی ساخته نمی‌شد.
+            models.UniqueConstraint(fields=['outlook_uid'], condition=~models.Q(outlook_uid=''),
+                                    name='uniq_meeting_outlook_uid'),
+        ]
 
     def __str__(self):
         return self.title
+
+    def mark_dirty(self, *, when=None):
+        """
+        این جلسه از داخل اپ عوض شد؛ در اجرای بعدیِ همگام‌سازی به Outlook برود.
+
+        دو رفتار که عمدی‌اند:
+
+        • **وقتی همگام‌سازی خاموش است، هیچ کاری نمی‌کند.** بدون این، جلسه‌های
+          امروز کم‌کم `outlook_dirty` می‌شدند و روزی که کلید روشن شود، انبوهی
+          دعوت‌نامهٔ ماه‌ها پیش یک‌جا برای همه شلیک می‌شد. قرار همین بود:
+          «فقط از این پس» — انتقال عمدیِ جلسه‌های قدیمی فقط با
+          `outlook_sync --backfill --since`.
+
+        • **جلسهٔ فقط‌خواندنی هرگز dirty نمی‌شود** — برگزارکننده‌اش بیرون از
+          سازمان است و ما اجازهٔ نوشتن روی رویدادش را نداریم.
+
+        ارسال هم اینجا انجام نمی‌شود، فقط علامت می‌خورد: مسیر ساخت/ویرایش جلسه
+        همین حالا چند تماس پیامکی همزمان دارد؛ افزودن دو وابستگی شبکهٔ بیست‌ثانیه‌ای
+        به مسیر کاربر بدترش می‌کند. تایمر هر دقیقه صف را خالی می‌کند، و چند
+        ویرایش پشت‌سرهم در یک ایمیلِ «Updated:» جمع می‌شوند.
+        """
+        from django.utils import timezone
+
+        from . import graph
+        fields = ['local_changed_at']
+        self.local_changed_at = when or timezone.now()
+        if graph.enabled() and not self.outlook_readonly:
+            self.outlook_dirty = True
+            fields.append('outlook_dirty')
+        if self.pk:
+            self.save(update_fields=fields + ['updated_at'])
 
     @staticmethod
     def normalize_meet(value: str) -> str:
@@ -480,3 +558,111 @@ class CalendarShare(models.Model):
 
     def __str__(self):
         return f'{self.owner} → {self.viewer}'
+
+
+class OutlookMailbox(models.Model):
+    """
+    یک صندوق Outlook که همگام‌سازی می‌شود — یک ردیف به‌ازای هر کاربرِ دارای ایمیل.
+
+    نشانهٔ delta (`delta_link`) گران‌ترین دارایی این جدول است: بدون آن هر اجرا
+    باید کل بازه را بخواند. نشانه بازهٔ زمانی را در خودش رمز می‌کند، پس بازهٔ
+    غلتان (مثلاً «۳۰ روز گذشته از امروز») هر روز نشانه را باطل می‌کند — به همین
+    دلیل `window_start`/`window_end` ذخیره می‌شوند و ثابت می‌مانند تا وقتی
+    خودمان عمداً عوضشان کنیم.
+    """
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='outlook_mailbox',
+        verbose_name='کاربر',
+    )
+    email = models.EmailField('نشانی صندوق', unique=True)
+    is_active = models.BooleanField('فعال', default=True)
+
+    delta_link = models.TextField('نشانهٔ delta', blank=True)
+    # صفحهٔ نیمه‌کارهٔ یک واکشی — اگر اجرا وسط صفحه‌بندی قطع شود، اجرای بعدی از
+    # همین‌جا ادامه می‌دهد نه از اول.
+    delta_page_link = models.TextField('صفحهٔ ناتمام', blank=True)
+    window_start = models.DateTimeField('شروع بازه', null=True, blank=True)
+    window_end = models.DateTimeField('پایان بازه', null=True, blank=True)
+
+    synced_at = models.DateTimeField('آخرین واکشی موفق', null=True, blank=True)
+    # تا این لحظه به این صندوق دست نمی‌زنیم — از Retry-After یا backoff نمایی.
+    retry_after = models.DateTimeField('تلاش دوباره پس از', null=True, blank=True)
+    consecutive_failures = models.PositiveSmallIntegerField('خطاهای پیاپی', default=0)
+    last_error = models.CharField('آخرین خطا', max_length=300, blank=True)
+
+    class Meta:
+        verbose_name = 'صندوق Outlook'
+        verbose_name_plural = 'صندوق‌های Outlook'
+        ordering = ['email']
+
+    def __str__(self):
+        return self.email
+
+
+class OutlookEvent(models.Model):
+    """
+    همبستگیِ «جلسهٔ ما ↔ رویداد در یک صندوق مشخص».
+
+    یک جلسه در N صندوق نسخه دارد (Exchange خودش دعوت را پخش می‌کند)، ولی فقط
+    **یکی** از آن‌ها مرجع است: همان که `isOrganizer` دارد. بقیه آینه‌اند و تنها
+    چیزی که از خودشان می‌آورند پاسخ دعوتشان است. اگر ما هم به N نسخه بنویسیم،
+    نتیجه جلسهٔ تکراری و اکوی بی‌پایان است.
+
+    `remote_change_key` قلبِ تشخیص اکوست: هر نوشتنِ ما `changeKey` تازه‌ای
+    برمی‌گرداند؛ ذخیره‌اش می‌کنیم و در واکشی بعدی همان مقدار یعنی «این
+    نوشتهٔ خودمان است، ردش کن».
+    """
+    meeting = models.ForeignKey(
+        Meeting, on_delete=models.CASCADE, related_name='outlook_events', verbose_name='جلسه')
+    mailbox = models.ForeignKey(
+        OutlookMailbox, on_delete=models.CASCADE, related_name='events', verbose_name='صندوق')
+
+    # TextField و نه CharField: شناسهٔ occurrence در Graph به‌راحتی از ۳۰۰ نویسه
+    # رد می‌شود و یک max_length خوش‌بینانه بعداً به شکل «رویداد گم شد» درمی‌آید.
+    remote_id = models.TextField('شناسهٔ رویداد')
+    remote_change_key = models.CharField('changeKey', max_length=255, blank=True)
+    ical_uid = models.CharField('iCalUId', max_length=512, blank=True, db_index=True)
+    is_authoritative = models.BooleanField('نسخهٔ مرجع', default=False)
+    response = models.CharField('پاسخ دعوت', max_length=20, blank=True)
+    synced_at = models.DateTimeField('آخرین همگام‌سازی', null=True, blank=True)
+
+    class Meta:
+        verbose_name = 'رویداد Outlook'
+        verbose_name_plural = 'رویدادهای Outlook'
+        constraints = [
+            models.UniqueConstraint(fields=['mailbox', 'remote_id'], name='uniq_outlook_event'),
+            # حداکثر یک نسخهٔ مرجع برای هر جلسه — این همان چیزی است که «جلسهٔ
+            # تکراری» را از «بعید» به «ساختاراً ناممکن» می‌برد.
+            models.UniqueConstraint(fields=['meeting'], condition=models.Q(is_authoritative=True),
+                                    name='uniq_outlook_authoritative'),
+        ]
+
+    def __str__(self):
+        return f'{self.mailbox.email} — {self.meeting_id}'
+
+
+class OutlookUnmappedAttendee(models.Model):
+    """
+    نشانی‌ای که در دعوت آمد ولی به هیچ کاربری نمی‌خورد.
+
+    عمداً کاربر ساخته نمی‌شود: کاربرِ ایمیلی نه لاگین با کد یک‌بارمصرف دارد
+    (چون شماره ندارد) نه پیامک می‌گیرد، و فقط انتخابگر افراد را شلوغ می‌کند.
+    این جدول برای این است که چنین نشانی‌هایی بی‌صدا گم نشوند — ادمین می‌بیند و
+    اگر لازم بود، ایمیل را دستی به کاربرِ درست وصل می‌کند.
+    """
+    email = models.EmailField('نشانی')
+    display_name = models.CharField('نام نمایشی', max_length=200, blank=True)
+    seen_count = models.PositiveIntegerField('دفعات دیده‌شدن', default=1)
+    first_seen = models.DateTimeField(auto_now_add=True)
+    last_seen = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'نشانی ناشناخته'
+        verbose_name_plural = 'نشانی‌های ناشناخته'
+        ordering = ['-seen_count']
+        constraints = [
+            models.UniqueConstraint(Lower('email'), name='uniq_unmapped_email_ci'),
+        ]
+
+    def __str__(self):
+        return self.email

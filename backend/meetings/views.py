@@ -44,13 +44,36 @@ def is_manager(user) -> bool:
 
 
 def can_edit_meeting(user, meeting) -> bool:
-    """سازندهٔ جلسه، مدیرعامل و ادمین می‌توانند جلسه و دستور جلسه را ویرایش کنند."""
+    """
+    چه کسی می‌تواند جلسه و دستور جلسه‌اش را ویرایش کند.
+
+    سه لایه، و لایهٔ دوم و سوم فقط برای جلسه‌های Outlook است:
+
+      • جلسهٔ داخلی — سازنده و هر نقش مدیریتی (رفتار همیشگی، دست‌نخورده).
+      • جلسهٔ همگام با Outlook — فقط **سازنده و ادمین**. مدیرعامل و مدیر
+        اجرایی از این یکی بیرون‌اند: ویرایشِ اینجا به تقویم و موبایل همهٔ
+        شرکت‌کنندگان می‌رود و «Updated:» می‌فرستد؛ آن دامنهٔ گسترده برای
+        دیدن ساخته شده بود، نه برای فرستادن دعوت به‌نام کس دیگر.
+      • جلسه‌ای که برگزارکننده‌اش بیرون از سازمان است — هیچ‌کس. رویدادش مالِ
+        ما نیست و Graph هم اجازهٔ نوشتنش را نمی‌دهد.
+    """
+    if getattr(meeting, 'outlook_readonly', False):
+        return False
+    if getattr(meeting, 'outlook_synced', False):
+        return meeting.organizer_id == user.id or is_admin(user)
     return meeting.organizer_id == user.id or is_manager(user)
 
 
 def assert_can_edit(user, meeting):
-    if not can_edit_meeting(user, meeting):
-        raise PermissionDenied('فقط سازندهٔ جلسه یا نقش‌های مدیریتی می‌توانند این جلسه را ویرایش کنند.')
+    if can_edit_meeting(user, meeting):
+        return
+    if getattr(meeting, 'outlook_readonly', False):
+        raise PermissionDenied(
+            'برگزارکنندهٔ این جلسه بیرون از سازمان است؛ ویرایشش فقط در Outlook ممکن است.')
+    if getattr(meeting, 'outlook_synced', False):
+        raise PermissionDenied(
+            'این جلسه با Outlook همگام است؛ فقط سازندهٔ جلسه و ادمین می‌توانند ویرایشش کنند.')
+    raise PermissionDenied('فقط سازندهٔ جلسه یا نقش‌های مدیریتی می‌توانند این جلسه را ویرایش کنند.')
 
 
 class ManagerOnlyDeleteMixin:
@@ -419,6 +442,10 @@ class MeetingViewSet(viewsets.ModelViewSet):
             meeting.meeting_participants.filter(is_guest=False).update(
                 response=MeetingParticipant.Response.ACCEPTED)
 
+        # به صف ارسال Outlook (وقتی همگام‌سازی خاموش است، بی‌اثر است — پس
+        # روشن‌کردن بعدیِ کلید، انبوه جلسه‌های قدیمی را شلیک نمی‌کند).
+        meeting.mark_dirty()
+
         # خبر ساخته‌شدن جلسه همان لحظه پیامک می‌شود؛ اگر سرویس پیامک بالا نباشد
         # نباید ساختِ جلسه شکست بخورد.
         try:
@@ -498,6 +525,7 @@ class MeetingViewSet(viewsets.ModelViewSet):
                               'response': MeetingParticipant.Response.PENDING})
 
         meeting.refresh_from_db()
+        meeting.mark_dirty()
 
         # مقایسه بعد از refresh انجام می‌شود، نه بلافاصله بعد از save: مقدارِ
         # آمده از درخواست رشته است («۳») و کلید ذخیره‌شده عدد (۳)؛ مقایسهٔ خام
@@ -584,6 +612,8 @@ class MeetingViewSet(viewsets.ModelViewSet):
         meeting.cancelled_at = timezone.now()
         meeting.cancelled_by = request.user
         meeting.save(update_fields=['status', 'cancel_reason', 'cancelled_at', 'cancelled_by'])
+        # لغو باید به Outlook هم برود — «Canceled:» برای همهٔ شرکت‌کنندگان.
+        meeting.mark_dirty()
 
         # یادآورهای نفرستاده دیگر معنا ندارند
         meeting.reminders.filter(sent_at__isnull=True).update(enabled=False)
@@ -744,14 +774,19 @@ class AgendaItemViewSet(viewsets.ModelViewSet):
         last = meeting.agenda.order_by('-order').first()
         serializer.save(created_by=self.request.user,
                         order=serializer.validated_data.get('order') or ((last.order if last else 0) + 1))
+        # دستور جلسه در بدنهٔ رویداد Outlook می‌رود، پس تغییرش هم باید برود.
+        meeting.mark_dirty()
 
     def perform_update(self, serializer):
         assert_can_edit(self.request.user, serializer.instance.meeting)
         serializer.save()
+        serializer.instance.meeting.mark_dirty()
 
     def perform_destroy(self, instance):
         assert_can_edit(self.request.user, instance.meeting)
+        meeting = instance.meeting
         instance.delete()
+        meeting.mark_dirty()
 
 
 class OrganizationKindViewSet(viewsets.ReadOnlyModelViewSet):

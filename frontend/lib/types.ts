@@ -107,6 +107,10 @@ export interface Meeting {
   /** پاسخ دعوت هر شرکت‌کننده — کلید: شناسهٔ فرد */
   partStatus?: Record<string, InviteResponse>;
   agenda: AgendaItem[];
+  /** با Outlook همگام است — ویرایش فقط دستِ سازنده و ادمین */
+  outlookSynced?: boolean;
+  /** برگزارکننده‌اش بیرون از سازمان است — در اپ فقط خوانده می‌شود */
+  outlookReadonly?: boolean;
 }
 
 export type MinuteType = 'note' | 'decision' | 'reminder' | 'call' | 'letter' | 'file';

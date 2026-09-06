@@ -5,6 +5,7 @@ from .models import (
     MeetingReminder,
     Organization, OrganizationKind, User, Location, Category, Meeting, MeetingParticipant,
     AgendaItem, Minutes, MinuteEntry, Attachment, Notification, CalendarShare,
+    OutlookMailbox, OutlookEvent, OutlookUnmappedAttendee,
 )
 
 
@@ -105,6 +106,29 @@ class CalendarShareAdmin(admin.ModelAdmin):
     search_fields = ('owner__first_name', 'owner__last_name', 'owner__username',
                      'viewer__first_name', 'viewer__last_name', 'viewer__username')
     autocomplete_fields = ('owner', 'viewer')
+
+
+@admin.register(OutlookMailbox)
+class OutlookMailboxAdmin(admin.ModelAdmin):
+    list_display = ('email', 'user', 'is_active', 'synced_at', 'consecutive_failures',
+                    'retry_after', 'last_error')
+    list_filter = ('is_active',)
+    search_fields = ('email', 'user__first_name', 'user__last_name')
+    readonly_fields = ('delta_link', 'delta_page_link', 'synced_at')
+
+
+@admin.register(OutlookEvent)
+class OutlookEventAdmin(admin.ModelAdmin):
+    list_display = ('mailbox', 'meeting', 'is_authoritative', 'response', 'synced_at')
+    list_filter = ('is_authoritative',)
+    search_fields = ('ical_uid', 'meeting__title', 'mailbox__email')
+
+
+@admin.register(OutlookUnmappedAttendee)
+class OutlookUnmappedAttendeeAdmin(admin.ModelAdmin):
+    """نشانی‌هایی که به کاربری نخوردند — اینجا دیده می‌شوند تا بی‌صدا گم نشوند."""
+    list_display = ('email', 'display_name', 'seen_count', 'last_seen')
+    search_fields = ('email', 'display_name')
 
 
 admin.site.site_header = 'مدیریت جلسات گرین‌پی'

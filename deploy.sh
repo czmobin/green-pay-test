@@ -57,8 +57,39 @@ Persistent=true
 [Install]
 WantedBy=timers.target
 UNIT
+  # زمان‌بند همگام‌سازی Outlook — تایمرِ جدا از یادآور، عمداً: اگر Graph کند
+  # یا قطع باشد، نباید پیامک یادآور جلسه را عقب بیندازد.
+  # آهنگِ واقعیِ هر صندوق در دیتابیس است (OUTLOOK_PULL_INTERVAL_SECONDS)؛
+  # این تایمر فقط صف ارسال را خالی می‌کند. با OUTLOOK_ENABLED=0 هر اجرا
+  # بی‌درنگ و بدون هیچ درخواستی برمی‌گردد.
+  echo "▸ زمان‌بند همگام‌سازی Outlook…"
+  cat > /etc/systemd/system/greenpay-outlook.service <<'UNIT'
+[Unit]
+Description=GreenPay — همگام‌سازی دوطرفهٔ جلسات با Outlook
+After=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/greenpay/backend
+EnvironmentFile=/etc/greenpay.env
+ExecStart=/opt/greenpay/backend/.venv/bin/python manage.py outlook_sync
+UNIT
+  cat > /etc/systemd/system/greenpay-outlook.timer <<'UNIT'
+[Unit]
+Description=GreenPay — بررسی هر دقیقهٔ تغییرات Outlook
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=1min
+AccuracySec=10s
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+UNIT
   systemctl daemon-reload
   systemctl enable --now greenpay-reminders.timer >/dev/null
+  systemctl enable --now greenpay-outlook.timer >/dev/null
 
   echo "▸ راه‌اندازی مجدد سرویس‌ها…"
   systemctl restart greenpay-web greenpay-api
@@ -74,7 +105,10 @@ UNIT
   [ "$failed" -eq 0 ] || exit 1
   systemctl is-active --quiet greenpay-reminders.timer \
     && echo "  ✓ greenpay-reminders.timer ($(systemctl show -p NextElapseUSecRealtime --value greenpay-reminders.timer))" \
-    || echo "  ✗ greenpay-reminders.timer" 
+    || echo "  ✗ greenpay-reminders.timer"
+  systemctl is-active --quiet greenpay-outlook.timer \
+    && echo "  ✓ greenpay-outlook.timer" \
+    || echo "  ✗ greenpay-outlook.timer" 
 
   echo "✅ استقرار کامل شد — http://${DEPLOY_HOST:-109.122.252.99}/"
 }
