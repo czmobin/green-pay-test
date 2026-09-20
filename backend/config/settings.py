@@ -103,26 +103,37 @@ TEMPLATES = [
 WSGI_APPLICATION = 'config.wsgi.application'
 ASGI_APPLICATION = 'config.asgi.application'
 
-# دیتابیس: پیش‌فرض SQLite برای توسعه؛ برای production از PostgreSQL استفاده کنید.
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
-        # همگام‌سازی Outlook هر دقیقه از یک پروسهٔ جدا می‌نویسد، هم‌زمان با
-        # gunicorn. بدون این مهلت، هم‌زمانی به «database is locked» می‌خورد.
-        # (WAL هم در meetings/apps.py روی هر اتصال روشن می‌شود.)
-        'OPTIONS': {'timeout': 20},
+# دیتابیس — PostgreSQL روی production، SQLite برای توسعهٔ محلی.
+#
+# انتخاب با وجود یا نبودِ DB_NAME انجام می‌شود، نه با یک پرچم جدا: تنظیم‌کردن
+# نیمی از مشخصات اتصال و جا انداختن پرچم، خطایی است که فقط موقع اولین نوشتن
+# معلوم می‌شود. این‌طور یا همه‌چیز هست یا هیچ‌چیز.
+if os.environ.get('DB_NAME'):
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': os.environ['DB_NAME'],
+            'USER': os.environ.get('DB_USER', 'greenpay'),
+            'PASSWORD': os.environ.get('DB_PASSWORD', ''),
+            'HOST': os.environ.get('DB_HOST', '127.0.0.1'),
+            'PORT': os.environ.get('DB_PORT', '5432'),
+            # اتصال را تا ۶۰ ثانیه باز نگه می‌دارد. gunicorn با ۳ کارگر و
+            # تایمرهای هر دقیقه، وگرنه برای هر درخواست یک اتصال تازه می‌سازد.
+            'CONN_MAX_AGE': int(os.environ.get('DB_CONN_MAX_AGE', '60')),
+            'CONN_HEALTH_CHECKS': True,
+            'OPTIONS': {'connect_timeout': 10},
+        }
     }
-}
-# نمونهٔ PostgreSQL:
-# DATABASES['default'] = {
-#     'ENGINE': 'django.db.backends.postgresql',
-#     'NAME': os.environ.get('DB_NAME', 'greenpay'),
-#     'USER': os.environ.get('DB_USER', 'greenpay'),
-#     'PASSWORD': os.environ.get('DB_PASSWORD', ''),
-#     'HOST': os.environ.get('DB_HOST', 'localhost'),
-#     'PORT': os.environ.get('DB_PORT', '5432'),
-# }
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+            # بدون این مهلت، هم‌زمانیِ تایمرها با gunicorn به «database is
+            # locked» می‌خورد. (WAL هم در meetings/apps.py روشن می‌شود.)
+            'OPTIONS': {'timeout': 20},
+        }
+    }
 
 AUTH_USER_MODEL = 'meetings.User'
 

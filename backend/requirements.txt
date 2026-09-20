@@ -4,3 +4,7 @@ gunicorn==22.0.0
 djangorestframework==3.15.1
 djangorestframework-simplejwt==5.3.1
 django-cors-headers==4.4.0
+# --- دیتابیس ---
+# psycopg نسخهٔ ۳؛ روی production لازم است و روی توسعهٔ محلی (SQLite) بی‌استفاده
+# می‌ماند ولی نصب می‌شود تا محیط محلی و سرور یکی بمانند.
+psycopg[binary]==3.2.3
