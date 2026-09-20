@@ -1,6 +1,6 @@
 # استقرار روی سرور
 
-سرور فعلی: **`109.122.252.99`** — Ubuntu 24.04 · Node 20 · Python 3.12 · nginx
+سرور فعلی: **`109.122.252.99`** — Ubuntu 24.04 · Node 20 · Python 3.12 · nginx · PostgreSQL 16
 
 | آدرس | توضیح |
 |---|---|
@@ -19,13 +19,33 @@
 
 ```bash
 apt update
-apt install -y nginx git python3-venv python3-pip curl
+apt install -y nginx git python3-venv python3-pip curl postgresql postgresql-client
 curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
 apt install -y nodejs
 ```
 
 Node باید ۱۸٫۱۷ یا بالاتر باشد (روی سرور فعلی ۲۰ است). Python 3.12 خودِ اوبونتو
-۲۴٫۰۴ کافی است.
+۲۴٫۰۴ کافی است. بستهٔ `postgresql` روی ۲۴٫۰۴ نسخهٔ ۱۶ را می‌آورد.
+
+### ۱٫۵) دیتابیس
+
+```bash
+PW=$(openssl rand -base64 48 | tr -dc 'A-Za-z0-9' | head -c 40)
+
+sudo -u postgres psql -v ON_ERROR_STOP=1 <<SQL
+CREATE ROLE greenpay LOGIN PASSWORD '$PW';
+ALTER ROLE greenpay SET client_encoding TO 'utf8';
+ALTER ROLE greenpay SET timezone TO 'UTC';
+SQL
+sudo -u postgres createdb -O greenpay -E UTF8 -T template0 greenpay
+
+# آزمون اتصال واقعی روی TCP، نه فقط ساخت
+PGPASSWORD="$PW" psql -h 127.0.0.1 -U greenpay -d greenpay -tAc 'select current_user'
+echo "DB_PASSWORD=$PW"   # این را در گام بعد لازم دارید
+```
+
+رمز فقط حرف و رقم است و این عمدی است: مقدار داخل `EnvironmentFile` سیستم‌دی با
+کاراکترهای خاص (مثل `#` یا `$`) به‌درستی خوانده نمی‌شود و خطایش هم گنگ است.
 
 ### ۲) گرفتن کد
 
@@ -54,7 +74,17 @@ DEBUG=0
 ALLOWED_HOSTS=calendar.greenpay360.ir,<IP سرور>,localhost,127.0.0.1
 CSRF_TRUSTED_ORIGINS=https://calendar.greenpay360.ir
 OTP_ECHO_WHEN_SMS_OFF=0
+
+DB_NAME=greenpay
+DB_USER=greenpay
+DB_PASSWORD=<رمزی که در گام ۱٫۵ ساختید>
+DB_HOST=127.0.0.1
+DB_PORT=5432
 ```
+
+**`DB_NAME` کلیدِ انتخاب موتور است.** اگر باشد جنگو به PostgreSQL وصل می‌شود، اگر
+نباشد به SQLite. یعنی برگشت اضطراری به SQLite فقط کامنت‌کردن همین یک خط و یک
+ری‌استارت است.
 
 `SECRET_KEY` را می‌توانید این‌طور بسازید:
 
@@ -211,22 +241,15 @@ ssh root@109.122.252.99 '/opt/greenpay/deploy.sh'
 > بعدی اعمال می‌شود. (این یک بار واقعاً پیش آمد: تایمر Outlook در اجرای اول نصب
 > نشد و در اجرای دوم نصب شد.)
 
-اگر مایگریشنی در راه است، پیش از دیپلوی از دیتابیس نسخهٔ پشتیبان بگیرید:
+اگر مایگریشنی در راه است، پیش از دیپلوی یک پشتیبان تازه بگیرید:
 
 ```bash
-ssh root@109.122.252.99 'cd /opt/greenpay/backend && ./.venv/bin/python - <<PY
-import sqlite3, datetime, pathlib
-out = pathlib.Path("/root") / f"greenpay-{datetime.datetime.now():%Y%m%d-%H%M}.sqlite3"
-src, dst = sqlite3.connect("db.sqlite3"), sqlite3.connect(out)
-with dst:
-    src.backup(dst)
-print("backup:", out)
-PY'
+ssh root@109.122.252.99 '/usr/local/bin/greenpay-backup'
 ```
 
-از `sqlite3` خط فرمان استفاده نکنید — روی سرور نصب نیست. `Connection.backup()`
-پایتون همان کار را می‌کند، با این مزیت که با پایگاه دادهٔ در حال استفاده و حالت WAL
-هم درست کار می‌کند و کپی نیم‌سوخته نمی‌دهد (برخلاف `cp` ساده).
+برخلاف SQLite، مهاجرت روی PostgreSQL داخل تراکنش اجرا می‌شود و اگر وسط کار خطا
+بدهد خودش برمی‌گردد. ولی مهاجرتی که *موفق* باشد و داده را اشتباه تبدیل کند با
+هیچ تراکنشی برنمی‌گردد — پشتیبان برای همان حالت است.
 
 ## چیدمان روی سرور
 
@@ -238,6 +261,8 @@ PY'
 /etc/nginx/sites-available/greenpay         پروکسی معکوس، پورت ۸۰ و ۴۴۳
 /etc/nginx/snippets/greenpay-app.conf       مسیرهای مشترک http و https
 /etc/ssl/greenpay/                          گواهی و کلید TLS (پوشه 700، کلید 600)
+/var/lib/postgresql/16/main                 دادهٔ PostgreSQL
+/var/backups/greenpay/                      پشتیبان‌های شبانه (۳۰ روز)
 ```
 
 nginx مسیرها را این‌طور تقسیم می‌کند: `/admin` و `/api` → Django، `/static/` و `/media/` → فایل‌های Django، بقیه → Next.js.
@@ -260,87 +285,68 @@ ssh root@109.122.252.99 'cd /opt/greenpay/backend && set -a && . /etc/greenpay.e
 
 ## پشتیبان‌گیری
 
-**در حال حاضر پشتیبان‌گیری خودکاری تنظیم نشده.** کل دادهٔ سامانه در یک فایل است:
-`/opt/greenpay/backend/db.sqlite3` (به‌علاوهٔ پیوست‌ها در `backend/media/`). این را
-جدی بگیرید — اولین کاری که بعد از تحویل باید انجام شود همین است.
-
-گرفتن نسخهٔ دستی:
+پشتیبان شبانه نصب و فعال است: `greenpay-backup.timer` هر شب ساعت ۰۲:۳۰ اجرا
+می‌شود و خروجی در `/var/backups/greenpay/` می‌نشیند. نسخه‌های قدیمی‌تر از ۳۰ روز
+خودکار پاک می‌شوند.
 
 ```bash
-ssh root@109.122.252.99 'cd /opt/greenpay/backend && ./.venv/bin/python - <<PY
-import sqlite3, datetime, pathlib
-out = pathlib.Path("/var/backups/greenpay")
-out.mkdir(parents=True, exist_ok=True)
-dst_path = out / f"db-{datetime.datetime.now():%Y%m%d-%H%M}.sqlite3"
-src, dst = sqlite3.connect("db.sqlite3"), sqlite3.connect(dst_path)
-with dst:
-    src.backup(dst)
-print(dst_path)
-PY'
+ssh root@109.122.252.99 'systemctl list-timers greenpay-backup.timer --no-pager'
+ssh root@109.122.252.99 'journalctl -u greenpay-backup -n 20 --no-pager'
+ssh root@109.122.252.99 'ls -lh /var/backups/greenpay/ | tail -5'
 ```
 
-`cp` ساده نزنید. دیتابیس در حالت WAL است و یک کپی خام می‌تواند نیمه‌کاره باشد؛
-`Connection.backup()` نسخهٔ سازگار می‌دهد حتی وقتی سامانه در حال کار است.
-
-### خودکار کردنش
-
-اگر می‌خواهید هر شب پشتیبان گرفته شود، این را روی سرور بسازید:
+گرفتن نسخهٔ دستی، همین حالا:
 
 ```bash
-cat > /usr/local/bin/greenpay-backup <<'SH'
-#!/usr/bin/env bash
-set -euo pipefail
-OUT=/var/backups/greenpay
-mkdir -p "$OUT"
-cd /opt/greenpay/backend
-./.venv/bin/python - "$OUT" <<'PY'
-import sqlite3, sys, datetime, pathlib
-out = pathlib.Path(sys.argv[1]) / f"db-{datetime.datetime.now():%Y%m%d-%H%M}.sqlite3"
-src, dst = sqlite3.connect("db.sqlite3"), sqlite3.connect(out)
-with dst:
-    src.backup(dst)
-print(out)
-PY
-tar -czf "$OUT/media-$(date +%Y%m%d).tar.gz" -C /opt/greenpay/backend media 2>/dev/null || true
-find "$OUT" -type f -mtime +30 -delete      # نسخه‌های قدیمی‌تر از ۳۰ روز
-SH
-chmod +x /usr/local/bin/greenpay-backup
+ssh root@109.122.252.99 '/usr/local/bin/greenpay-backup'
+```
 
-cat > /etc/systemd/system/greenpay-backup.service <<'SH'
-[Unit]
-Description=GreenPay — پشتیبان‌گیری دیتابیس
-[Service]
-Type=oneshot
-ExecStart=/usr/local/bin/greenpay-backup
-SH
+اسکریپت بعد از هر دامپ یک `pg_restore --list` روی آن می‌زند. دلیلش ساده است:
+بکاپی که خوانده نمی‌شود بکاپ نیست، و بهتر است همان شب بفهمیم تا روز حادثه.
 
-cat > /etc/systemd/system/greenpay-backup.timer <<'SH'
-[Unit]
-Description=GreenPay — پشتیبان شبانه
-[Timer]
-OnCalendar=*-*-* 02:30:00
-Persistent=true
-[Install]
-WantedBy=timers.target
-SH
+### برگرداندن
 
-systemctl daemon-reload && systemctl enable --now greenpay-backup.timer
+دامپ‌ها در قالب `custom` هستند، پس `pg_restore` می‌خواهند نه `psql`.
+
+```bash
+systemctl stop greenpay-api greenpay-outlook.timer greenpay-reminders.timer
+
+set -a; . /etc/greenpay.env; set +a
+sudo -u postgres dropdb --if-exists greenpay
+sudo -u postgres createdb -O greenpay -E UTF8 -T template0 greenpay
+PGPASSWORD="$DB_PASSWORD" pg_restore -h 127.0.0.1 -U greenpay -d greenpay \
+    --no-owner --no-privileges /var/backups/greenpay/db-<تاریخ>.dump
+
+systemctl start greenpay-api greenpay-outlook.timer greenpay-reminders.timer
+```
+
+پیش از اینکه روی دیتابیس اصلی دست بگذارید، می‌توانید همان دامپ را در یک دیتابیس
+موقت برگردانید و ببینید سالم است:
+
+```bash
+sudo -u postgres createdb -O greenpay -E UTF8 -T template0 greenpay_check
+PGPASSWORD="$DB_PASSWORD" pg_restore -h 127.0.0.1 -U greenpay -d greenpay_check \
+    --no-owner --no-privileges /var/backups/greenpay/db-<تاریخ>.dump
+PGPASSWORD="$DB_PASSWORD" psql -h 127.0.0.1 -U greenpay -d greenpay_check \
+    -tAc 'select count(*) from meetings_meeting'
+sudo -u postgres dropdb greenpay_check
 ```
 
 نسخه‌ها روی همان سرور می‌مانند، که در برابر خرابی دیسک یا پاک شدن سرور کمکی
 نمی‌کند. برای جدی شدن، فایل‌ها را جای دیگری هم کپی کنید.
 
-### برگرداندن
+### نسخهٔ پیش از مهاجرت
 
-```bash
-systemctl stop greenpay-api greenpay-outlook.timer greenpay-reminders.timer
-cp /var/backups/greenpay/db-<تاریخ>.sqlite3 /opt/greenpay/backend/db.sqlite3
-rm -f /opt/greenpay/backend/db.sqlite3-wal /opt/greenpay/backend/db.sqlite3-shm
-systemctl start greenpay-api greenpay-outlook.timer greenpay-reminders.timer
+فایل SQLite دوران قبل و آخرین پشتیبانش هنوز روی سرورند:
+
+```
+/opt/greenpay/backend/db.sqlite3              دست‌نخورده از لحظهٔ کات‌اور
+/var/backups/greenpay/pre-pg-*.sqlite3        پشتیبان همان لحظه
 ```
 
-فایل‌های `-wal` و `-shm` باید حتماً پاک شوند، وگرنه SQLite تراکنش‌های نیمه‌کارهٔ
-دیتابیسِ قبلی را روی نسخهٔ برگردانده‌شده اعمال می‌کند.
+این‌ها را تا وقتی از پایداری PostgreSQL مطمئن شوید نگه دارید. بعد از آن می‌توانید
+پاکشان کنید — دادهٔ زنده دیگر آنجا نیست و هر تغییری از کات‌اور به بعد فقط در
+PostgreSQL است.
 
 ## نکات امنیتی
 
@@ -507,9 +513,9 @@ ssh root@109.122.252.99 'journalctl -u greenpay-outlook -n 40 --no-pager'
 متوقف می‌شود)؛ ۴۰۳ یعنی آن صندوقِ خاص زیر `ApplicationAccessPolicy` نیست —
 فقط همان صندوق عقب می‌نشیند و بقیه به کارشان ادامه می‌دهند.
 
-**دیتابیس:** با آمدن این تایمر، یک پروسهٔ جدا هر دقیقه در SQLite می‌نویسد در
-حالی که gunicorn می‌خواند. WAL و مهلت ۲۰ ثانیه‌ای روشن‌اند، ولی راه‌حل واقعی
-PostgreSQL است — بلوک آماده‌اش در `config/settings.py` کامنت‌شده است.
+**دیتابیس:** این تایمر از یک پروسهٔ جدا هم‌زمان با gunicorn می‌نویسد. روی
+PostgreSQL این عادی است و نیازی به تنظیم خاصی ندارد؛ در دوران SQLite همین
+هم‌زمانی بزرگ‌ترین ریسک عملیاتی بود.
 
 ## اشتراک تقویم
 
@@ -538,7 +544,9 @@ ssh root@109.122.252.99 'systemctl status greenpay-web greenpay-api nginx --no-p
 | ورود به `/admin/` با «Origin checking failed» | `CSRF_TRUSTED_ORIGINS` تنظیم نشده |
 | صفحه می‌آید ولی خالی است و کنسول ۴۰۱ می‌دهد | توکن منقضی شده؛ یک بار خروج و ورود |
 | `413 Request Entity Too Large` هنگام پیوست | `client_max_body_size` در nginx |
-| «database is locked» در لاگ | دو نویسنده هم‌زمان؛ پایین‌تر را بخوانید |
+| `could not connect to server` در لاگ | PostgreSQL بالا نیست یا مشخصات اتصال غلط است |
+| `password authentication failed` | `DB_PASSWORD` با رمز واقعی نقش نمی‌خواند |
+| `relation ... does not exist` | مایگریشن اجرا نشده — `deploy.sh` را بزنید |
 
 لاگ‌ها:
 
@@ -565,13 +573,33 @@ tail -n 100 /var/log/nginx/error.log
 کد. و اگر هیچ کاربری ایمیل ندارد، دستور تمیز اجرا می‌شود و صفر کار می‌کند — این هم
 یک حالت طبیعی است، نه خرابی.
 
-**«database is locked».** یعنی دو نویسنده هم‌زمان به SQLite خورده‌اند. WAL روشن است
-و مهلت قفل ۲۰ ثانیه، پس این خطا نباید عادی باشد؛ اگر تکرار شد، یعنی وقت مهاجرت به
-PostgreSQL رسیده. برای رفع فوری، تایمرها را موقتاً خاموش کنید:
+**دیتابیس جواب نمی‌دهد.** اول ببینید خودش بالاست:
 
 ```bash
-systemctl stop greenpay-outlook.timer greenpay-reminders.timer
+systemctl status postgresql --no-pager | head -5
+set -a; . /etc/greenpay.env; set +a
+PGPASSWORD="$DB_PASSWORD" psql -h 127.0.0.1 -U greenpay -d greenpay -tAc 'select 1'
 ```
+
+اگر `psql` وصل می‌شود ولی جنگو نه، مشکل در `/etc/greenpay.env` است نه در دیتابیس:
+یکی از `DB_*`ها غلط یا جا افتاده. اگر هیچ‌کدام وصل نمی‌شوند:
+
+```bash
+journalctl -u postgresql -n 40 --no-pager
+tail -50 /var/log/postgresql/postgresql-16-main.log
+```
+
+**برگشت اضطراری به SQLite.** اگر PostgreSQL از کار افتاد و باید فوراً سامانه را
+بالا بیاورید، فایل SQLite دوران قبل هنوز سر جایش است:
+
+```bash
+sed -i 's/^DB_NAME=/#DB_NAME=/' /etc/greenpay.env
+systemctl restart greenpay-api
+```
+
+حواستان باشد این یعنی برگشت به دادهٔ **لحظهٔ کات‌اور**؛ هر جلسه و صورت‌جلسه‌ای که
+از آن لحظه به بعد ثبت شده در PostgreSQL می‌ماند و در این حالت دیده نمی‌شود. این
+راه فقط برای وقتی است که در دسترس بودن از به‌روز بودن مهم‌تر باشد.
 
 **برگشت به نسخهٔ قبلی.** اگر دیپلوی چیزی را شکست:
 
