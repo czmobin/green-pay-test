@@ -8,6 +8,193 @@
 | `https://calendar.greenpay360.ir/admin/` | پنل ادمین Django |
 | `http://109.122.252.99/` | همان اپ روی آی‌پی، بدون TLS (گواهی برای آی‌پی صادر نشده) |
 
+## بالا آوردن روی یک سرور تازه
+
+اگر سرور فعلی هست و فقط می‌خواهید نسخهٔ جدید بدهید، این بخش را رد کنید و بروید
+سراغ «دیپلوی نسخهٔ جدید».
+
+این مراحل روی Ubuntu 24.04 نوشته شده‌اند و با دسترسی root اجرا می‌شوند.
+
+### ۱) بسته‌ها
+
+```bash
+apt update
+apt install -y nginx git python3-venv python3-pip curl
+curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
+apt install -y nodejs
+```
+
+Node باید ۱۸٫۱۷ یا بالاتر باشد (روی سرور فعلی ۲۰ است). Python 3.12 خودِ اوبونتو
+۲۴٫۰۴ کافی است.
+
+### ۲) گرفتن کد
+
+```bash
+mkdir -p /opt
+git clone git@github.com:czmobin/green-pay-test.git /opt/greenpay
+chmod +x /opt/greenpay/deploy.sh
+```
+
+اگر سرور به GitHub دسترسی SSH ندارد، یک deploy key بسازید و در تنظیمات مخزن ثبتش
+کنید، یا با HTTPS کلون کنید.
+
+### ۳) فایل محیطی
+
+```bash
+cp /opt/greenpay/backend/.env.example /etc/greenpay.env
+chmod 600 /etc/greenpay.env
+nano /etc/greenpay.env
+```
+
+دست‌کم این‌ها را عوض کنید:
+
+```
+SECRET_KEY=<یک رشتهٔ تصادفی بلند>
+DEBUG=0
+ALLOWED_HOSTS=calendar.greenpay360.ir,<IP سرور>,localhost,127.0.0.1
+CSRF_TRUSTED_ORIGINS=https://calendar.greenpay360.ir
+OTP_ECHO_WHEN_SMS_OFF=0
+```
+
+`SECRET_KEY` را می‌توانید این‌طور بسازید:
+
+```bash
+python3 -c "import secrets; print(secrets.token_urlsafe(64))"
+```
+
+> `DEBUG=0` و `OTP_ECHO_WHEN_SMS_OFF=0` را جا نیندازید. دومی روی production با کلید
+> پیامکِ تنظیم‌شده بی‌اثر است، ولی اگر روزی کلید پیامک تمام شود، با مقدار ۱ کدِ ورود
+> در پاسخ API برمی‌گردد — یعنی هر کسی می‌تواند با هر شماره‌ای وارد شود.
+
+### ۴) سرویس‌های systemd
+
+دو سرویس دائمی. (تایمرها را خودِ `deploy.sh` می‌سازد، این دو را دستی بسازید.)
+
+```bash
+cat > /etc/systemd/system/greenpay-api.service <<'UNIT'
+[Unit]
+Description=Green Pay — backend (Django/gunicorn)
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/greenpay/backend
+EnvironmentFile=/etc/greenpay.env
+ExecStart=/opt/greenpay/backend/.venv/bin/gunicorn config.wsgi:application --bind 127.0.0.1:8001 --workers 3 --timeout 60
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+
+cat > /etc/systemd/system/greenpay-web.service <<'UNIT'
+[Unit]
+Description=Green Pay — frontend (Next.js)
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/greenpay/frontend
+Environment=NODE_ENV=production PORT=3000 HOSTNAME=127.0.0.1
+ExecStart=/usr/bin/npm run start -- -p 3000 -H 127.0.0.1
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+
+systemctl daemon-reload
+systemctl enable greenpay-api greenpay-web
+```
+
+هیچ‌کدام هنوز بالا نمی‌آیند، چون `.venv` و بیلد فرانت ساخته نشده‌اند. `deploy.sh`
+در گام بعدی هر دو را می‌سازد و سرویس‌ها را استارت می‌کند.
+
+### ۵) nginx
+
+```bash
+cat > /etc/nginx/snippets/greenpay-app.conf <<'CONF'
+location /static/ { alias /opt/greenpay/backend/staticfiles/; access_log off; expires 30d; }
+location /media/  { alias /opt/greenpay/backend/media/; access_log off; }
+
+location ~ ^/(admin|api) {
+    proxy_pass http://127.0.0.1:8001;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+}
+
+location / {
+    proxy_pass http://127.0.0.1:3000;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_cache_bypass $http_upgrade;
+}
+CONF
+
+cat > /etc/nginx/sites-available/greenpay <<'CONF'
+server {
+    listen 80 default_server;
+    listen [::]:80 default_server;
+    server_name _;
+    client_max_body_size 25m;
+    include snippets/greenpay-app.conf;
+}
+CONF
+
+rm -f /etc/nginx/sites-enabled/default
+ln -sf /etc/nginx/sites-available/greenpay /etc/nginx/sites-enabled/greenpay
+nginx -t && systemctl reload nginx
+```
+
+این فعلاً فقط HTTP است. بعد از اینکه اپ بالا آمد و DNS دامنه به سرور اشاره کرد،
+بلوک TLS را از بخش [TLS](#tls) اضافه کنید.
+
+`client_max_body_size 25m` را جا نیندازید؛ پیش‌فرض nginx یک مگابایت است و پیوست
+صورت‌جلسه و فایل درون‌ریزی افراد به آن می‌خورند.
+
+### ۶) اولین اجرا
+
+```bash
+/opt/greenpay/deploy.sh
+```
+
+همین اسکریپت `.venv` را می‌سازد، وابستگی‌ها را نصب می‌کند، مایگریشن می‌زند،
+دادهٔ پایه را می‌سازد، فرانت را بیلد می‌کند، تایمرها را نصب می‌کند و سرویس‌ها را
+بالا می‌آورد. آخرش باید چهار خط ✓ ببینید.
+
+### ۷) اولین ادمین
+
+دیتابیس تازه هیچ کاربری ندارد، و ورود به اپ همیشه با شمارهٔ موبایل است — پس کاربری
+که با `createsuperuser` می‌سازید فقط به `/admin/` راه دارد، نه به خود اپ.
+
+```bash
+cd /opt/greenpay/backend && ./.venv/bin/python manage.py createsuperuser
+```
+
+بعد وارد `/admin/` شوید، همان کاربر را باز کنید، `phone` او را بگذارید و `role` را
+روی `admin`. حالا با همان شماره می‌توانید وارد خود اپ هم بشوید.
+
+### ۸) بررسی
+
+```bash
+systemctl status greenpay-api greenpay-web --no-pager
+curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1/          # باید 200 بدهد
+curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1/api/bootstrap/   # باید 401 بدهد
+```
+
+`401` روی `bootstrap` درست است و یعنی API بالاست و بدون توکن چیزی نمی‌دهد.
+
+---
+
 ## دیپلوی نسخهٔ جدید
 
 بعد از `git push` روی شاخهٔ `main`، فقط این یک دستور:
@@ -16,7 +203,30 @@
 ssh root@109.122.252.99 '/opt/greenpay/deploy.sh'
 ```
 
-اسکریپت به‌ترتیب: آخرین کد را می‌گیرد → فرانت را بیلد می‌کند → وابستگی/مایگریشن/استاتیک بک‌اند را به‌روز می‌کند → سرویس‌ها را ری‌استارت می‌کند.
+اسکریپت به‌ترتیب: آخرین کد را می‌گیرد → فرانت را بیلد می‌کند → وابستگی/مایگریشن/استاتیک بک‌اند را به‌روز می‌کند → تایمرها را به‌روز می‌کند → سرویس‌ها را ری‌استارت می‌کند.
+
+> **اگر خودِ `deploy.sh` را عوض کرده‌اید، دو بار اجرایش کنید.** اسکریپت وسط اجرا
+> با `git reset --hard` خودش را به‌روز می‌کند، ولی bash بدنهٔ تابع `main` را از قبل
+> خوانده و همان نسخهٔ قدیمی را تا آخر اجرا می‌کند. تغییرِ خودِ اسکریپت از اجرای
+> بعدی اعمال می‌شود. (این یک بار واقعاً پیش آمد: تایمر Outlook در اجرای اول نصب
+> نشد و در اجرای دوم نصب شد.)
+
+اگر مایگریشنی در راه است، پیش از دیپلوی از دیتابیس نسخهٔ پشتیبان بگیرید:
+
+```bash
+ssh root@109.122.252.99 'cd /opt/greenpay/backend && ./.venv/bin/python - <<PY
+import sqlite3, datetime, pathlib
+out = pathlib.Path("/root") / f"greenpay-{datetime.datetime.now():%Y%m%d-%H%M}.sqlite3"
+src, dst = sqlite3.connect("db.sqlite3"), sqlite3.connect(out)
+with dst:
+    src.backup(dst)
+print("backup:", out)
+PY'
+```
+
+از `sqlite3` خط فرمان استفاده نکنید — روی سرور نصب نیست. `Connection.backup()`
+پایتون همان کار را می‌کند، با این مزیت که با پایگاه دادهٔ در حال استفاده و حالت WAL
+هم درست کار می‌کند و کپی نیم‌سوخته نمی‌دهد (برخلاف `cp` ساده).
 
 ## چیدمان روی سرور
 
@@ -48,11 +258,105 @@ ssh root@109.122.252.99 'systemctl restart greenpay-web greenpay-api'
 ssh root@109.122.252.99 'cd /opt/greenpay/backend && set -a && . /etc/greenpay.env && set +a && ./.venv/bin/python manage.py createsuperuser'
 ```
 
-## نکات امنیتی (پیشنهاد)
+## پشتیبان‌گیری
 
-- ورود با کلید SSH فعال است؛ برای سخت‌ترشدن می‌توان `PasswordAuthentication no` را در `/etc/ssh/sshd_config` گذاشت.
+**در حال حاضر پشتیبان‌گیری خودکاری تنظیم نشده.** کل دادهٔ سامانه در یک فایل است:
+`/opt/greenpay/backend/db.sqlite3` (به‌علاوهٔ پیوست‌ها در `backend/media/`). این را
+جدی بگیرید — اولین کاری که بعد از تحویل باید انجام شود همین است.
+
+گرفتن نسخهٔ دستی:
+
+```bash
+ssh root@109.122.252.99 'cd /opt/greenpay/backend && ./.venv/bin/python - <<PY
+import sqlite3, datetime, pathlib
+out = pathlib.Path("/var/backups/greenpay")
+out.mkdir(parents=True, exist_ok=True)
+dst_path = out / f"db-{datetime.datetime.now():%Y%m%d-%H%M}.sqlite3"
+src, dst = sqlite3.connect("db.sqlite3"), sqlite3.connect(dst_path)
+with dst:
+    src.backup(dst)
+print(dst_path)
+PY'
+```
+
+`cp` ساده نزنید. دیتابیس در حالت WAL است و یک کپی خام می‌تواند نیمه‌کاره باشد؛
+`Connection.backup()` نسخهٔ سازگار می‌دهد حتی وقتی سامانه در حال کار است.
+
+### خودکار کردنش
+
+اگر می‌خواهید هر شب پشتیبان گرفته شود، این را روی سرور بسازید:
+
+```bash
+cat > /usr/local/bin/greenpay-backup <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+OUT=/var/backups/greenpay
+mkdir -p "$OUT"
+cd /opt/greenpay/backend
+./.venv/bin/python - "$OUT" <<'PY'
+import sqlite3, sys, datetime, pathlib
+out = pathlib.Path(sys.argv[1]) / f"db-{datetime.datetime.now():%Y%m%d-%H%M}.sqlite3"
+src, dst = sqlite3.connect("db.sqlite3"), sqlite3.connect(out)
+with dst:
+    src.backup(dst)
+print(out)
+PY
+tar -czf "$OUT/media-$(date +%Y%m%d).tar.gz" -C /opt/greenpay/backend media 2>/dev/null || true
+find "$OUT" -type f -mtime +30 -delete      # نسخه‌های قدیمی‌تر از ۳۰ روز
+SH
+chmod +x /usr/local/bin/greenpay-backup
+
+cat > /etc/systemd/system/greenpay-backup.service <<'SH'
+[Unit]
+Description=GreenPay — پشتیبان‌گیری دیتابیس
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/greenpay-backup
+SH
+
+cat > /etc/systemd/system/greenpay-backup.timer <<'SH'
+[Unit]
+Description=GreenPay — پشتیبان شبانه
+[Timer]
+OnCalendar=*-*-* 02:30:00
+Persistent=true
+[Install]
+WantedBy=timers.target
+SH
+
+systemctl daemon-reload && systemctl enable --now greenpay-backup.timer
+```
+
+نسخه‌ها روی همان سرور می‌مانند، که در برابر خرابی دیسک یا پاک شدن سرور کمکی
+نمی‌کند. برای جدی شدن، فایل‌ها را جای دیگری هم کپی کنید.
+
+### برگرداندن
+
+```bash
+systemctl stop greenpay-api greenpay-outlook.timer greenpay-reminders.timer
+cp /var/backups/greenpay/db-<تاریخ>.sqlite3 /opt/greenpay/backend/db.sqlite3
+rm -f /opt/greenpay/backend/db.sqlite3-wal /opt/greenpay/backend/db.sqlite3-shm
+systemctl start greenpay-api greenpay-outlook.timer greenpay-reminders.timer
+```
+
+فایل‌های `-wal` و `-shm` باید حتماً پاک شوند، وگرنه SQLite تراکنش‌های نیمه‌کارهٔ
+دیتابیسِ قبلی را روی نسخهٔ برگردانده‌شده اعمال می‌کند.
+
+## نکات امنیتی
+
+- کلید خصوصی TLS هیچ‌وقت نباید وارد مخزن شود. `*.key`، `*.pem`، `*.crt` و
+  `*Fullchain*` در `.gitignore` هستند و تاریخچهٔ مخزن هم تمیز است (بررسی شده).
+  ولی ممکن است در پوشهٔ کاری توسعه‌دهنده کپی‌ای از کلید مانده باشد؛ اگر هست جایی
+  امن ببریدش. جای درستش فقط `/etc/ssl/greenpay/` روی سرور است.
+- `/etc/greenpay.env` باید `600` باشد. همهٔ کلیدهای پیامک و Outlook آنجاست.
+- `DEBUG=0` و `OTP_ECHO_WHEN_SMS_OFF=0` روی production. دومی اگر ۱ بماند و روزی
+  کلید پیامک از کار بیفتد، کدِ ورود در پاسخ API برمی‌گردد.
 - پسورد ادمین Django را بعد از اولین ورود از `/admin/password_change/` عوض کنید.
-- کلید خصوصی TLS هیچ‌وقت نباید وارد مخزن شود؛ `*.key` و `*.pem` در `.gitignore` هستند.
+- ورود با کلید SSH فعال است؛ برای سخت‌ترشدن `PasswordAuthentication no` را در
+  `/etc/ssh/sshd_config` بگذارید.
+- API فقط JWT می‌پذیرد و `SessionAuthentication` عمداً خاموش است. اگر روشنش کنید،
+  کاربری که هم‌زمان در `/admin/` لاگین است کوکی نشست می‌فرستد و درخواست‌های `POST`
+  به CSRF می‌خورند.
 
 ## پیامک
 
@@ -215,6 +519,71 @@ PostgreSQL است — بلوک آماده‌اش در `config/settings.py` کا�
 
 **نوشتن در صورت‌جلسه پیش‌فرض خاموش است** و فقط صاحب تقویم می‌تواند روشنش کند —
 این پیش‌فرض در سطح دیتابیس است، نه در رابط. تنظیمی در سرور لازم ندارد.
+
+---
+
+## وقتی چیزی کار نمی‌کند
+
+ترتیب زیر از بیرون به داخل است. معمولاً در دو گام اول معلوم می‌شود مقصر کیست.
+
+```bash
+ssh root@109.122.252.99 'systemctl status greenpay-web greenpay-api nginx --no-pager | head -40'
+```
+
+| نشانه | معمولاً یعنی |
+|---|---|
+| `502 Bad Gateway` روی همهٔ مسیرها | `greenpay-web` بالا نیست |
+| `502` فقط روی `/api` و `/admin` | `greenpay-api` بالا نیست |
+| `400 Bad Request` از جنگو | میزبان در `ALLOWED_HOSTS` نیست |
+| ورود به `/admin/` با «Origin checking failed» | `CSRF_TRUSTED_ORIGINS` تنظیم نشده |
+| صفحه می‌آید ولی خالی است و کنسول ۴۰۱ می‌دهد | توکن منقضی شده؛ یک بار خروج و ورود |
+| `413 Request Entity Too Large` هنگام پیوست | `client_max_body_size` در nginx |
+| «database is locked» در لاگ | دو نویسنده هم‌زمان؛ پایین‌تر را بخوانید |
+
+لاگ‌ها:
+
+```bash
+journalctl -u greenpay-api -n 80 --no-pager        # خطاهای جنگو
+journalctl -u greenpay-web -n 80 --no-pager        # خطاهای Next
+journalctl -u greenpay-outlook -n 40 --no-pager    # همگام‌سازی Outlook
+journalctl -u greenpay-reminders -n 40 --no-pager  # یادآور پیامکی
+tail -n 100 /var/log/nginx/error.log
+```
+
+**سرویس بالا نمی‌آید.** `journalctl` را بخوانید. شایع‌ترین علت‌ها: `/etc/greenpay.env`
+خراب یا ناخوانا است، `.venv` ناقص است (یک بار `deploy.sh` را دوباره بزنید)، یا بیلد
+فرانت نیمه‌کاره مانده و `.next` ناقص است (`rm -rf /opt/greenpay/frontend/.next` و
+دوباره دیپلوی).
+
+**پیامک نمی‌رود.** اول `test_sms <شماره> --diagnose` بزنید؛ بدون ارسال می‌گوید سرویس
+در کدام مرحله رد می‌کند. شایع‌ترین علت، مجاز نبودن IP سرور در پنل پیشگام رایان است
+که با پیام `IpNotValid` برمی‌گردد.
+
+**همگام‌سازی Outlook کار نمی‌کند.** `outlook_sync --diagnose` بزنید. اگر می‌گوید
+«خاموش»، یعنی `OUTLOOK_ENABLED` یا کلیدها تنظیم نشده‌اند و این حالت طبیعی است.
+اگر توکن گرفته می‌شود ولی صندوق ۴۰۳ می‌دهد، مشکل `ApplicationAccessPolicy` است نه
+کد. و اگر هیچ کاربری ایمیل ندارد، دستور تمیز اجرا می‌شود و صفر کار می‌کند — این هم
+یک حالت طبیعی است، نه خرابی.
+
+**«database is locked».** یعنی دو نویسنده هم‌زمان به SQLite خورده‌اند. WAL روشن است
+و مهلت قفل ۲۰ ثانیه، پس این خطا نباید عادی باشد؛ اگر تکرار شد، یعنی وقت مهاجرت به
+PostgreSQL رسیده. برای رفع فوری، تایمرها را موقتاً خاموش کنید:
+
+```bash
+systemctl stop greenpay-outlook.timer greenpay-reminders.timer
+```
+
+**برگشت به نسخهٔ قبلی.** اگر دیپلوی چیزی را شکست:
+
+```bash
+ssh root@109.122.252.99 'cd /opt/greenpay && git log --oneline -5'
+ssh root@109.122.252.99 'cd /opt/greenpay && git reset --hard <هش نسخهٔ سالم> && ./deploy.sh'
+```
+
+حواستان باشد `deploy.sh` در ابتدای کار `git reset --hard origin/main` می‌زند، پس
+برگرداندن واقعی یعنی روی GitHub هم `main` را برگردانید (یا `revert` کنید و push).
+همچنین مایگریشنی که اجرا شده با برگشت کد برنمی‌گردد — اگر مایگریشن مخرب بوده، از
+نسخهٔ پشتیبان برگردانید.
 
 ## TLS
 

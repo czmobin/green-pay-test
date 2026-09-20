@@ -1,157 +1,92 @@
-# ERD — بک‌اند مدیریت جلسات گرین‌پی
+# مدل داده
 
-نمودار موجودیت‑رابطه (ERD) برای مدل‌های Django در `meetings/models.py`.
+هجده مدل، همه در `meetings/models.py`. این فایل نقشهٔ کلی است؛ برای جزئیات هر فیلد
+خودِ `models.py` را بخوانید — تقریباً هر فیلدی که واضح نیست، بالایش توضیح دارد.
 
-**تصاویر آماده:** [`erd.png`](./erd.png) · [`erd.svg`](./erd.svg)
-
-![ERD](./erd.png)
+## رابطه‌ها
 
 ```mermaid
 erDiagram
-    ORGANIZATION ||--o{ USER : "اعضا"
-    ORGANIZATION ||--o{ LOCATION : "محل‌ها"
-    CATEGORY    ||--o{ MEETING : "دسته"
-    LOCATION    ||--o{ MEETING : "محل"
-    USER        ||--o{ MEETING : "برگزارکننده"
-    MEETING     ||--o{ MEETING_PARTICIPANT : "شرکت‌کنندگان"
-    USER        ||--o{ MEETING_PARTICIPANT : "حضور"
-    MEETING     ||--o{ AGENDA_ITEM : "دستور جلسه"
-    MEETING     ||--o{ MINUTES : "صورت‌جلسه‌ها"
-    USER        ||--o{ MINUTES : "صورت‌جلسهٔ شرکت‌کننده"
-    MINUTES     ||--o{ MINUTE_ENTRY : "آیتم‌ها"
-    USER        ||--o{ MINUTE_ENTRY : "مسئول تسک"
-    MINUTES     ||--o{ ATTACHMENT : "پیوست‌ها"
-    MINUTE_ENTRY ||--o{ ATTACHMENT : "پیوست آیتم"
-    USER        ||--o{ NOTIFICATION : "اعلان‌ها"
-    MEETING     ||--o{ NOTIFICATION : "مرتبط"
-    USER        ||--|| GOOGLE_CALENDAR : "اتصال"
+    ORGANIZATION_KIND ||--o{ ORGANIZATION : "نوع"
+    ORGANIZATION      ||--o{ USER         : "اعضا"
+    ORGANIZATION      ||--o{ LOCATION     : "محل‌ها"
 
-    ORGANIZATION {
-        int id PK
-        string name
-        string kind "internal|bank|regulator|partner"
-    }
-    USER {
-        int id PK
-        string username
-        string full_name
-        string role "admin|ceo|member"
-        int organization_id FK
-        string title
-        string phone
-        bool is_external
-        bool sms_enabled
-    }
-    LOCATION {
-        int id PK
-        string name
-        string capacity
-        int organization_id FK
-        bool is_online
-    }
-    CATEGORY {
-        int id PK
-        string name
-        string color
-    }
-    MEETING {
-        int id PK
-        string title
-        int category_id FK
-        string meeting_type "board|external|internal|online"
-        string status "confirmed|pending|cancelled|done"
-        int location_id FK
-        int organizer_id FK
-        datetime start
-        datetime end
-        bool google_synced
-        string google_event_id
-    }
-    MEETING_PARTICIPANT {
-        int id PK
-        int meeting_id FK
-        int user_id FK
-        bool is_guest
-        string response "accepted|pending|declined"
-    }
-    AGENDA_ITEM {
-        int id PK
-        int meeting_id FK
-        int order
-        string title
-        int duration_minutes
-    }
-    MINUTES {
-        int id PK
-        int meeting_id FK
-        int participant_id FK "NULL = عمومی"
-        int created_by_id FK
-    }
-    MINUTE_ENTRY {
-        int id PK
-        int minutes_id FK
-        string entry_type "note|decision|task|reminder|call|letter|file"
-        text text
-        int assignee_id FK
-        date due_date
-        bool is_done
-        datetime remind_at
-        string call_with
-        string call_phone
-    }
-    ATTACHMENT {
-        int id PK
-        int minutes_id FK
-        int entry_id FK
-        string kind "letter|file"
-        file file
-        string name
-    }
-    NOTIFICATION {
-        int id PK
-        int user_id FK
-        string kind "meeting|invite|task|reminder"
-        string title
-        int meeting_id FK
-        int entry_id FK
-        datetime remind_at
-        bool delivered_in_app
-        bool delivered_sms
-        bool is_read
-    }
-    GOOGLE_CALENDAR {
-        int id PK
-        int user_id FK
-        bool is_connected
-        string calendar_id
-        datetime synced_at
-    }
+    CATEGORY ||--o{ MEETING : "دسته"
+    LOCATION ||--o{ MEETING : "محل"
+    USER     ||--o{ MEETING : "برگزارکننده"
+
+    MEETING ||--o{ MEETING_PARTICIPANT : "شرکت‌کنندگان"
+    USER    ||--o{ MEETING_PARTICIPANT : "حضور و پاسخ دعوت"
+
+    MEETING ||--o{ AGENDA_ITEM : "دستور جلسه"
+    MEETING ||--o{ MINUTES     : "سطل صورت‌جلسه"
+    USER    ||--o{ MINUTES     : "سطلِ این شرکت‌کننده"
+
+    MINUTES      ||--o{ MINUTE_ENTRY : "آیتم‌ها"
+    AGENDA_ITEM  ||--o{ MINUTE_ENTRY : "ذیل کدام بند"
+    MINUTE_ENTRY ||--o{ ATTACHMENT   : "پیوست"
+    MINUTES      ||--o{ ATTACHMENT   : "پیوست سطل"
+
+    MEETING ||--o{ MEETING_REMINDER : "یادآور هر کاربر"
+    USER    ||--o{ MEETING_REMINDER : "تنظیم خودش"
+
+    USER    ||--o{ NOTIFICATION : "اعلان‌ها"
+    MEETING ||--o{ NOTIFICATION : "مرتبط"
+
+    USER ||--o{ CALENDAR_SHARE : "تقویمش را می‌دهد"
+    USER ||--o{ CALENDAR_SHARE : "تقویم دیگری را می‌بیند"
+
+    USER            ||--|| OUTLOOK_MAILBOX : "صندوق"
+    OUTLOOK_MAILBOX ||--o{ OUTLOOK_EVENT   : "رویدادها"
+    MEETING         ||--o{ OUTLOOK_EVENT   : "نسخه در هر صندوق"
 ```
 
-## توضیح موجودیت‌ها
+`OtpCode` و `OutlookUnmappedAttendee` به هیچ‌چیز وصل نیستند و عمداً هم نباید باشند —
+اولی با شمارهٔ موبایل کار می‌کند (پیش از اینکه کاربری وجود داشته باشد) و دومی
+نشانی‌هایی را نگه می‌دارد که به هیچ کاربری نخورده‌اند.
 
-| موجودیت | نقش | نکات کلیدی |
-|---|---|---|
-| **Organization** | سازمان/شرکت | داخلی، بانک، رگولاتور، شریک |
-| **User** | فرد (کارمند یا مهمان) | `role` سطح دسترسی؛ `is_external` مهمان خارجی؛ متصل به سازمان |
-| **Location** | محل جلسه | متصل به سازمان؛ `is_online` برای Google Meet |
-| **Category** | دستهٔ جلسه | فیلتر جلسات (هیئت مدیره، بانکی، …) |
-| **Meeting** | جلسه | دسته، محل، برگزارکننده، بازهٔ زمانی، وضعیت همگام‌سازی گوگل |
-| **MeetingParticipant** | جدول واسط | شرکت‌کننده/مهمان + پاسخ دعوت (accepted/pending/declined) |
-| **AgendaItem** | دستور جلسه | فهرست موضوعات به‌ترتیب با مدت |
-| **Minutes** | صورت‌جلسه | **یکتا به‌ازای (جلسه، شرکت‌کننده)**؛ `participant=NULL` یعنی عمومی |
-| **MinuteEntry** | آیتم صورت‌جلسه | یادداشت/تصمیم/تسک/یادآور/تماس/نامه/فایل؛ فیلدهای تسک و یادآور و تماس |
-| **Attachment** | پیوست | نامه/فایل متصل به صورت‌جلسه (و به‌صورت اختیاری یک آیتم) |
-| **Notification** | اعلان | یادآور ۳۰ دقیقه قبل؛ `delivered_in_app` و `delivered_sms` |
-| **GoogleCalendarConnection** | اتصال گوگل | `calendar_id` برای کلندر موازی |
+## مدل‌ها
 
-## نگاشت به فرانت‌اند
-- «تعریف‌ها» → `Organization` / `User` / `Location`
-- «دسته‌بندی جلسه» → `Category`
-- «دعوت‌نامه‌ها» و پاسخ آن‌ها → `MeetingParticipant.response`
-- «دستور جلسه» → `AgendaItem`
-- «صورت‌جلسهٔ به‌ازای هر شرکت‌کننده» → `Minutes` (participant) + `MinuteEntry` + `Attachment`
-- «یادآورها/تسک‌ها» → `MinuteEntry` با `entry_type in (task, reminder)`
-- «اعلان + پیامک ۳۰ دقیقه قبل» → `Notification`
-- «سطوح دسترسی» → `User.role`
-- «اتصال Google Calendar (کلندر موازی)» → `GoogleCalendarConnection`
+| مدل | کار |
+|---|---|
+| `OrganizationKind` | نوع سازمان (داخلی، بانک، رگولاتور…) — از پنل ادمین قابل تغییر |
+| `Organization` | سازمان یا شرکت |
+| `User` | کاربر و فرد؛ `AUTH_USER_MODEL`. `is_external=True` یعنی مهمان بدون حساب ورود |
+| `Location` | محل جلسه، با آدرس و مختصات اختیاری |
+| `Category` | دسته‌بندی جلسه، با رنگ |
+| `Meeting` | جلسه — مرکز همه‌چیز |
+| `MeetingParticipant` | جدول واسط جلسه↔کاربر؛ **پاسخ دعوت هر نفر روی همین سطر است** |
+| `AgendaItem` | یک بند از دستور جلسه، با ترتیب و مدت |
+| `Minutes` | «سطل» صورت‌جلسه به‌ازای هر شرکت‌کننده؛ `participant=None` یعنی عمومی |
+| `MinuteEntry` | یک آیتم صورت‌جلسه: یادداشت، تصمیم، یادآور، تماس، نامه، فایل |
+| `Attachment` | پیوست، روی سطل یا روی یک آیتم |
+| `MeetingReminder` | تنظیم یادآور پیامکی هر کاربر برای هر جلسه، و رد ارسالش |
+| `Notification` | اعلان درون‌برنامه‌ای |
+| `OtpCode` | کد یک‌بارمصرف ورود؛ با شماره کار می‌کند نه با کاربر |
+| `CalendarShare` | اشتراک تقویم، با پرچم اجازهٔ نوشتن صورت‌جلسه |
+| `OutlookMailbox` | صندوق Outlook یک کاربر و نشانهٔ delta آن |
+| `OutlookEvent` | همبستگی «جلسهٔ ما ↔ رویداد در یک صندوق مشخص» |
+| `OutlookUnmappedAttendee` | نشانی‌ای که در دعوت آمد ولی به هیچ کاربری نخورد |
+
+## چند تصمیم که در نمودار دیده نمی‌شود
+
+**پاسخ دعوت روی سطر شرکت‌کننده است، نه روی جلسه.** پیش‌تر وضعیت جلسه این کار را
+می‌کرد، یعنی «رد» یک نفر جلسه را برای همه لغو می‌کرد. حالا هرکس سطر خودش را دارد.
+
+**صورت‌جلسه دو لایه دارد.** `Minutes` فقط یک سطل است که (جلسه، شرکت‌کننده) را به هم
+وصل می‌کند؛ محتوای واقعی در `MinuteEntry` است. این اجازه می‌دهد هر شرکت‌کننده
+صورت‌جلسهٔ خودش را داشته باشد بدون اینکه آیتم‌ها تکرار شوند.
+
+**جلسه هیچ‌وقت حذف نمی‌شود.** لغو یعنی `status='cancelled'`. هرچه به جلسه وصل است
+`CASCADE` دارد و یک `DELETE` خام، صورت‌جلسه و دستور جلسه و پیوست‌ها را با خودش
+می‌برد.
+
+**قیدهای یکتای Outlook تصادفی نیستند.** `OutlookEvent` دو `UniqueConstraint` دارد:
+یکی روی (صندوق، شناسهٔ رویداد) و یکی که می‌گوید هر جلسه حداکثر **یک** نسخهٔ مرجع
+(`is_authoritative`) دارد. دومی چیزی است که «جلسهٔ تکراری» را از «بعید» به
+«ساختاراً ناممکن» می‌برد. `Meeting.outlook_uid` هم قید یکتای جزئی دارد (جلسه‌های
+محلی که شناسه ندارند از آن مستثنا هستند).
+
+**`CalendarShare` نمی‌گذارد کسی تقویمش را با خودش به اشتراک بگذارد** —
+`CheckConstraint(~Q(owner=F('viewer')))` — و `UniqueConstraint(owner, viewer)` از
+ردیف تکراری جلوگیری می‌کند.

@@ -33,7 +33,11 @@ def _load_env_file(path: str) -> None:
         os.environ.setdefault(key, value)
 
 
+# روی سرور کلیدها در /etc/greenpay.env هستند؛ در توسعهٔ محلی چنین فایلی وجود
+# ندارد و backend/.env خوانده می‌شود (همان که از .env.example کپی می‌کنید).
+# ترتیب مهم است: هر دو با setdefault پر می‌شوند، پس فایل سیستمی اولویت دارد.
 _load_env_file(os.environ.get('GREENPAY_ENV_FILE', '/etc/greenpay.env'))
+_load_env_file(str(BASE_DIR / '.env'))
 
 SECRET_KEY = os.environ.get('SECRET_KEY', 'dev-insecure-change-me')
 DEBUG = os.environ.get('DEBUG', '1') == '1'
