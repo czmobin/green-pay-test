@@ -87,9 +87,67 @@ Persistent=true
 [Install]
 WantedBy=timers.target
 UNIT
+  # پشتیبان شبانهٔ دیتابیس. اینجا ساخته می‌شود و نه دستی روی سرور، تا سرورِ
+  # بازسازی‌شده هم خودبه‌خود پشتیبان داشته باشد — وگرنه تنها نسخهٔ دادهٔ سامانه
+  # به یک مرحلهٔ دستیِ فراموش‌شدنی وابسته می‌ماند.
+  echo "▸ پشتیبان شبانه…"
+  cat > /usr/local/bin/greenpay-backup <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+OUT=/var/backups/greenpay
+mkdir -p "$OUT"
+set -a; . /etc/greenpay.env; set +a
+STAMP=$(date +%Y%m%d-%H%M)
+
+if [ -z "${DB_NAME:-}" ]; then
+  echo "DB_NAME تنظیم نیست — پشتیبان‌گیری رد شد (هنوز روی SQLite؟)"
+  exit 0
+fi
+
+PGPASSWORD="$DB_PASSWORD" pg_dump \
+    -h "${DB_HOST:-127.0.0.1}" -p "${DB_PORT:-5432}" \
+    -U "${DB_USER:-greenpay}" -d "$DB_NAME" \
+    -Fc --no-owner --no-privileges \
+    -f "$OUT/db-$STAMP.dump"
+
+# دامپی که خوانده نشود بکاپ نیست؛ همان شب بفهمیم، نه روز حادثه.
+pg_restore --list "$OUT/db-$STAMP.dump" >/dev/null
+
+if [ -d /opt/greenpay/backend/media ] && [ -n "$(ls -A /opt/greenpay/backend/media 2>/dev/null)" ]; then
+    tar -czf "$OUT/media-$STAMP.tar.gz" -C /opt/greenpay/backend media
+fi
+
+find "$OUT" -type f -name 'db-*.dump'      -mtime +30 -delete
+find "$OUT" -type f -name 'media-*.tar.gz' -mtime +30 -delete
+echo "backup ok: $OUT/db-$STAMP.dump ($(du -h "$OUT/db-$STAMP.dump" | cut -f1))"
+SH
+  chmod +x /usr/local/bin/greenpay-backup
+  cat > /etc/systemd/system/greenpay-backup.service <<'UNIT'
+[Unit]
+Description=GreenPay — پشتیبان‌گیری دیتابیس
+After=postgresql.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/greenpay-backup
+UNIT
+  cat > /etc/systemd/system/greenpay-backup.timer <<'UNIT'
+[Unit]
+Description=GreenPay — پشتیبان شبانه
+
+[Timer]
+OnCalendar=*-*-* 02:30:00
+Persistent=true
+RandomizedDelaySec=300
+
+[Install]
+WantedBy=timers.target
+UNIT
+
   systemctl daemon-reload
   systemctl enable --now greenpay-reminders.timer >/dev/null
   systemctl enable --now greenpay-outlook.timer >/dev/null
+  systemctl enable --now greenpay-backup.timer >/dev/null
 
   echo "▸ راه‌اندازی مجدد سرویس‌ها…"
   systemctl restart greenpay-web greenpay-api
@@ -108,7 +166,10 @@ UNIT
     || echo "  ✗ greenpay-reminders.timer"
   systemctl is-active --quiet greenpay-outlook.timer \
     && echo "  ✓ greenpay-outlook.timer" \
-    || echo "  ✗ greenpay-outlook.timer" 
+    || echo "  ✗ greenpay-outlook.timer"
+  systemctl is-active --quiet greenpay-backup.timer \
+    && echo "  ✓ greenpay-backup.timer" \
+    || echo "  ✗ greenpay-backup.timer" 
 
   echo "✅ استقرار کامل شد — http://${DEPLOY_HOST:-109.122.252.99}/"
 }
