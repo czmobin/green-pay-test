@@ -94,8 +94,11 @@ UNIT
   cat > /usr/local/bin/greenpay-backup <<'SH'
 #!/usr/bin/env bash
 set -euo pipefail
+# دامپ شامل هش رمز و شمارهٔ موبایل است؛ فقط root باید بخواندش.
+umask 077
 OUT=/var/backups/greenpay
 mkdir -p "$OUT"
+chmod 700 "$OUT"
 set -a; . /etc/greenpay.env; set +a
 STAMP=$(date +%Y%m%d-%H%M)
 
