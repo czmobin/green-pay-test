@@ -22,6 +22,19 @@
   --r:16px; --r-sm:11px; --r-lg:22px;
   --fa:var(--font-vazir),'Vazirmatn','IRANSansX','Segoe UI',Tahoma,system-ui,sans-serif;
   --topbar-h:60px; --bottomnav-h:60px;
+
+  /* ناحیه‌های ناایمنِ دستگاه — بریدگی دوربین و نوارِ خانهٔ آیفون.
+     تا `viewport-fit=cover` در `app/layout.tsx` نباشد، هر سه صفر می‌مانند و
+     این توکن‌ها بی‌اثرند؛ دو سالِ اول همین‌طور بود و `env()`های پراکنده در
+     CSS بی‌صدا هیچ کاری نمی‌کردند. اگر روزی cover را برداشتید، این‌جا هم
+     چیزی نمی‌شکند — فقط باز بی‌اثر می‌شوند.
+
+     چرا توکن و نه `env()` در محل مصرف: نصفِ فاصله‌ها منطقی‌اند
+     (`inset-inline`) و نصفِ `env()`ها فیزیکی (`left`/`right`)، و در چیدمانِ
+     راست‌به‌چپ این دو یکی نیستند. یک بار این‌جا درست نوشته می‌شوند. */
+  --safe-l:env(safe-area-inset-left, 0px);
+  --safe-r:env(safe-area-inset-right, 0px);
+  --safe-b:env(safe-area-inset-bottom, 0px);
 }
 @media (prefers-color-scheme:dark){
   :root{
@@ -98,7 +111,12 @@ input,select,textarea{font-family:inherit}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition-duration:.01ms!important}}
 
 /* ===================== Shell (mobile-first) ===================== */
-.shell{height:100vh;height:100dvh;display:flex;flex-direction:column;overflow:hidden}
+/* بریدگیِ افقی یک‌جا این‌جا کنار می‌رود، نه در هر فرزند: با `cover`، گوشیِ
+   بریدگی‌دار در حالت افقی تا ۴۴ پیکسل ناحیهٔ ناایمن دارد، و بی این خط نوار
+   بالا و آیکن‌های نوار پایین و متنِ فهرست زیر بریدگی می‌رفتند. `box-sizing`
+   سراسری است، پس عرضِ کل همان ۱۰۰٪ می‌ماند. */
+.shell{height:100vh;height:100dvh;display:flex;flex-direction:column;overflow:hidden;
+  padding-left:var(--safe-l);padding-right:var(--safe-r)}
 .sidebar{display:none}
 /* `position:relative` برای نشانِ کشیدن است که مطلق روی همین ناحیه می‌نشیند. */
 .main{flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden;position:relative}
@@ -153,8 +171,8 @@ input,select,textarea{font-family:inherit}
   background:var(--danger);box-shadow:0 0 0 2px var(--panel)}
 
 /* Bottom nav (mobile) */
-.bottomnav{flex:0 0 auto;z-index:40;height:calc(var(--bottomnav-h) + env(safe-area-inset-bottom));
-  background:var(--bg);padding-bottom:env(safe-area-inset-bottom);
+.bottomnav{flex:0 0 auto;z-index:40;height:calc(var(--bottomnav-h) + var(--safe-b));
+  background:var(--bg);padding-bottom:var(--safe-b);
   border-top:1px solid var(--line);display:flex;align-items:stretch}
 .bottomnav a{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
   color:var(--muted);font-size:10.5px;font-weight:700;transition:.15s;position:relative}
@@ -446,8 +464,11 @@ button.kpi:active{transform:scale(.985)}
    می‌کند و با inset:0 پابرگ مودال زیر همان نوار می‌افتاد. */
 /* حرکت باز و بستهٔ همهٔ پنجره‌ها را GSAP اداره می‌کند (useSheet)؛ transition
    خودِ CSS با آن می‌جنگید. این قاعده‌ها فقط حالت پایه و نهایی را می‌گویند. */
+/* `position:fixed` است، پس padding پوسته به آن نمی‌رسد و بریدگی را خودش
+   باید کنار بزند — وگرنه در حالت افقی لبهٔ فرم زیر بریدگی می‌رفت. */
 .modal-overlay{position:fixed;inset:0;height:100dvh;z-index:80;background:rgba(6,20,15,.55);
-  display:flex;align-items:flex-end;justify-content:center;opacity:0;visibility:hidden;pointer-events:none}
+  display:flex;align-items:flex-end;justify-content:center;opacity:0;visibility:hidden;pointer-events:none;
+  padding-left:var(--safe-l);padding-right:var(--safe-r)}
 .modal-overlay.show{opacity:1;visibility:visible;pointer-events:auto}
 .modal{background:var(--bg);width:100%;max-width:560px;border-radius:22px 22px 0 0;max-height:100%;display:flex;flex-direction:column;
   transform:translateY(100%);box-shadow:var(--shadow-lg)}
@@ -459,7 +480,7 @@ button.kpi:active{transform:scale(.985)}
 .modal-body{padding:16px 18px;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;flex:1;display:flex;flex-direction:column;gap:14px}
 .modal-foot{padding:13px 18px;border-top:1px solid var(--line);display:flex;gap:10px;background:var(--panel);
   flex:0 0 auto;position:sticky;bottom:0;z-index:2;
-  padding-bottom:calc(13px + env(safe-area-inset-bottom))}
+  padding-bottom:calc(13px + var(--safe-b))}
 .modal-foot .btn{flex:1}
 
 .field label{display:block;font-size:12px;font-weight:700;color:var(--ink-soft);margin-bottom:6px}
@@ -480,7 +501,14 @@ select.field-in option{direction:rtl;text-align:right}
 .ppick.active{border-color:var(--brand);background:var(--mint-soft);color:var(--brand-strong)}
 
 /* ===================== Toasts ===================== */
-.toaster{position:fixed;bottom:calc(var(--bottomnav-h) + 14px);inset-inline:0;z-index:90;display:flex;flex-direction:column;align-items:center;gap:9px;pointer-events:none;padding:0 15px}
+/* `--safe-b` در فاصلهٔ پایین هم لازم است: نوار پایین همین اندازه بلندتر شده،
+   پس بی این، توست دقیقاً روی آیکن‌های ناوبری می‌نشست. این باگ تا وقتی
+   `cover` نبود دیده نمی‌شد چون هر دو مقدار صفر بودند.
+   فاصلهٔ افقی متقارن است چون توست وسط‌چین است: `max` بیشترِ فاصلهٔ طراحی و
+   بریدگیِ هر دو سو را می‌گیرد و به جهتِ چیدمان کاری ندارد. */
+.toaster{position:fixed;bottom:calc(var(--bottomnav-h) + var(--safe-b) + 14px);inset-inline:0;z-index:90;
+  display:flex;flex-direction:column;align-items:center;gap:9px;pointer-events:none;
+  padding:0 max(15px, var(--safe-l), var(--safe-r))}
 .toast{background:var(--brand-deep);color:#fff;border-radius:13px;padding:12px 15px;display:flex;align-items:center;gap:10px;
   box-shadow:var(--shadow-lg);font-size:13px;font-weight:600;max-width:420px;width:100%;pointer-events:auto;
   animation:toastIn .3s ease}
@@ -782,7 +810,8 @@ select.field-in option{direction:rtl;text-align:right}
 
 /* ===================== Conflict popup (کنار زنگوله) ===================== */
 .cf-overlay{position:fixed;inset:0;z-index:74}
-.cf-panel{position:fixed;z-index:75;top:calc(var(--topbar-h) + 10px);inset-inline-end:14px;
+.cf-panel{position:fixed;z-index:75;top:calc(var(--topbar-h) + 10px);
+  inset-inline-end:max(14px, var(--safe-l), var(--safe-r));
   width:min(380px,calc(100vw - 28px));max-height:min(70vh,520px);display:flex;flex-direction:column;overflow:hidden;
   background:var(--panel);border:1px solid color-mix(in srgb,var(--warn) 45%,var(--line));
   border-radius:16px;box-shadow:var(--shadow-lg)}
@@ -840,8 +869,11 @@ select.field-in option{direction:rtl;text-align:right}
 .login-scene{position:absolute;inset:0;z-index:0}
 .login-veil{position:absolute;inset:0;z-index:1;pointer-events:none;
   background:radial-gradient(760px 520px at 50% 50%,transparent 0%,rgba(4,14,11,.55) 100%)}
+/* پس‌زمینه و بومِ سه‌بعدی عمداً تا لبه می‌روند (زیر بریدگی هم قشنگ است)؛ فقط
+   محتوا باید داخلِ ناحیهٔ ایمن بماند. */
 .login-inner{position:relative;z-index:2;min-height:100vh;min-height:100dvh;display:flex;
-  align-items:center;justify-content:center;gap:60px;padding:26px 18px}
+  align-items:center;justify-content:center;gap:60px;
+  padding:26px max(18px, var(--safe-l), var(--safe-r)) calc(26px + var(--safe-b))}
 
 .login-card{width:100%;max-width:400px;background:rgba(255,255,255,.055);
   border:1px solid rgba(255,255,255,.12);border-radius:22px;padding:28px 26px 24px;
@@ -1750,11 +1782,18 @@ select.field-in option{direction:rtl;text-align:right}
 
 /* ===== پنل‌های شناور در موبایل: تمام‌عرض و داخل کادر (باید بعد از قواعد پایه بیاید) ===== */
 /* در موبایل پنل تمام‌عرض و چسبیده به لبه‌ها می‌ماند */
+/* `--edge` به‌جای ۱۲ پیکسلِ خالی: این سه پنل `fixed`اند، پس padding پوسته به
+   آن‌ها نمی‌رسد و در حالت افقی لبه‌شان زیر بریدگی می‌رفت. متقارن است تا به
+   جهتِ چیدمان بند نباشد — `inset-inline-end` در راست‌به‌چپ سمتِ چپِ فیزیکی
+   است و جفت‌کردنش با `env(safe-area-inset-right)` همان اشتباهی است که این
+   توکن‌ها برای پرهیز از آن ساخته شدند. */
 @media (max-width:640px){
-  .notif-panel{position:fixed;top:calc(var(--topbar-h) + 8px);inset-inline:12px;
-    width:auto;max-width:none;max-height:calc(100dvh - var(--topbar-h) - 24px)}
-  .cf-panel{position:fixed;top:calc(var(--topbar-h) + 8px);inset-inline:12px;width:auto;max-width:none}
-  .um-panel{position:fixed;top:calc(var(--topbar-h) + 8px);inset-inline-end:12px;inset-inline-start:auto;width:min(250px,calc(100vw - 24px))}
+  .notif-panel,.cf-panel,.um-panel{--edge:max(12px, var(--safe-l), var(--safe-r))}
+  .notif-panel{position:fixed;top:calc(var(--topbar-h) + 8px);inset-inline:var(--edge);
+    width:auto;max-width:none;max-height:calc(100dvh - var(--topbar-h) - 24px - var(--safe-b))}
+  .cf-panel{position:fixed;top:calc(var(--topbar-h) + 8px);inset-inline:var(--edge);width:auto;max-width:none}
+  .um-panel{position:fixed;top:calc(var(--topbar-h) + 8px);inset-inline-end:var(--edge);inset-inline-start:auto;
+    width:min(250px,calc(100vw - 2 * var(--edge)))}
 }
 
 /* ===================== چاپ برنامهٔ هفتگی ===================== */
