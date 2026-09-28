@@ -371,6 +371,62 @@ def entries_queryset(user=None):
     return qs
 
 
+def _stamp(queryset, *fields):
+    """``[تعداد, بزرگ‌ترین زمانِ تغییر]`` برای یک مجموعه.
+
+    زمان به ثانیهٔ epoch برمی‌گردد چون فرانت فقط مقایسه‌اش می‌کند و هیچ‌وقت
+    نمایشش نمی‌دهد؛ عدد از رشتهٔ ISO هم ارزان‌تر مقایسه می‌شود.
+
+    تعداد کنارِ زمان لازم است و تشریفاتی نیست: **حذفِ** یک ردیف هیچ زمانی را
+    بالا نمی‌برد، پس با مهرِ زمانیِ تنها، پاک‌شدن یک جلسه هیچ‌وقت به کلاینت
+    نمی‌رسید.
+
+    ``order_by()`` و ``distinct=True``: این queryset‌ها برای نمایش ساخته شده‌اند
+    (مرتب‌سازی + join روی M2M)، و aggregate روی همان شکل، هم ORDER BY بی‌مصرف
+    می‌سازد هم ردیف‌های تکراری می‌شمارد.
+    """
+    from django.db.models import Count, Max
+
+    aggregates = {'n': Count('pk', distinct=True)}
+    for i, field in enumerate(fields):
+        aggregates[f't{i}'] = Max(field)
+    row = queryset.order_by().aggregate(**aggregates)
+
+    moments = [row[f't{i}'] for i in range(len(fields))]
+    latest = max((m for m in moments if m is not None), default=None)
+    return [row['n'] or 0, latest.timestamp() if latest else 0]
+
+
+@api_view(['GET'])
+def pulse(request):
+    """«از آخرین بار چیزی عوض شده؟» — پاسخِ ارزان برای polling.
+
+    چرا این هست و چرا فرانت مستقیم `bootstrap` را دوره‌ای نمی‌گیرد: آن یکی در
+    یک پاسخ همهٔ سازمان‌ها، افراد، اتاق‌ها، **همهٔ** جلسه‌های قابل‌دیدن با
+    شرکت‌کننده و دستور جلسهٔ تودرتو، و **همهٔ** آیتم‌های صورت‌جلسه را می‌دهد؛
+    صفحه‌بندی هم ندارد. گرفتنش هر چند ثانیه برای هر کاربر، روی سه workerِ
+    sync، از خودِ مشکلی که حل می‌کند بدتر است. این‌جا چهار aggregate اجرا
+    می‌شود و چند ده بایت برمی‌گردد؛ کلاینت فقط وقتی مهر عوض شده باشد سراغ
+    `bootstrap` می‌رود.
+
+    دامنهٔ دید **همان** دامنهٔ bootstrap است، چون از همان دو queryset مشتق
+    می‌شود. اگر از گلوگاه دیگری می‌آمد، تغییرِ جلسه‌ای که کاربر حق دیدنش را
+    ندارد او را بی‌دلیل به بارگذاری دوباره می‌انداخت — یا بدتر، وجودِ آن جلسه
+    را لو می‌داد.
+    """
+    return Response({
+        'm': _stamp(meetings_queryset(request.user), 'updated_at'),
+        # سه زمان، چون `MinuteEntry` فقط `created_at` ندارد: ویرایش در
+        # `edited_at` می‌نشیند و تیک‌زدنِ مصوبه در `done_at`. با یکی از آن‌ها،
+        # تیک‌خوردنِ یک کار برای بقیه دیده نمی‌شد.
+        'e': _stamp(entries_queryset(request.user), 'created_at', 'edited_at', 'done_at'),
+        'r': _stamp(MeetingReminder.objects.filter(user=request.user), 'updated_at'),
+        's': _stamp(
+            CalendarShare.objects.filter(Q(owner=request.user) | Q(viewer=request.user)),
+            'updated_at'),
+    })
+
+
 @api_view(['GET'])
 def bootstrap(request):
     """همهٔ دادهٔ موردنیاز اپ در یک درخواست."""

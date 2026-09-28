@@ -17,6 +17,13 @@ const roleOf = (r?: string): Role =>
 
 const isManagerRole = (r: Role) => r === 'admin' || r === 'ceo' || r === 'executive';
 
+/**
+ * فاصلهٔ نبض. ۵ ثانیه بی‌خطر است چون `/pulse/` چهار aggregate و چند ده بایت
+ * است، نه `bootstrap`؛ bootstrapِ سنگین فقط وقتی اجرا می‌شود که مهر عوض شده
+ * باشد. اگر روزی سنگین شد، اول جای این عدد سراغ خودِ `pulse` بروید.
+ */
+const PULSE_MS = 5000;
+
 type ToastKind = 'ok' | 'info' | 'load';
 interface Toast { id: number; msg: string; kind: ToastKind }
 
@@ -33,7 +40,21 @@ interface Store {
   /* وضعیت بارگذاری از API */
   ready: boolean;
   error: string | null;
-  reload: () => Promise<void>;
+  /** بارگذاری کاملِ داده. `silent` یعنی خطا را روی `error` ننشان — نگاه کنید
+      به توضیحِ خودِ تابع؛ نبضِ پس‌زمینه حتماً باید silent باشد. */
+  reload: (opts?: { silent?: boolean }) => Promise<boolean>;
+
+  /* ---- تازه‌سازی زنده ---- */
+  /** یک نبضِ فوری بزن (تغییر مسیر، برگشتن به تب). */
+  checkNow: () => Promise<void>;
+  /** تازه‌سازیِ صریحِ کاربر — پشتِ «کشیدن به پایین». */
+  refresh: () => Promise<void>;
+  /** تازه‌سازی در جریان است؟ فقط برای نشانِ کشیدن. */
+  refreshing: boolean;
+  /** تا وقتی پنجره‌ای باز است نبض نزن — وگرنه فرمِ نیمه‌پرشده بازنویسی می‌شود.
+      جفتی صدا زده می‌شوند و شمارنده‌اند، پس چند پنجرهٔ تودرتو هم درست است. */
+  holdRefresh: () => void;
+  releaseRefresh: () => void;
 
   /* دادهٔ دامنه */
   meetings: Meeting[];
@@ -239,9 +260,27 @@ export default function Providers({ children }: { children: React.ReactNode }) {
     setRooms({}); setOrgs({}); setOrgKinds({}); setCategories({});
   }, []);
 
-  /* ---------- بارگذاری اولیه ---------- */
-  const reload = useCallback(async () => {
+  /* ---------- بارگذاری و نبض ---------- */
+  const [refreshing, setRefreshing] = useState(false);
+  /** آخرین مهرِ تغییری که از سرور دیدیم؛ مقایسه‌اش می‌گوید bootstrap لازم است. */
+  const stampRef = useRef('');
+  /** نبضِ در جریان — تا تمام نشود نبضِ بعدی رویش سوار نمی‌شود. */
+  const pulsingRef = useRef(false);
+  /** چند پنجرهٔ شناور باز است. غیرصفر یعنی نبض باید صبر کند. */
+  const holdRef = useRef(0);
+
+  const holdRefresh = useCallback(() => { holdRef.current += 1; }, []);
+  const releaseRefresh = useCallback(() => {
+    holdRef.current = Math.max(0, holdRef.current - 1);
+  }, []);
+
+  const reload = useCallback(async (opts?: { silent?: boolean }): Promise<boolean> => {
     try {
+      // نبض **پیش از** bootstrap خوانده می‌شود، نه بعدش: اگر بعد می‌بود و کسی
+      // در همان چند صد میلی‌ثانیه چیزی عوض می‌کرد، مهرِ تازه ثبت می‌شد بی‌آنکه
+      // آن تغییر در دادهٔ گرفته‌شده باشد — و تا تغییرِ بعدی کهنه می‌ماندیم.
+      // این‌طور بدترین حالت یک bootstrapِ اضافی است، نه دادهٔ کهنه.
+      const stamp = await api.pulse().then(JSON.stringify).catch(() => '');
       const d = await api.bootstrap();
       setMeetings(d.meetings);
       setMinutes(d.minutes);
@@ -256,18 +295,71 @@ export default function Providers({ children }: { children: React.ReactNode }) {
       setSharedByMe(d.sharedByMe ?? []);
       setSms(d.smsEnabled);
       setCurrentUser((cur) => cur || d.currentUser || '');
+      if (stamp) stampRef.current = stamp;
       setError(null);
+      return true;
     } catch (e) {
       if (e instanceof UnauthorizedError) {
         setAuthed(false);
         setMe(null);
-      } else {
+      } else if (!opts?.silent) {
         setError(e instanceof Error ? e.message : 'ارتباط با سرور برقرار نشد');
       }
+      // در حالت silent عمداً هیچ‌چیز ست نمی‌شود: `AppShell` با دیدنِ `error`
+      // کلِ صفحه را با پیام خطا و دکمهٔ «تلاش دوباره» جایگزین می‌کند، و یک
+      // نبضِ ناموفق روی موبایلِ لرزان کاربر را از هر جایی که هست بیرون
+      // می‌انداخت. دادهٔ قبلی سرِ جایش می‌ماند و نبضِ بعدی خودش جبران می‌کند.
+      return false;
     } finally {
       setReady(true);
     }
   }, []);
+
+  /**
+   * «چیزی عوض شده؟» — و اگر عوض شده، دادهٔ تازه بگیر.
+   *
+   * چرا دو مرحله و چرا مستقیم `bootstrap` دوره‌ای گرفته نمی‌شود: آن یکی همهٔ
+   * جلسه‌ها با شرکت‌کننده و دستور جلسه، همهٔ آیتم‌های صورت‌جلسه و همهٔ
+   * تعریف‌ها را یک‌جا می‌دهد و صفحه‌بندی هم ندارد. `pulse` چند ده بایت است.
+   */
+  const checkNow = useCallback(async () => {
+    // `authed` هم شرط است، وگرنه صفحهٔ ورود هم نبض می‌زد و هر بار یک ۴۰۱
+    // بی‌مصرف می‌گرفت.
+    if (!authed || pulsingRef.current || holdRef.current > 0) return;
+    pulsingRef.current = true;
+    try {
+      const stamp = JSON.stringify(await api.pulse());
+      if (stamp === stampRef.current) return;
+
+      // نخستین نبضِ هر نشست فقط مهر را ثبت می‌کند؛ `reload` همین حالا اجرا
+      // شده و گرفتنِ دوباره‌اش بی‌مصرف است.
+      if (!stampRef.current) { stampRef.current = stamp; return; }
+
+      // مهر را این‌جا **نمی‌نویسیم**: خودِ `reload` مهرِ خودش را ثبت می‌کند و
+      // آن یکی تازه‌تر است. نوشتنِ مقدارِ قدیمی روی آن، تغییرهای همین فاصله را
+      // «دیده‌شده» علامت می‌زد در حالی که در دادهٔ گرفته‌شده نیستند.
+      await reload({ silent: true });
+    } catch {
+      // شبکه قطع است یا سرور در دسترس نیست. صفحه دست‌نخورده می‌ماند و تیکِ
+      // بعدی دوباره امتحان می‌کند — نبض نباید خودش را به کاربر نشان بدهد.
+    } finally {
+      pulsingRef.current = false;
+    }
+  }, [authed, reload]);
+
+  /**
+   * تازه‌سازیِ صریحِ کاربر (کشیدن به پایین).
+   *
+   * برخلاف نبض، این یکی درخواستِ خودِ کاربر است و سکوت در برابر شکستش گیج‌کننده
+   * می‌شود — ولی صفحهٔ خطای تمام‌صفحه هم جوابش نیست، چون دادهٔ روی صفحه سالم
+   * است. پس توست.
+   */
+  const refresh = useCallback(async () => {
+    setRefreshing(true);
+    const ok = await reload({ silent: true });
+    setRefreshing(false);
+    if (!ok) toast('دادهٔ تازه نیامد — اتصال را بررسی کنید', 'info');
+  }, [reload, toast]);
 
   // بررسی توکن ذخیره‌شده در نخستین رندر سمت مرورگر
   useEffect(() => {
@@ -291,6 +383,35 @@ export default function Providers({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (authed && !ready) void reload();
   }, [authed, ready, reload]);
+
+  /**
+   * نبضِ دوره‌ای — این‌طور جلسه‌ای که همکار ساخته خودش می‌آید.
+   *
+   * تا پیش از این، داده در هر نشست **یک بار** خوانده می‌شد و هر چه روی صفحه
+   * بود عکسی از لحظهٔ ورود: عوض‌کردن تبِ جلسات/تقویم/یادآورها هم هیچ درخواستی
+   * نمی‌زد، چون این‌ها مسیرند و `StoreProvider` بالای همه‌شان سوار است و با
+   * تغییر مسیر از نو mount نمی‌شود.
+   *
+   * وقتی تب پشت است نبضی زده نمی‌شود — نه برای صرفه‌جویی در سرور، که برای
+   * باتریِ موبایل. با برگشتن، بی‌درنگ یکی زده می‌شود تا کاربر منتظر تیکِ
+   * بعدی نماند.
+   */
+  useEffect(() => {
+    if (!authed || !ready) return;
+
+    const tick = () => {
+      if (document.visibilityState !== 'visible') return;
+      void checkNow();
+    };
+
+    tick();                                  // همین حالا، نه ۵ ثانیهٔ دیگر
+    const timer = window.setInterval(tick, PULSE_MS);
+    document.addEventListener('visibilitychange', tick);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener('visibilitychange', tick);
+    };
+  }, [authed, ready, checkNow]);
 
   /* ---------- کمکی: اجرای امن یک عملیات نوشتن ---------- */
   const guarded = useCallback(async <T,>(fn: () => Promise<T>): Promise<T | null> => {
@@ -649,6 +770,7 @@ export default function Providers({ children }: { children: React.ReactNode }) {
   const value = useMemo<Store>(() => ({
     authed, authChecked, needsProfile, me, signIn, completeProfile, signOut,
     ready, error, reload,
+    checkNow, refresh, refreshing, holdRefresh, releaseRefresh,
     meetings, visibleMeetings, minutes, reminders, people, guests, rooms, orgs, orgKinds, categories,
     getMeeting, canEdit, createMeeting, updateMeeting,
     addAgenda, updateAgenda: updateAgendaItem, deleteAgenda: deleteAgendaItem,
@@ -673,7 +795,8 @@ export default function Providers({ children }: { children: React.ReactNode }) {
     createOpen, openCreate: () => setCreateOpen(true), closeCreate: () => setCreateOpen(false),
     toast, toggleTheme,
   }), [conflicts, roomConflicts, authed, authChecked, needsProfile, me, signIn, completeProfile, signOut,
-    ready, error, reload, meetings, visibleMeetings, minutes, reminders, people, guests, rooms, orgs, orgKinds, categories,
+    ready, error, reload, checkNow, refresh, refreshing, holdRefresh, releaseRefresh,
+    meetings, visibleMeetings, minutes, reminders, people, guests, rooms, orgs, orgKinds, categories,
     getMeeting, canEdit, createMeeting, updateMeeting, addAgenda, updateAgendaItem, deleteAgendaItem,
     respondMeeting, cancelMeeting, addMinute, deleteMinute, toggleDone, updateMinute,
     addPerson, addGuest, importPeople, addRoom, addOrg, deletePerson, deleteRoom, deleteOrg, updateRoom, role, isManager, myResponse, myInvites, scope, setScope, mineCount, liveCount, ceoCount, ceoIds,

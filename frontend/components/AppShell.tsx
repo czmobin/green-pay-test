@@ -1,8 +1,9 @@
 'use client';
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useStore } from './store';
+import { usePullToRefresh } from './usePullToRefresh';
 import CreateMeetingModal from './CreateMeetingModal';
 import NotificationBell from './NotificationBell';
 import ConflictAlert from './ConflictAlert';
@@ -32,13 +33,28 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const store = useStore();
   const isLogin = path === '/login';
 
+  const contentRef = useRef<HTMLElement>(null);
+  const ptrRef = useRef<HTMLDivElement>(null);
+  // همان شرطی که پایین‌تر تصمیم می‌گیرد پوسته رندر شود یا اسپینرِ نشست؛ گرهٔ
+  // `.content` فقط در این حالت وجود دارد و کشیدن به پایین به آن بند است.
+  const shellVisible = !isLogin && store.authChecked && store.authed;
+  usePullToRefresh(contentRef, ptrRef, store.refresh, shellVisible);
+
   // مسیرهای اپ فقط برای کاربر واردشده
   useEffect(() => {
     if (!isLogin && store.authChecked && !store.authed) router.replace('/login');
   }, [isLogin, store.authChecked, store.authed, router]);
 
+  // عوض‌کردن تب (جلسات ↔ تقویم ↔ یادآورها) یک نبضِ فوری می‌زند.
+  //
+  // این‌ها مسیرند نه تبِ درون‌صفحه، ولی `StoreProvider` بالای همه‌شان است و با
+  // تغییر مسیر از نو mount نمی‌شود — پس بدون این خط، جابه‌جایی بین تب‌ها هیچ
+  // درخواستی نمی‌زد و کاربر باید تا تیکِ بعدی صبر می‌کرد.
+  const { checkNow } = store;
+  useEffect(() => { void checkNow(); }, [path, checkNow]);
+
   if (isLogin) return <>{children}</>;
-  if (!store.authChecked || !store.authed) {
+  if (!shellVisible) {
     return <div className="boot" style={{ minHeight: '100vh' }}><span className="boot-spin" />در حال بررسی نشست…</div>;
   }
   const me = store.people[store.currentUser];
@@ -111,7 +127,17 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           <UserMenu />
         </header>
 
-        <main className="content">
+        {/* نشانِ «کشیدن برای تازه‌سازی» — پشتِ نوار بالا پنهان است و با کشیدن
+            بیرون می‌آید. `aria-hidden` چون هیچ اطلاعی نمی‌دهد که از خودِ
+            به‌روزشدنِ فهرست فهمیده نشود. */}
+        <div className="ptr" ref={ptrRef} aria-hidden>
+          <span className="ptr-spin" />
+          <span className="ptr-pull">برای تازه‌سازی بکشید</span>
+          <span className="ptr-go">رها کنید</span>
+          <span className="ptr-busy">در حال بروزرسانی…</span>
+        </div>
+
+        <main className="content" ref={contentRef}>
           {!store.ready ? (
             <div className="boot"><span className="boot-spin" />در حال بارگذاری داده‌ها…</div>
           ) : store.error ? (

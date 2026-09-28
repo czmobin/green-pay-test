@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import gsap from 'gsap';
 import { useGSAP } from '@gsap/react';
+import { useStore } from './store';
 
 const reducedMotion = () =>
   typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -19,6 +20,26 @@ const reducedMotion = () =>
 export function useSheet(open: boolean, onClose: () => void) {
   const [box, setBox] = useState<HTMLElement | null>(null);
   const closing = useRef(false);
+  const { holdRefresh, releaseRefresh } = useStore();
+
+  /**
+   * تا این پنجره باز است، نبضِ پس‌زمینه متوقف می‌شود.
+   *
+   * این احتیاط نیست، جلوگیری از یک باگِ قطعی است: `EditMeetingModal` یک
+   * `useEffect` با وابستگیِ `[open, meeting]` دارد که همهٔ فیلدهای فرم را از
+   * جلسه از نو می‌نویسد. تازه‌سازی، آرایهٔ جلسه‌ها را با شیء‌های تازهٔ JSON
+   * عوض می‌کند، پس هویتِ `meeting` عوض می‌شود، آن effect اجرا می‌شود و
+   * ویرایشِ نیمه‌کارهٔ کاربر پاک می‌شود.
+   *
+   * جایش این‌جاست و نه در تک‌تک پنجره‌ها، چون `useSheet` همان یک جایی است که
+   * همهٔ پنجره‌های شناور از آن می‌گذرند — پنجرهٔ بعدی هم که اضافه شود، خودبه‌خود
+   * امن است.
+   */
+  useEffect(() => {
+    if (!open) return;
+    holdRefresh();
+    return releaseRefresh;
+  }, [open, holdRefresh, releaseRefresh]);
 
   /**
    * گرهٔ پنجره با callback-ref گرفته می‌شود، نه با ref معمولی: Portal یک تیک

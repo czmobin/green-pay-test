@@ -95,6 +95,19 @@ export interface Bootstrap {
   smsEnabled: boolean;
 }
 
+/**
+ * مهرِ تغییرِ سرور — پاسخِ `/pulse/`.
+ *
+ * هر مقدار `[تعداد, زمان]` است و هیچ‌وقت نمایش داده نمی‌شود؛ فقط با مقدارِ
+ * دفعهٔ قبل مقایسه می‌شود تا معلوم شود `bootstrap` ارزشِ گرفتن دارد یا نه.
+ */
+export interface Pulse {
+  /** جلسه‌ها */ m: [number, number];
+  /** آیتم‌های صورت‌جلسه */ e: [number, number];
+  /** یادآورهای خودِ کاربر */ r: [number, number];
+  /** اشتراک‌های تقویم */ s: [number, number];
+}
+
 async function request<T>(path: string, init?: RequestInit, retry = true, isForm = false): Promise<T> {
   const auth = loadToken();
   const res = await fetch(`${BASE}${path}`, {
@@ -309,6 +322,8 @@ export const api = {
       '/auth/reset-password/', p),
 
   bootstrap: () => request<Bootstrap>('/bootstrap/'),
+  /** «چیزی عوض شده؟» — چند ده بایت، برای پرسیدنِ دوره‌ای. */
+  pulse: () => request<Pulse>('/pulse/'),
   report: (days: number) => request<FullReport>(`/reports/full/?days=${days}`),
 
   createMeeting: (m: NewMeeting) => post<CreatedMeeting>('/meetings/', m),

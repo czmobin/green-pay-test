@@ -28,6 +28,7 @@ urlpatterns = [
     path('auth/logout/', auth_views.logout, name='logout'),
 
     path('bootstrap/', views.bootstrap, name='bootstrap'),
+    path('pulse/', views.pulse, name='pulse'),
     path('reports/full/', reports.full_report, name='full-report'),
     path('settings/sms/', views.set_sms, name='set-sms'),
     path('', include(router.urls)),

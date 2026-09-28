@@ -100,12 +100,39 @@ input,select,textarea{font-family:inherit}
 /* ===================== Shell (mobile-first) ===================== */
 .shell{height:100vh;height:100dvh;display:flex;flex-direction:column;overflow:hidden}
 .sidebar{display:none}
-.main{flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden}
+/* `position:relative` برای نشانِ کشیدن است که مطلق روی همین ناحیه می‌نشیند. */
+.main{flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden;position:relative}
 /* --content-pad: فاصلهٔ بالای ناحیهٔ اسکرول. مرورگر همین مقدار را از ناحیهٔ
    چسبندگی کم می‌کند، پس سرصفحه‌های چسبان با همین متغیر جبرانش می‌کنند. */
 .content{--content-pad:16px;flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;
   -webkit-overflow-scrolling:touch;
   padding:var(--content-pad) 15px 22px;max-width:1180px;width:100%;margin:0 auto}
+
+/* ---- کشیدن برای تازه‌سازی ----
+   نشان درست زیر نوار بالا و با z-index کمتر از آن می‌نشیند، پس در حالت عادی
+   پشتش پنهان است و با کشیدن از زیرش بیرون می‌آید. جابه‌جایی‌اش را جاوااسکریپت
+   روی `transform` می‌نویسد (باید به انگشت بچسبد، پس transition فقط هنگام
+   رهاکردن با کلاسِ `is-snap` روشن می‌شود). */
+.ptr{position:absolute;top:var(--topbar-h);inset-inline:0;z-index:25;
+  display:flex;align-items:center;justify-content:center;gap:8px;
+  height:var(--ptr-h,44px);pointer-events:none;
+  background:var(--bg);border-bottom:1px solid var(--line);
+  font-size:12px;color:var(--ink-soft);
+  transform:translateY(-100%)}
+.ptr.is-snap{transition:transform .26s cubic-bezier(.22,.61,.36,1)}
+.ptr-spin{width:15px;height:15px;border-radius:50%;flex:0 0 auto;
+  border:2px solid var(--line);border-top-color:var(--brand);
+  transform:rotate(var(--ptr-turn,0deg))}
+/* سه متن، و هر لحظه یکی دیده می‌شود — عوض‌کردنشان با کلاس انجام می‌شود تا
+   کشیدن هیچ رندرِ ریاکتی نسازد. */
+.ptr-go,.ptr-busy{display:none}
+.ptr.is-ready .ptr-pull{display:none}
+.ptr.is-ready .ptr-go{display:inline}
+.ptr.is-ready .ptr-spin{border-top-color:var(--brand-strong)}
+.ptr.is-busy .ptr-pull,.ptr.is-busy .ptr-go{display:none}
+.ptr.is-busy .ptr-busy{display:inline}
+.ptr.is-busy .ptr-spin{animation:spin .8s linear infinite;transform:none}
+@media (prefers-reduced-motion:reduce){.ptr.is-busy .ptr-spin{animation-duration:2.4s}}
 
 /* Topbar */
 .topbar{flex:0 0 auto;z-index:30;height:var(--topbar-h);
@@ -1749,7 +1776,8 @@ select.field-in option{direction:rtl;text-align:right}
   /* هرچه به کاغذ ربطی ندارد. جدولِ ساعتیِ هفته هم می‌رود چون جای آن را
      همین بلوک چاپ می‌گیرد؛ نمای روز و ماه دست‌نخورده می‌مانند. */
   .sidebar,.topbar,.bottomnav,.page-head,.cal-switch,.cal-toolbar,.cal-time.wk,
-  .modal-overlay,.notif-panel,.cf-overlay,.cf-panel,.um-panel,.toaster{display:none!important}
+  .modal-overlay,.notif-panel,.cf-overlay,.cf-panel,.um-panel,.toaster,
+  .ptr{display:none!important}
 
   /* رنگ‌ها اینجا ثابت‌اند، نه از توکن‌ها: خروجی در تم تیره هم باید همان
      سیاهِ روی سفید باشد. */
