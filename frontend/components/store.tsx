@@ -10,6 +10,7 @@ import {
   type NewMeeting, type NewMinute, type RoomConflict,
 } from '@/lib/api';
 import { IconCheck, IconX } from './Icons';
+import { toFa } from '@/lib/data';
 
 /** نقشِ آمده از API را به نقش داخلی نگاشت می‌کند؛ هر چیز ناشناخته کاربر عادی است. */
 const roleOf = (r?: string): Role =>
@@ -77,6 +78,14 @@ interface Store {
   updateAgenda: (meetingId: string, id: string, item: { title?: string; dur?: number }) => Promise<void>;
   deleteAgenda: (meetingId: string, id: string) => Promise<void>;
   respondMeeting: (id: string, accept: boolean) => Promise<void>;
+  /** تایید جلسهٔ در انتظار — فقط ادمین و مدیرعامل. سلسلهٔ تکرار یک‌جا. */
+  approveMeeting: (id: string) => Promise<void>;
+  rejectMeeting: (id: string, reason: string) => Promise<void>;
+  /** جلسه‌های در انتظار تایید، نزدیک‌ترین اول — خوراکِ صفحهٔ تاییدها. */
+  pendingMeetings: Meeting[];
+  /** دکمه‌های ساخت را پنهان کن (کنترل واقعی سمت سرور است). */
+  canCreateMeetings: boolean;
+  canApproveMeetings: boolean;
   cancelMeeting: (id: string, reason: string) => Promise<{ smsSent: number; smsFailed: number } | null>;
 
   addMinute: (m: NewMinute) => Promise<void>;
@@ -193,6 +202,10 @@ export default function Providers({ children }: { children: React.ReactNode }) {
   const [sharedByMe, setSharedByMe] = useState<CalendarShare[]>([]);
   const [sharedOwner, setSharedOwner] = useState<string | null>(null);
   const [smsEnabled, setSms] = useState(false);
+  // پیش‌فرضِ هر دو `true`/`false`ِ محافظه‌کارانه است تا تا رسیدنِ bootstrap
+  // نه دکمه‌ای بی‌دلیل پنهان شود و نه دکمهٔ تایید بی‌دلیل ظاهر.
+  const [canCreateMeetings, setCanCreate] = useState(true);
+  const [canApproveMeetings, setCanApprove] = useState(false);
 
   const [createOpen, setCreateOpen] = useState(false);
   const [conflicts, setConflicts] = useState<Conflict[]>([]);
@@ -294,6 +307,8 @@ export default function Providers({ children }: { children: React.ReactNode }) {
       setSharedWithMe(d.sharedWithMe ?? []);
       setSharedByMe(d.sharedByMe ?? []);
       setSms(d.smsEnabled);
+      setCanCreate(d.canCreateMeetings ?? true);
+      setCanApprove(d.canApproveMeetings ?? false);
       setCurrentUser((cur) => cur || d.currentUser || '');
       if (stamp) stampRef.current = stamp;
       setError(null);
@@ -488,6 +503,27 @@ export default function Providers({ children }: { children: React.ReactNode }) {
       patchAgenda(meetingId, (l) => l.filter((a) => a.id !== id));
     });
   }, [guarded]);
+
+  /**
+   * تایید و ردِ جلسهٔ در انتظار.
+   *
+   * پاسخ فقط خودِ جلسه را برمی‌گرداند، ولی یک سلسلهٔ تکرار یک‌جا عوض می‌شود —
+   * پس `reload` می‌زنیم تا بقیهٔ نوبت‌ها هم به‌روز شوند. `pulse` خودش ظرف پنج
+   * ثانیه می‌فهمید، ولی کاربری که همین حالا دکمه را زده نباید منتظر بماند.
+   */
+  const approveMeeting = useCallback(async (id: string) => {
+    const done = await guarded(async () => api.approveMeeting(id));
+    if (!done) return;
+    toast(done.smsSent ? `تایید شد — ${toFa(done.smsSent)} پیامک رفت` : 'جلسه تایید شد', 'ok');
+    await reload({ silent: true });
+  }, [guarded, toast, reload]);
+
+  const rejectMeeting = useCallback(async (id: string, reason: string) => {
+    const done = await guarded(async () => api.rejectMeeting(id, reason));
+    if (!done) return;
+    toast('جلسه رد شد — پیامکی فرستاده نشد', 'ok');
+    await reload({ silent: true });
+  }, [guarded, toast, reload]);
 
   const respondMeeting = useCallback(async (id: string, accept: boolean) => {
     await guarded(async () => upsertMeeting(await api.respondMeeting(id, accept)));
@@ -730,6 +766,30 @@ export default function Providers({ children }: { children: React.ReactNode }) {
    * صفحهٔ خودِ جلسه از store.getMeeting می‌آید و همچنان باز می‌شود تا لینک‌های
    * قدیمی و پیامک لغو به بن‌بست نخورند.
    */
+  /**
+   * جلسه‌های در انتظار تایید، نزدیک‌ترین اول.
+   *
+   * از `meetings` خام مشتق می‌شود نه `visibleMeetings`، چون صفحهٔ تاییدها
+   * نباید به تبِ دامنهٔ نمایش بند باشد: ادمینی که روی «جلسه‌های من» است هم
+   * باید همهٔ تاییدهای معلق را ببیند. دامنهٔ دیدِ واقعی همان است که سرور در
+   * `bootstrap` داده.
+   *
+   * از یک سلسلهٔ تکرار فقط نزدیک‌ترین نوبت نشان داده می‌شود — تایید هر نوبت
+   * کلِ سلسله را تایید می‌کند، پس چهار کارتِ یکسان فقط شلوغی است.
+   */
+  const pendingMeetings = useMemo(() => {
+    const rows = meetings
+      .filter((m) => m.status === 'pending')
+      .sort((a, b) => a.date.localeCompare(b.date) || a.start - b.start);
+    const seen = new Set<string>();
+    return rows.filter((m) => {
+      if (!m.series) return true;
+      if (seen.has(m.series)) return false;
+      seen.add(m.series);
+      return true;
+    });
+  }, [meetings]);
+
   const visibleMeetings = useMemo(() => {
     const live = meetings.filter((m) => m.status !== 'cancelled');
     // دامنهٔ اشتراکی پیش از شرط «مدیر است یا نه» می‌آید: کاربر عادی هم می‌تواند
@@ -775,6 +835,8 @@ export default function Providers({ children }: { children: React.ReactNode }) {
     getMeeting, canEdit, createMeeting, updateMeeting,
     addAgenda, updateAgenda: updateAgendaItem, deleteAgenda: deleteAgendaItem,
     respondMeeting, cancelMeeting,
+    approveMeeting, rejectMeeting, pendingMeetings,
+    canCreateMeetings, canApproveMeetings,
     addMinute, deleteMinute, toggleDone, updateMinute,
     addPerson, addRoom, addOrg,
     deletePerson, deleteRoom, deleteOrg, updateRoom,
@@ -798,7 +860,9 @@ export default function Providers({ children }: { children: React.ReactNode }) {
     ready, error, reload, checkNow, refresh, refreshing, holdRefresh, releaseRefresh,
     meetings, visibleMeetings, minutes, reminders, people, guests, rooms, orgs, orgKinds, categories,
     getMeeting, canEdit, createMeeting, updateMeeting, addAgenda, updateAgendaItem, deleteAgendaItem,
-    respondMeeting, cancelMeeting, addMinute, deleteMinute, toggleDone, updateMinute,
+    respondMeeting, cancelMeeting, approveMeeting, rejectMeeting, pendingMeetings,
+    canCreateMeetings, canApproveMeetings,
+    addMinute, deleteMinute, toggleDone, updateMinute,
     addPerson, addGuest, importPeople, addRoom, addOrg, deletePerson, deleteRoom, deleteOrg, updateRoom, role, isManager, myResponse, myInvites, scope, setScope, mineCount, liveCount, ceoCount, ceoIds,
     sharedWithMe, sharedByMe, sharedOwner, sharedCount, addShare, setShareWrite, removeShare, canWriteMinutes,
     currentUser, smsEnabled, toggleSms,

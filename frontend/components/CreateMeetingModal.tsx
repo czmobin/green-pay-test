@@ -2,8 +2,9 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useStore } from './store';
-import { typeLabels, toFa, fmtTime, normalizeFa, priorityLabels, priorityColor, todayISO } from '@/lib/data';
-import type { MeetingType, Priority } from '@/lib/types';
+import { typeLabels, toFa, fmtTime, normalizeFa, priorityLabels, priorityColor, todayISO, minuteMeta, isoToJ } from '@/lib/data';
+import { jWeekdaysShort, faWeekday } from '@/lib/jalali';
+import type { MeetingType, MinuteType, Priority } from '@/lib/types';
 import { api, type Conflict, type RoomConflict } from '@/lib/api';
 import DatePicker from './DatePicker';
 import { useSheet } from './useSheet';
@@ -55,6 +56,15 @@ export default function CreateMeetingModal() {
   const [gName, setGName] = useState('');
   const [gOrg, setGOrg] = useState('');
   const [gBusy, setGBusy] = useState(false);
+  // تکرار: روزهای هفته (۰=شنبه) و تعداد هفته. فهرست خالی + یک هفته یعنی
+  // جلسهٔ تک‌نوبتیِ همیشگی.
+  const [repeatDays, setRepeatDays] = useState<number[]>([]);
+  const [repeatWeeks, setRepeatWeeks] = useState(1);
+  // صورت‌جلسهٔ از پیش‌نوشته — تا جلسه ساخته نشود جایی برای ثبتش نیست، پس
+  // این‌جا محلی جمع می‌شود و پس از ساخت فرستاده می‌شود.
+  const [notes, setNotes] = useState<{ type: MinuteType; text: string }[]>([]);
+  const [noteType, setNoteType] = useState<MinuteType>('note');
+  const [noteText, setNoteText] = useState('');
   const [liveConflicts, setLiveConflicts] = useState<Conflict[]>([]);
   const [liveRoomConflicts, setLiveRoomConflicts] = useState<RoomConflict[]>([]);
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -105,6 +115,28 @@ export default function CreateMeetingModal() {
       .filter((p): p is NonNullable<typeof p> => Boolean(p));
   }, [pq, store.people, frequent, selectedParts]);
 
+  /** روزِ هفتهٔ تاریخِ انتخابی (۰=شنبه) — همیشه جزو نوبت‌هاست. */
+  const baseWeekday = useMemo(() => {
+    const j = isoToJ(selectedDate);
+    return faWeekday(j.jy, j.jm, j.jd);
+  }, [selectedDate]);
+
+  /**
+   * چند جلسه ساخته می‌شود — آینهٔ `occurrence_dates` سرور.
+   *
+   * عمداً تکرار شده تا کاربر **پیش از** ثبت بداند چه چیزی می‌سازد؛ مرجع
+   * همان سرور است و اگر قاعده عوض شد، این هم باید عوض شود.
+   */
+  const occurrenceCount = useMemo(() => {
+    const days = Array.from(new Set([baseWeekday, ...repeatDays]));
+    if (repeatWeeks <= 1 && repeatDays.length === 0) return 1;
+    let n = 0;
+    for (let w = 0; w < repeatWeeks; w += 1) {
+      for (const d of days) if (w > 0 || d >= baseWeekday) n += 1;
+    }
+    return n;
+  }, [baseWeekday, repeatDays, repeatWeeks]);
+
   const hiddenCount = Object.keys(store.people).length - filteredPeople.length;
 
   /* هشدار زندهٔ تداخل: با تغییر زمان یا شرکت‌کنندگان بررسی می‌شود.
@@ -138,6 +170,8 @@ export default function CreateMeetingModal() {
     setGuests([]); setGuestOpen(false); setGName(''); setGOrg(''); setReminderLead(60);
     setLeadCustom(false); setLeadText('');
     setLiveConflicts([]); setLiveRoomConflicts([]);
+    setRepeatDays([]); setRepeatWeeks(1);
+    setNotes([]); setNoteType('note'); setNoteText('');
   }
   function onStart(v: number) { setStart(v); if (end <= v) setEnd(Math.min(v + 1, 23.75)); }
   function toggle(id: string) {
@@ -171,13 +205,35 @@ export default function CreateMeetingModal() {
       title: title.trim(), category: selectedCat, type, date: selectedDate, start, end,
       room: selectedRoom || '', organizer: store.currentUser, parts: selectedParts,
       guests, priority, reminderLead, meetLink: type === 'online' ? meetLink.trim() : '',
+      repeatWeekdays: repeatDays, repeatWeeks,
     });
+    if (!created) { setSaving(false); return; }
+
+    // صورت‌جلسهٔ از پیش‌نوشته، **پس از** ساختِ جلسه ثبت می‌شود: پیش از آن
+    // شناسه‌ای نیست که آیتم به آن بچسبد. سطلِ عمومی (`participant: null`) —
+    // موقع ساخت، شرکت‌کننده‌ها همان لحظه انتخاب می‌شوند و سطل‌بندیِ هر نفر
+    // گیج‌کننده است؛ صورت‌جلسهٔ هر نفر سر جایش در صفحهٔ جلسه می‌ماند.
+    //
+    // شکستش ساختِ جلسه را شکست‌خورده نشان نمی‌دهد — جلسه ساخته شده و
+    // بی‌خبر‌گذاشتنِ کاربر بدتر از یک توستِ جداگانه است.
+    let notesFailed = false;
+    for (const note of notes) {
+      try {
+        await api.createMinute({
+          meeting: created.id, participant: null, type: note.type, text: note.text,
+          remindDate: note.type === 'reminder' ? selectedDate : null,
+          remindHour: note.type === 'reminder' ? Math.floor(start) : null,
+        });
+      } catch { notesFailed = true; }
+    }
     setSaving(false);
-    if (!created) return;
 
     justCreated.current = true;
     dismiss();
-    store.toast('جلسهٔ جدید ساخته شد', 'ok');
+    const pending = created.status === 'pending';
+    if (notesFailed) store.toast('جلسه ساخته شد، ولی ثبت صورت‌جلسه ناموفق بود', 'info');
+    else if (pending) store.toast('جلسه ثبت شد و در انتظار تایید است', 'ok');
+    else store.toast('جلسهٔ جدید ساخته شد', 'ok');
     router.push(`/meetings/${created.id}`);
   }
 
@@ -227,6 +283,46 @@ export default function CreateMeetingModal() {
                 {Object.values(store.rooms).map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
               </select>
             </div>
+          </div>
+
+          {/* تکرار هفتگی — سقف چهار هفته (روی سرور هم بسته است).
+              روزِ خودِ تاریخِ انتخابی همیشه تیک‌خورده نشان داده می‌شود، چون
+              جلسه در آن روز حتماً ساخته می‌شود؛ تیکِ خاموشِ آن گمراه‌کننده بود. */}
+          <div className="field">
+            <label>تکرار هفتگی <small className="fhint-inline">اختیاری</small></label>
+            <div className="rl-picks">
+              {jWeekdaysShort.map((label, idx) => {
+                const isBase = idx === baseWeekday;
+                const on = isBase || repeatDays.includes(idx);
+                return (
+                  <button type="button" key={label}
+                    className={'chip-btn wd' + (on ? ' active' : '')}
+                    aria-pressed={on}
+                    title={isBase ? 'روزِ خودِ جلسه' : undefined}
+                    onClick={() => {
+                      if (isBase) return;
+                      setRepeatDays((d) => d.includes(idx) ? d.filter((x) => x !== idx) : [...d, idx]);
+                    }}>
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+            <div className="rl-picks">
+              {[1, 2, 3, 4].map((w) => (
+                <button type="button" key={w}
+                  className={'chip-btn' + (repeatWeeks === w ? ' active' : '')}
+                  onClick={() => setRepeatWeeks(w)}>
+                  {w === 1 ? 'بدون تکرار' : `${toFa(w)} هفته`}
+                </button>
+              ))}
+            </div>
+            {occurrenceCount > 1 && (
+              <small className="fhint">
+                {toFa(occurrenceCount)} جلسه ساخته می‌شود. پیامک فقط برای
+                نزدیک‌ترین جلسه می‌رود و بقیه در تقویم شرکت‌کنندگان می‌آید.
+              </small>
+            )}
           </div>
 
           {/* تداخل محل: اتاق برخلاف آدم قابل تقسیم نیست، پس همین‌جا زیر
@@ -383,6 +479,67 @@ export default function CreateMeetingModal() {
                 </span>
               </div>
             )}
+          </div>
+
+          {/* صورت‌جلسهٔ از پیش‌نوشته.
+              فقط سطلِ «عمومی» و فقط دو نوعِ یادداشت و یادآور — همان دو تایی که
+              `MinutesEditor` ساختنی کرده. صورت‌جلسهٔ هر شرکت‌کننده سر جایش در
+              صفحهٔ جلسه می‌ماند: این‌جا شرکت‌کننده‌ها همین حالا انتخاب می‌شوند
+              و سطل‌بندیِ هر نفر گیج‌کننده است. */}
+          <div className="field">
+            <label>صورت‌جلسه <small className="fhint-inline">اختیاری — بعداً هم می‌شود</small></label>
+
+            {notes.length > 0 && (
+              <ul className="pre-notes">
+                {notes.map((n, i) => (
+                  <li key={`${n.type}-${i}`}>
+                    <span className="pn-type" style={{ color: minuteMeta[n.type].color }}>
+                      {minuteMeta[n.type].label}
+                    </span>
+                    <span className="pn-text">{n.text}</span>
+                    <button type="button" aria-label="حذف"
+                      onClick={() => setNotes((v) => v.filter((_, x) => x !== i))}>
+                      <IconX size={13} />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            <div className="rl-picks">
+              {(['note', 'reminder'] as MinuteType[]).map((t) => (
+                <button type="button" key={t}
+                  className={'chip-btn' + (noteType === t ? ' active' : '')}
+                  onClick={() => setNoteType(t)}>
+                  {minuteMeta[t].label}
+                </button>
+              ))}
+            </div>
+
+            <div className="pn-add">
+              <input className="field-in" value={noteText} placeholder="متن صورت‌جلسه…"
+                aria-label="متن صورت‌جلسه"
+                onChange={(e) => setNoteText(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key !== 'Enter') return;
+                  // Enter این‌جا آیتم اضافه می‌کند، نه اینکه فرم را ثبت کند —
+                  // وگرنه نوشتنِ یک یادداشت جلسه را نیمه‌کاره ثبت می‌کرد.
+                  e.preventDefault();
+                  const text = noteText.trim();
+                  if (!text) return;
+                  setNotes((v) => [...v, { type: noteType, text }]);
+                  setNoteText('');
+                }} />
+              <button type="button" className="btn btn-ghost" disabled={!noteText.trim()}
+                onClick={() => {
+                  const text = noteText.trim();
+                  if (!text) return;
+                  setNotes((v) => [...v, { type: noteType, text }]);
+                  setNoteText('');
+                }}>
+                <IconPlus size={15} />افزودن
+              </button>
+            </div>
           </div>
         </div>
 

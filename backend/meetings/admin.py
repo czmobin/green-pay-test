@@ -11,10 +11,11 @@ from .models import (
 
 @admin.register(User)
 class UserAdmin(BaseUserAdmin):
-    list_display = ('username', 'get_full_name', 'role', 'organization', 'is_external', 'title')
+    list_display = ('username', 'get_full_name', 'role', 'organization', 'is_external',
+                    'can_create_meetings', 'title')
     list_filter = ('role', 'is_external', 'organization')
     fieldsets = BaseUserAdmin.fieldsets + (
-        ('گرین‌پی', {'fields': ('role', 'organization', 'title', 'phone', 'color', 'is_external', 'sms_enabled')}),
+        ('گرین‌پی', {'fields': ('role', 'organization', 'title', 'phone', 'color', 'is_external', 'sms_enabled', 'can_create_meetings')}),
     )
 
 
@@ -69,8 +70,8 @@ class MinuteEntryAdmin(admin.ModelAdmin):
 
 @admin.register(Location)
 class LocationAdmin(admin.ModelAdmin):
-    list_display = ('name', 'organization', 'capacity', 'has_map')
-    list_filter = ('organization', 'is_online')
+    list_display = ('name', 'organization', 'capacity', 'has_map', 'needs_approval')
+    list_filter = ('organization', 'is_online', 'needs_approval')
     search_fields = ('name', 'address')
     fieldsets = (
         (None, {'fields': ('name', 'organization', 'capacity', 'is_online')}),

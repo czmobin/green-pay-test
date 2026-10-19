@@ -545,6 +545,9 @@ select.field-in option{direction:rtl;text-align:right}
     font-size:14px;font-weight:600;position:relative;transition:.15s}
   .sidebar .nav a svg{width:19px;height:19px;opacity:.9;flex:0 0 auto}
   .sidebar .nav a .cnt{margin-inline-start:auto;font-size:11px;background:var(--sb-cnt);padding:1px 8px;border-radius:999px;font-weight:700}
+  /* شمارندهٔ «در انتظار تایید» کارِ معلق است، نه فقط یک عدد — رنگِ هشدار
+     می‌گیرد تا در فهرستِ یکدستِ نوار کناری به چشم بیاید. */
+  .sidebar .nav a .cnt.warn{background:var(--warn);color:#fff}
   .sidebar .nav a:hover{background:var(--sb-hover)}
   .sidebar .nav a.active{background:var(--sb-active);color:var(--sb-strong)}
   .sidebar .nav a.active::before{content:"";position:absolute;inset-inline-start:-15px;top:9px;bottom:9px;width:3px;border-radius:999px;background:var(--brand)}
@@ -1053,6 +1056,46 @@ select.field-in option{direction:rtl;text-align:right}
 .cal-switch{display:flex;background:var(--panel);border:1px solid var(--line-strong);border-radius:12px;padding:3px;gap:2px;margin-bottom:12px}
 .cal-switch button{flex:1;border-radius:9px;padding:8px 4px;font-size:13px;font-weight:700;color:var(--ink-soft);transition:.15s}
 .cal-switch button.active{background:var(--brand);color:#fff}
+/* «محل‌ها» لینک است نه دکمه (صفحهٔ خودش را دارد)، ولی باید هم‌شکلِ بقیهٔ
+   کلیدهای همین نوار باشد — روی موبایل تنها راهِ رسیدن به نمای رزرو است. */
+.cal-switch .cs-link{flex:1;border-radius:9px;padding:8px 4px;font-size:13px;font-weight:700;
+  color:var(--ink-soft);text-align:center;transition:.15s}
+.cal-switch .cs-link:hover{color:var(--brand)}
+
+/* ---- رزرو محل‌ها ---- */
+.rm-pick{max-width:220px;flex:0 1 auto}
+
+/* ---- چیپِ روزِ هفته در تکرار ----
+   مربعِ کوچکِ تک‌حرفی، تا هفت‌تایش در عرضِ موبایل جا شود. */
+.chip-btn.wd{min-width:38px;padding:8px 0;text-align:center;justify-content:center}
+.fhint-inline{font-size:10.5px;font-weight:600;color:var(--muted);margin-inline-start:6px}
+
+/* ---- صورت‌جلسهٔ از پیش‌نوشته در فرمِ ایجاد ---- */
+.pre-notes{list-style:none;margin:0 0 8px;padding:0;display:flex;flex-direction:column;gap:6px}
+.pre-notes li{display:flex;align-items:center;gap:8px;background:var(--panel);
+  border:1px solid var(--line);border-radius:10px;padding:7px 10px;font-size:12.5px}
+.pre-notes .pn-type{font-weight:800;font-size:11px;flex:0 0 auto}
+.pre-notes .pn-text{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pre-notes li button{color:var(--muted);display:grid;place-items:center;flex:0 0 auto}
+.pre-notes li button:hover{color:var(--danger)}
+.pn-add{display:flex;gap:8px;align-items:center}
+.pn-add .field-in{flex:1;min-width:0}
+
+/* ---- کارت‌های در انتظار تایید ---- */
+.ap-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:12px}
+.ap-card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);
+  box-shadow:var(--shadow);padding:14px 15px;display:flex;flex-wrap:wrap;gap:12px;
+  align-items:center;justify-content:space-between}
+.ap-main{min-width:0;flex:1 1 240px;display:flex;flex-direction:column;gap:6px}
+.ap-title{font-size:14.5px;font-weight:800}
+.ap-title:hover{color:var(--brand)}
+.ap-meta{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12px;color:var(--ink-soft)}
+.ap-meta span{display:inline-flex;align-items:center;gap:5px}
+.ap-meta svg{opacity:.65}
+.ap-actions{display:flex;gap:8px;flex:0 0 auto}
+.ap-reject{display:flex;flex-direction:column;gap:8px;flex:1 1 100%}
+@media (min-width:600px){.ap-reject{flex-direction:row;align-items:center}}
+
 
 .cal-toolbar{display:flex;align-items:center;gap:12px;margin-bottom:12px;flex-wrap:wrap}
 .cal-nav{display:flex;align-items:center;gap:6px}

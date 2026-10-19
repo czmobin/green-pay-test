@@ -29,6 +29,7 @@ urlpatterns = [
 
     path('bootstrap/', views.bootstrap, name='bootstrap'),
     path('pulse/', views.pulse, name='pulse'),
+    path('room-bookings/', views.room_bookings, name='room-bookings'),
     path('reports/full/', reports.full_report, name='full-report'),
     path('settings/sms/', views.set_sms, name='set-sms'),
     path('', include(router.urls)),

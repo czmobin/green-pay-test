@@ -10,7 +10,7 @@ import ConflictAlert from './ConflictAlert';
 import UserMenu from './UserMenu';
 import {
   IconDashboard, IconCalendar, IconList, IconPlus, IconReminder,
-  IconSettings, IconLogout, IconReport,
+  IconSettings, IconLogout, IconReport, IconRoom, IconCheck,
 } from './Icons';
 import ScopeSwitch from './ScopeSwitch';
 import { initials } from '@/lib/data';
@@ -18,6 +18,7 @@ import { initials } from '@/lib/data';
 const nav = [
   { href: '/', label: 'داشبورد', icon: IconDashboard },
   { href: '/calendar', label: 'تقویم', icon: IconCalendar },
+  { href: '/rooms', label: 'رزرو محل‌ها', icon: IconRoom },
   { href: '/meetings', label: 'جلسات', icon: IconList },
   { href: '/reminders', label: 'یادآورها', icon: IconReminder },
 ];
@@ -87,6 +88,16 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
         <div className="nav-label">مدیریت</div>
         <nav className="nav">
+          {/* تایید رزرو — شرطش تنگ‌تر از `isManager` است: مدیر اجرایی اجازهٔ
+              تایید ندارد، پس نباید ردیفی ببیند که ۴۰۳ می‌دهد. */}
+          {store.canApproveMeetings && (
+            <Link href="/approvals" className={isActive(path, '/approvals') ? 'active' : ''}>
+              <IconCheck size={18} />در انتظار تایید
+              {store.pendingMeetings.length > 0 && (
+                <span className="cnt num warn">{store.pendingMeetings.length}</span>
+              )}
+            </Link>
+          )}
           {store.isManager && (
             <Link href="/reports" className={isActive(path, '/reports') ? 'active' : ''}>
               <IconReport size={19} />گزارش کامل
@@ -120,9 +131,11 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           </Link>
           <ScopeSwitch />
           <span className="spacer" />
-          <button className="btn btn-ghost only-desktop" onClick={store.openCreate}>
-            <IconPlus size={16} />جلسهٔ جدید
-          </button>
+          {store.canCreateMeetings && (
+            <button className="btn btn-ghost only-desktop" onClick={store.openCreate}>
+              <IconPlus size={16} />جلسهٔ جدید
+            </button>
+          )}
           <NotificationBell />
           <UserMenu />
         </header>
@@ -154,7 +167,13 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       <nav className="bottomnav only-mobile">
         <Link href="/" className={isActive(path, '/') ? 'active' : ''}><IconDashboard size={22} /><span>داشبورد</span></Link>
         <Link href="/calendar" className={isActive(path, '/calendar') ? 'active' : ''}><IconCalendar size={22} /><span>تقویم</span></Link>
-        <div className="fab"><button onClick={store.openCreate} aria-label="جلسهٔ جدید"><IconPlus size={24} /></button></div>
+        {/* کاربری که اجازهٔ ساخت ندارد دکمه‌ای نمی‌بیند که ۴۰۳ بگیرد؛ جای
+            خالی‌اش هم می‌ماند تا قرینهٔ نوار پایین نشکند. */}
+        <div className="fab">
+          {store.canCreateMeetings && (
+            <button onClick={store.openCreate} aria-label="جلسهٔ جدید"><IconPlus size={24} /></button>
+          )}
+        </div>
         <Link href="/meetings" className={isActive(path, '/meetings') ? 'active' : ''}><IconList size={22} /><span>جلسات</span></Link>
         <Link href="/reminders" className={isActive(path, '/reminders') ? 'active' : ''}><IconReminder size={22} /><span>یادآورها</span></Link>
       </nav>

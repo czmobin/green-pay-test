@@ -93,6 +93,24 @@ export interface Bootstrap {
   sharedWithMe: CalendarShare[];
   sharedByMe: CalendarShare[];
   smsEnabled: boolean;
+  /** اجازهٔ ساختِ جلسه دارد؟ فقط برای پنهان‌کردنِ دکمه — کنترل واقعی سمت سرور. */
+  canCreateMeetings: boolean;
+  /** می‌تواند جلسهٔ در انتظار را تایید کند؟ (ادمین یا مدیرعامل) */
+  canApproveMeetings: boolean;
+}
+
+/** یک رزروِ محل در نمای فقط‌خواندنیِ «رزرو محل‌ها».
+
+    `meeting` خالی یعنی این جلسه برای این کاربر پنهان است و `title` هم
+    «جلسهٔ دیگر» است — ساعت و محل دیده می‌شود، عنوان نه. */
+export interface RoomBooking {
+  meeting: string;
+  title: string;
+  room: string;
+  date: string;
+  start: number;
+  end: number;
+  status: Meeting['status'];
 }
 
 /**
@@ -159,6 +177,10 @@ export interface NewMeeting {
   meetLink?: string;
   /** فاصلهٔ یادآور پیش‌فرض برای همهٔ شرکت‌کنندگان (دقیقه؛ صفر = خاموش) */
   reminderLead?: number;
+  /** روزهای هفته برای تکرار — ۰=شنبه … ۶=جمعه. خالی یعنی جلسهٔ تک‌نوبتی. */
+  repeatWeekdays?: number[];
+  /** چند هفته تکرار شود (۱ تا ۴). سقف روی سرور هم بسته است. */
+  repeatWeeks?: number;
 }
 
 /** فیلدهای قابل ویرایش جلسه */
@@ -339,6 +361,12 @@ export const api = {
     request<AgendaItem>(`/agenda/${id}/`, { method: 'PATCH', body: JSON.stringify(a) }),
   deleteAgenda: (id: string) => request<void>(`/agenda/${id}/`, { method: 'DELETE' }),
   respondMeeting: (id: string, accept: boolean) => post<Meeting>(`/meetings/${id}/respond/`, { accept }),
+  approveMeeting: (id: string) => post<CreatedMeeting>(`/meetings/${id}/approve/`),
+  rejectMeeting: (id: string, reason: string) =>
+    post<CreatedMeeting>(`/meetings/${id}/reject/`, { reason }),
+  roomBookings: (q: { from: string; to: string; room?: string }) =>
+    request<RoomBooking[]>('/room-bookings/?' + new URLSearchParams(
+      Object.entries(q).filter(([, v]) => v) as [string, string][]).toString()),
   cancelMeeting: (id: string, reason: string) =>
     post<Meeting & { smsSent: number; smsFailed: number }>(`/meetings/${id}/cancel/`, { reason }),
   updateMinute: (id: string, patch: MinutePatch) =>

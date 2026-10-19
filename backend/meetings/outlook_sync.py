@@ -566,8 +566,13 @@ def _attendee_addresses(meeting, boxes: dict[str, OutlookMailbox], skip: str) ->
 
 
 def dirty_meetings(limit: int = 0):
+    # `PENDING` دوباره این‌جا هم کنار گذاشته می‌شود، با اینکه `mark_dirty()`
+    # از اول dirty‌اش نمی‌کند. دلیلش این است که این صف تنها جایی است که
+    # دعوت‌نامهٔ Exchange از آن بیرون می‌رود: اگر روزی کسی از مسیر دیگری
+    # `outlook_dirty` را ست کند، جلسهٔ تاییدنشده نباید به تقویم همه برود.
     qs = (Meeting.objects
           .filter(outlook_dirty=True, outlook_readonly=False)
+          .exclude(status=Meeting.Status.PENDING)
           .select_related('organizer')
           .order_by('pk'))
     return qs[:limit] if limit else qs

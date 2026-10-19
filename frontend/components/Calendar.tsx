@@ -1,5 +1,6 @@
 'use client';
 import React, { useEffect, useRef, useState } from 'react';
+import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Portal from './Portal';
 import { useSheet } from './useSheet';
@@ -99,6 +100,10 @@ export default function Calendar() {
       </div>
 
       <div className="cal-switch">
+        {/* ششمین کلید نیست، لینک است: نمای رزرو صفحهٔ خودش را دارد (چون
+            دادهٔ دیگری می‌گیرد) ولی از نظر کاربر یکی از نماهای تقویم است.
+            روی موبایل این تنها راهِ رسیدن به آن است، چون نوار پایین پر است. */}
+        <Link href="/rooms" className="cs-link">محل‌ها</Link>
         {(['day', 'week', 'month', 'year'] as View[]).map((v) => (
           <button key={v} className={view === v ? 'active' : ''} onClick={() => setView(v)}>
             {{ day: 'روز', week: 'هفته', month: 'ماه', year: 'سال' }[v]}
@@ -136,7 +141,10 @@ export default function Calendar() {
 }
 
 /* ===================== Day ===================== */
-function DayView({ j, meetingsOn, open, color }: { j: JDate; meetingsOn: (j: JDate) => Meeting[]; open: (m: Meeting, sameDay: Meeting[]) => void; color: (m: Meeting) => string }) {
+/** نمای روز و هفته صادر می‌شوند تا صفحهٔ «رزرو محل‌ها» شبکه را از نو
+    نسازد: هر دو `meetingsOn` و `open` و `color` را به‌عنوان پراپ می‌گیرند،
+    پس با دادهٔ دیگر و بدون کلیک هم کار می‌کنند. */
+export function DayView({ j, meetingsOn, open, color }: { j: JDate; meetingsOn: (j: JDate) => Meeting[]; open: (m: Meeting, sameDay: Meeting[]) => void; color: (m: Meeting) => string }) {
   const { rooms } = useStore();
   const items = meetingsOn(j);
   const isToday = sameJ(j, todayJ());
@@ -165,7 +173,7 @@ function DayView({ j, meetingsOn, open, color }: { j: JDate; meetingsOn: (j: JDa
 }
 
 /* ===================== Week ===================== */
-function WeekView({ cur, meetingsOn, open, onDay, color }: { cur: JDate; meetingsOn: (j: JDate) => Meeting[]; open: (m: Meeting, sameDay: Meeting[]) => void; onDay: (j: JDate) => void; color: (m: Meeting) => string }) {
+export function WeekView({ cur, meetingsOn, open, onDay, color }: { cur: JDate; meetingsOn: (j: JDate) => Meeting[]; open: (m: Meeting, sameDay: Meeting[]) => void; onDay: (j: JDate) => void; color: (m: Meeting) => string }) {
   // هفتهٔ تقویمی: شنبه تا جمعه. به‌جای جابه‌جا کردن روزها، بعد از رندر
   // به ستون امروز اسکرول می‌کنیم تا هم ترتیب طبیعی بماند هم امروز پیدا باشد.
   const c = jToDate(cur.jy, cur.jm, cur.jd);

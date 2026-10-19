@@ -174,12 +174,17 @@ def find_room_conflicts(start, end, room_id, exclude_meeting_id=None, viewer=Non
     } for m in qs]
 
 
-def notify_created(meeting, creator) -> tuple[int, int]:
+def notify_created(meeting, creator, repeats: int = 1) -> tuple[int, int]:
     """
     به شرکت‌کنندگانِ دارای شماره خبر ساخته‌شدن جلسه را پیامک می‌کند.
 
     خودِ سازنده کنار گذاشته می‌شود؛ کسی که همین حالا جلسه را ساخته لازم نیست
     برای خودش پیامک بگیرد.
+
+    `repeats` تعدادِ جلسه‌های یک سلسلهٔ تکرار است. از سلسله فقط **نزدیک‌ترین**
+    جلسه پیامک می‌شود (خواستهٔ صریحِ کارفرما)، ولی همان یک پیامک می‌گوید که
+    جلسه تکرار می‌شود — وگرنه شرکت‌کننده از جلسه‌های بعدی بی‌خبر می‌ماند و
+    پیامکی هم برایشان نخواهد گرفت.
     """
     from .jalali import fa_date, fa_digits, fa_weekday
     from .sms import send_text
@@ -188,10 +193,12 @@ def notify_created(meeting, creator) -> tuple[int, int]:
     clock = fa_digits(f'{local.hour:02d}:{local.minute:02d}')
     when = f'{fa_weekday(local.date())} {fa_date(local.date())} ساعت {clock}'
     who = creator.get_full_name() or creator.username
-    text = '\n'.join([
-        f'جلسه «{meeting.title}» برای {when} توسط {who} برای شما ایجاد شد.',
-        'گرین‌پی',
-    ])
+    lines = [f'جلسه «{meeting.title}» برای {when} توسط {who} برای شما ایجاد شد.']
+    if repeats > 1:
+        lines.append(f'این جلسه {fa_digits(str(repeats))} نوبت تکرار می‌شود؛ '
+                     'نوبت‌های بعدی در تقویم شما هست.')
+    lines.append('گرین‌پی')
+    text = '\n'.join(lines)
 
     ok = bad = 0
     for mp in meeting.meeting_participants.select_related('user'):
@@ -202,6 +209,39 @@ def notify_created(meeting, creator) -> tuple[int, int]:
         else:
             bad += 1
     return ok, bad
+
+
+def _safe_notify_created(meeting, creator, repeats: int = 1) -> tuple[int, int]:
+    """`notify_created` که سرویسِ پیامکِ خوابیده، ساختِ جلسه را نمی‌شکند."""
+    try:
+        return notify_created(meeting, creator, repeats)
+    except Exception:                                       # noqa: BLE001
+        logger.exception('پیامک ساخت جلسه فرستاده نشد')
+        return 0, 0
+
+
+def _series_conflicts(occurrences, viewer) -> tuple[list, list]:
+    """تداخلِ همهٔ نوبت‌های یک سلسله، بی‌آنکه نوبت‌ها با هم تداخل بدهند.
+
+    `exclude_meeting_id` در `_overlapping` **مفرد** است، پس با چهار نوبتِ
+    ذخیره‌شده هر نوبت خواهرهایش را به‌عنوان تداخل گزارش می‌کرد و کاربر چهار
+    هشدارِ بی‌معنا می‌دید. این‌جا خواهرها بعد از محاسبه کنار گذاشته می‌شوند.
+
+    تداخلِ پنهان (`meeting` خالی) حفظ می‌شود: رشتهٔ خالی هیچ‌وقت شناسهٔ خواهر
+    نیست.
+    """
+    siblings = {str(row.pk) for row in occurrences}
+    people: list = []
+    rooms: list = []
+    for row in occurrences:
+        attendees = [str(p.user_id) for p in row.meeting_participants.all()]
+        people += [c for c in find_conflicts(
+            row.start, row.end, attendees, exclude_meeting_id=row.pk, viewer=viewer)
+            if c['meeting'] not in siblings]
+        rooms += [c for c in find_room_conflicts(
+            row.start, row.end, row.location_id, exclude_meeting_id=row.pk, viewer=viewer)
+            if c['meeting'] not in siblings]
+    return people, rooms
 
 
 def notify_changed(meeting, editor, what: list[str]) -> tuple[int, int]:
@@ -305,6 +345,18 @@ def _by_id(serializer_data):
     return {row['id']: row for row in serializer_data}
 
 
+def can_approve_meeting(user) -> bool:
+    """تایید رزروِ محل‌های حساس — فقط ادمین و مدیرعامل.
+
+    عمداً `is_manager` نیست: آن یکی مدیر اجرایی را هم شامل می‌شود و خواستهٔ
+    کارفرما «ادمین یا مدیرعامل» بود. اگر روزی این دو یکی شدند، همین یک تابع
+    عوض می‌شود.
+    """
+    if user is None or not getattr(user, 'is_authenticated', False):
+        return False
+    return is_admin(user) or getattr(user, 'role', None) == User.Role.CEO
+
+
 def ceo_meeting_ids():
     """شناسهٔ جلسه‌هایی که مدیرعامل در آن‌هاست — چه سازنده، چه شرکت‌کننده."""
     return (Meeting.objects
@@ -398,6 +450,71 @@ def _stamp(queryset, *fields):
 
 
 @api_view(['GET'])
+def room_bookings(request):
+    """وضعیت رزروِ محل‌های جلسه در یک بازهٔ تاریخی — نمای فقط‌خواندنی.
+
+    چرا این اندپوینت از `meetings_queryset` **عبور نمی‌کند**
+    ===================================================
+
+    بقیهٔ سامانه از آن یک گلوگاه رد می‌شود و باید هم رد شود. این‌جا عمداً
+    نه: خواستهٔ این نما این است که همه بتوانند ببینند «اتاق طبقه ۳ پنجشنبه
+    ساعت ۱۰ گرفته است»، حتی اگر حق دیدنِ آن جلسه را نداشته باشند. وگرنه
+    کاربری که نمی‌داند اتاق پر است، همان ساعت را رزرو می‌کند.
+
+    پس **ساعت و محل برای همه** دیده می‌شود و **عنوان فقط برای کسی که از قبل
+    حق دیدنش را دارد**. تصمیم‌گیرنده همان `meetings_queryset` است (از راه
+    `_visible_ids`)، پس قاعدهٔ «عنوان جلسهٔ مدیرعامل را فقط ادمین و خودش
+    می‌بینند» خودبه‌خود برقرار است و قاعدهٔ تازه‌ای نوشته نشده.
+
+    سه چیز که امنیت همین‌جاست:
+
+    • `viewer` حتماً پاس داده می‌شود؛ `_visible_ids(None, …)` هیچ‌چیز را پنهان
+      نمی‌کند و اندپوینتی که فراموشش کند همه‌چیز را لو می‌دهد.
+    • شناسهٔ جلسهٔ پنهان **خالی** برمی‌گردد، نه فقط عنوانش. این همان چیزی است
+      که «کلیک هیچ کاری نکند» را ساختاری می‌کند: رابط شناسه‌ای ندارد که با آن
+      جایی برود.
+    • برگزارکننده، شرکت‌کننده و دسته در پاسخ **نیستند**. این نما دربارهٔ اتاق
+      است، نه دربارهٔ آدم‌ها.
+    """
+    from datetime import timedelta
+
+    from .serializers import to_float_hour, to_iso_date
+
+    begins = parse_date(request.query_params.get('from', '') or '')
+    ends = parse_date(request.query_params.get('to', '') or '')
+    if not begins or not ends or ends < begins:
+        raise ValidationError({'detail': 'بازهٔ تاریخ نامعتبر است.'})
+    # سقف دو ماه: نمای تقویمی بیشتر از این نمی‌خواهد و بازهٔ باز، کوئریِ
+    # بی‌مرز روی کلِ جدول جلسات می‌شد.
+    if (ends - begins).days > 62:
+        raise ValidationError({'detail': 'بازه نمی‌تواند بیش از دو ماه باشد.'})
+
+    lo = from_date_hour(begins, 0)
+    hi = from_date_hour(ends + timedelta(days=1), 0)
+
+    qs = (Meeting.objects
+          .filter(start__lt=hi, end__gt=lo)
+          .exclude(status=Meeting.Status.CANCELLED)
+          .exclude(location__isnull=True)
+          .select_related('location')
+          .order_by('start'))
+    room = request.query_params.get('room', '')
+    if room:
+        qs = qs.filter(location_id=room)
+
+    visible = _visible_ids(request.user, qs)
+    return Response([{
+        'meeting': str(m.pk) if m.pk in visible else '',
+        'title': m.title if m.pk in visible else HIDDEN_TITLE,
+        'room': str(m.location_id),
+        'date': to_iso_date(m.start),
+        'start': to_float_hour(m.start),
+        'end': to_float_hour(m.end),
+        'status': m.status,
+    } for m in qs])
+
+
+@api_view(['GET'])
 def pulse(request):
     """«از آخرین بار چیزی عوض شده؟» — پاسخِ ارزان برای polling.
 
@@ -470,6 +587,11 @@ def bootstrap(request):
         'currentUser': str(request.user.pk),
         'currentRole': request.user.role,
         'isManager': is_manager(request.user),
+        # این دو فقط برای **پنهان‌کردن دکمه** است، نه کنترل دسترسی. کنترلِ
+        # واقعی در `MeetingViewSet.create` و اکشن‌های `approve`/`reject` است؛
+        # این‌جا برای این است که کاربر دکمه‌ای نبیند که ۴۰۳ می‌گیرد.
+        'canCreateMeetings': bool(getattr(request.user, 'can_create_meetings', True)),
+        'canApproveMeetings': can_approve_meeting(request.user),
         # اشتراک‌های تقویم — فرانت با داشتن فهرست مبدأها خودش تشخیص می‌دهد
         # هر جلسه مالِ تقویم کیست؛ سریالایزر جلسه دست‌نخورده می‌ماند.
         'sharedWithMe': CalendarShareSerializer(
@@ -488,38 +610,44 @@ class MeetingViewSet(viewsets.ModelViewSet):
         return meetings_queryset(self.request.user)
 
     def create(self, request, *args, **kwargs):
-        write = MeetingCreateSerializer(data=request.data)
+        # تا امروز این مسیر **هیچ** کنترل دسترسی نداشت. پرچمِ کاربر پیش‌فرض
+        # روشن است، پس رفتار موجود عوض نمی‌شود؛ خاموش‌کردنش از پنل ادمین است.
+        if not getattr(request.user, 'can_create_meetings', True):
+            raise PermissionDenied('اجازهٔ ایجاد جلسه برای حساب شما فعال نیست.')
+
+        write = MeetingCreateSerializer(data=request.data, context={'creator': request.user})
         write.is_valid(raise_exception=True)
         meeting = write.save()
+        # نزدیک‌ترین تکرار اول است؛ برای جلسهٔ تک‌نوبتی فهرست یک عضو دارد.
+        occurrences = getattr(write, 'occurrences', [meeting])
 
-        # جلسه‌ای که نقش مدیریتی می‌گذارد، برای بقیه از پیش پذیرفته است؛ حضورشان
-        # تصمیمِ خودشان نیست که بخواهند تأییدش کنند.
-        if is_manager(request.user):
-            meeting.meeting_participants.filter(is_guest=False).update(
-                response=MeetingParticipant.Response.ACCEPTED)
-
-        # به صف ارسال Outlook (وقتی همگام‌سازی خاموش است، بی‌اثر است — پس
-        # روشن‌کردن بعدیِ کلید، انبوه جلسه‌های قدیمی را شلیک نمی‌کند).
-        meeting.mark_dirty()
+        for row in occurrences:
+            # جلسه‌ای که نقش مدیریتی می‌گذارد، برای بقیه از پیش پذیرفته است؛
+            # حضورشان تصمیمِ خودشان نیست که بخواهند تأییدش کنند.
+            if is_manager(request.user):
+                row.meeting_participants.filter(is_guest=False).update(
+                    response=MeetingParticipant.Response.ACCEPTED)
+            # به صف ارسال Outlook (وقتی همگام‌سازی خاموش است بی‌اثر است، و
+            # جلسهٔ در انتظار تایید هم هرگز dirty نمی‌شود — نگاه کنید به
+            # `Meeting.mark_dirty`).
+            row.mark_dirty()
 
         # خبر ساخته‌شدن جلسه همان لحظه پیامک می‌شود؛ اگر سرویس پیامک بالا نباشد
         # نباید ساختِ جلسه شکست بخورد.
-        try:
-            sms_ok, sms_bad = notify_created(meeting, request.user)
-        except Exception:                                   # noqa: BLE001
-            logger.exception('پیامک ساخت جلسه فرستاده نشد')
-            sms_ok = sms_bad = 0
+        #
+        # دو قاعده این‌جا جمع شده‌اند: جلسهٔ در انتظار تایید هیچ پیامکی ندارد
+        # (پیامکش موقع تایید می‌رود)، و از یک سلسلهٔ تکرار فقط **نزدیک‌ترین**
+        # جلسه پیامک می‌شود — خواستهٔ صریحِ کارفرما، وگرنه چهار پیامک برای یک
+        # تصمیم می‌رفت.
+        sms_ok = sms_bad = 0
+        if meeting.status != Meeting.Status.PENDING:
+            sms_ok, sms_bad = _safe_notify_created(meeting, request.user, len(occurrences))
 
         # هشدار تداخل: جلسه ساخته شده و افراد اضافه شده‌اند؛ این فقط اطلاع‌رسانی است.
-        attendees = [str(p.user_id) for p in meeting.meeting_participants.all()]
         data = MeetingSerializer(meeting).data
         data['smsSent'], data['smsFailed'] = sms_ok, sms_bad
-        data['conflicts'] = find_conflicts(
-            meeting.start, meeting.end, attendees, exclude_meeting_id=meeting.pk,
-            viewer=request.user)
-        data['roomConflicts'] = find_room_conflicts(
-            meeting.start, meeting.end, meeting.location_id,
-            exclude_meeting_id=meeting.pk, viewer=request.user)
+        data['occurrences'] = [str(row.pk) for row in occurrences]
+        data['conflicts'], data['roomConflicts'] = _series_conflicts(occurrences, request.user)
         return Response(data, status=status.HTTP_201_CREATED)
 
     def update(self, request, *args, **kwargs):
@@ -537,7 +665,13 @@ class MeetingViewSet(viewsets.ModelViewSet):
         was_start, was_end = meeting.start, meeting.end
         was_room = meeting.location_id
 
-        simple = {'title': 'title', 'priority': 'priority', 'status': 'status'}
+        # `status` عمداً این‌جا نیست.
+        #
+        # تا امروز بود و بی اعتبارسنجی ذخیره می‌شد، یعنی سازندهٔ جلسه می‌توانست
+        # با `PATCH {"status":"confirmed"}` جلسهٔ خودش را تایید کند و دروازهٔ
+        # تاییدِ محل را کامل دور بزند (و هر رشتهٔ دلخواهی هم در ستون می‌نشست).
+        # وضعیت از این پس فقط از `approve`/`reject`/`cancel` عوض می‌شود.
+        simple = {'title': 'title', 'priority': 'priority'}
         for src, field in simple.items():
             if src in d:
                 setattr(meeting, field, d[src])
@@ -593,8 +727,12 @@ class MeetingViewSet(viewsets.ModelViewSet):
         if meeting.location_id != was_room:
             changed.append('محل')
 
+        # `PENDING` هم مثل `CANCELLED` پیامکِ تغییر نمی‌گیرد: شرکت‌کننده هنوز
+        # هیچ پیامکِ ایجادی نگرفته، و «زمان جلسه عوض شد» برای جلسه‌ای که از
+        # وجودش بی‌خبر است بی‌معنا و گیج‌کننده است.
         sms_ok = sms_bad = 0
-        if changed and meeting.status != Meeting.Status.CANCELLED:
+        quiet = (Meeting.Status.CANCELLED, Meeting.Status.PENDING)
+        if changed and meeting.status not in quiet:
             try:
                 sms_ok, sms_bad = notify_changed(meeting, request.user, changed)
             except Exception:                               # noqa: BLE001
@@ -678,6 +816,77 @@ class MeetingViewSet(viewsets.ModelViewSet):
         data = MeetingSerializer(meeting).data
         data['smsSent'] = notified
         data['smsFailed'] = failed
+        return Response(data)
+
+    def _series_of(self, meeting) -> list:
+        """جلسه و خواهرهایش — سلسلهٔ تکرار یک‌جا تایید و رد می‌شود.
+
+        تاییدِ نوبت‌به‌نوبت یعنی ادمین باید چهار بار همان تصمیم را بگیرد، و
+        بدتر: سلسله می‌توانست نیمی تاییدشده و نیمی در انتظار بماند.
+        """
+        if not meeting.series:
+            return [meeting]
+        return list(Meeting.objects
+                    .filter(series=meeting.series, status=Meeting.Status.PENDING)
+                    .order_by('start'))
+
+    @action(detail=True, methods=['post'])
+    def approve(self, request, pk=None):
+        """تایید جلسه‌ای که محلش نیاز به تایید داشت — فقط ادمین یا مدیرعامل.
+
+        ترتیبِ کارها مهم است: اول وضعیت عوض می‌شود، بعد `mark_dirty` (که تا
+        وضعیت `PENDING` بود عمداً کاری نمی‌کرد)، و آخر پیامک. از یک سلسله هم
+        فقط نزدیک‌ترین نوبت پیامک می‌گیرد، مثل خودِ ساخت.
+        """
+        meeting = self.get_object()
+        if not can_approve_meeting(request.user):
+            raise PermissionDenied('تایید جلسه فقط از عهدهٔ ادمین یا مدیرعامل برمی‌آید.')
+        if meeting.status != Meeting.Status.PENDING:
+            raise ValidationError({'detail': 'این جلسه در انتظار تایید نیست.'})
+
+        rows = self._series_of(meeting)
+        for row in rows:
+            row.status = Meeting.Status.CONFIRMED
+            row.save(update_fields=['status', 'updated_at'])
+            row.mark_dirty()
+
+        nearest = rows[0]
+        sms_ok, sms_bad = _safe_notify_created(nearest, nearest.organizer, len(rows))
+        meeting.refresh_from_db()
+        data = MeetingSerializer(meeting).data
+        data['smsSent'], data['smsFailed'] = sms_ok, sms_bad
+        data['occurrences'] = [str(row.pk) for row in rows]
+        return Response(data)
+
+    @action(detail=True, methods=['post'])
+    def reject(self, request, pk=None):
+        """رد جلسهٔ در انتظار تایید — فقط ادمین یا مدیرعامل.
+
+        **هیچ پیامکی نمی‌رود**، برخلاف لغو. شرکت‌کننده هیچ‌وقت خبرِ ایجاد این
+        جلسه را نگرفته بود، پس خبرِ لغوش هم برایش معنا ندارد؛ فقط سازنده در
+        خودِ اپ می‌بیند که رد شده و چرا.
+        """
+        meeting = self.get_object()
+        if not can_approve_meeting(request.user):
+            raise PermissionDenied('رد جلسه فقط از عهدهٔ ادمین یا مدیرعامل برمی‌آید.')
+        if meeting.status != Meeting.Status.PENDING:
+            raise ValidationError({'detail': 'این جلسه در انتظار تایید نیست.'})
+
+        reason = (request.data or {}).get('reason', '').strip()[:2000]
+        rows = self._series_of(meeting)
+        for row in rows:
+            row.status = Meeting.Status.CANCELLED
+            row.cancel_reason = reason or 'رزرو این محل تایید نشد.'
+            row.cancelled_at = timezone.now()
+            row.cancelled_by = request.user
+            row.save(update_fields=['status', 'cancel_reason', 'cancelled_at',
+                                    'cancelled_by', 'updated_at'])
+            row.reminders.filter(sent_at__isnull=True).update(enabled=False)
+
+        meeting.refresh_from_db()
+        data = MeetingSerializer(meeting).data
+        data['smsSent'] = data['smsFailed'] = 0
+        data['occurrences'] = [str(row.pk) for row in rows]
         return Response(data)
 
     @action(detail=True, methods=['get', 'post'], url_path='reminder')

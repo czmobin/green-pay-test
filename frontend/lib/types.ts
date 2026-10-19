@@ -77,6 +77,8 @@ export interface Room {
   lat?: number | null;       // مختصات برای مسیریابی
   lng?: number | null;
   hasMap?: boolean;
+  /** رزروِ این محل باید تایید ادمین یا مدیرعامل بگیرد. */
+  needsApproval?: boolean;
 }
 
 export interface AgendaItem {
@@ -106,6 +108,8 @@ export interface Meeting {
   guests: string[]; // guest ids
   /** پاسخ دعوت هر شرکت‌کننده — کلید: شناسهٔ فرد */
   partStatus?: Record<string, InviteResponse>;
+  /** نوبت‌های یک سلسلهٔ تکرار این شناسه را مشترک دارند. */
+  series?: string | null;
   agenda: AgendaItem[];
   /** با Outlook همگام است — ویرایش فقط دستِ سازنده و ادمین */
   outlookSynced?: boolean;

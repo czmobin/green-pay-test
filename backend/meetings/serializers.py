@@ -71,10 +71,14 @@ class LocationSerializer(serializers.ModelSerializer):
     orgId = serializers.CharField(source='organization_id')
 
     hasMap = serializers.BooleanField(source='has_map', read_only=True)
+    #: رزروِ این محل باید تایید شود؟ رابط با همین، پیش از ثبت به کاربر می‌گوید
+    #: جلسه در انتظار تایید می‌ماند.
+    needsApproval = serializers.BooleanField(source='needs_approval', read_only=True)
 
     class Meta:
         model = Location
-        fields = ['id', 'name', 'cap', 'orgId', 'is_online', 'address', 'lat', 'lng', 'hasMap']
+        fields = ['id', 'name', 'cap', 'orgId', 'is_online', 'address', 'lat', 'lng',
+                  'hasMap', 'needsApproval']
 
 
 class PersonSerializer(serializers.ModelSerializer):
@@ -187,7 +191,7 @@ class MeetingSerializer(serializers.ModelSerializer):
         fields = ['id', 'title', 'category', 'type', 'status', 'priority', 'date', 'start', 'end',
                   'room', 'organizer', 'parts', 'guests', 'partStatus', 'meetLink',
                   'agenda', 'cancelReason', 'cancelledAt', 'cancelledBy',
-                  'outlookSynced', 'outlookReadonly']
+                  'outlookSynced', 'outlookReadonly', 'series']
 
     def get_cancelledAt(self, obj):
         return int(obj.cancelled_at.timestamp() * 1000) if obj.cancelled_at else None
@@ -291,24 +295,85 @@ class MeetingCreateSerializer(serializers.Serializer):
     # مالِ خودش را عوض کند. صفر یعنی یادآور برای این جلسه خاموش باشد.
     reminderLead = serializers.IntegerField(required=False, allow_null=True, default=None,
                                             min_value=0, max_value=10080)
+    # تکرار: کدام روزهای هفته (۰=شنبه … ۶=جمعه) و چند هفته.
+    #
+    # سقف چهار هفته خواستهٔ کارفرماست و این‌جا بسته می‌شود نه در رابط: رابط
+    # چیپ‌هایش را محدود می‌کند ولی درخواست خام هم باید رد شود.
+    repeatWeekdays = serializers.ListField(
+        child=serializers.IntegerField(min_value=0, max_value=6),
+        required=False, default=list)
+    repeatWeeks = serializers.IntegerField(required=False, default=1, min_value=1, max_value=4)
 
     def validate(self, attrs):
         if attrs['end'] <= attrs['start']:
             raise serializers.ValidationError({'end': 'ساعت پایان باید بعد از شروع باشد.'})
         return attrs
 
+    def occurrence_dates(self, validated) -> list:
+        """تاریخ‌های این سلسله — نزدیک‌ترین اول.
+
+        قاعدهٔ روزِ هفته همان قاعدهٔ موجودِ سامانه است: `jalali.fa_weekday` با
+        `(weekday()+2) % 7`، یعنی ۰=شنبه. از شنبهٔ همان هفتهٔ تاریخِ انتخابی
+        شروع می‌کنیم و `repeatWeeks` هفته جلو می‌رویم.
+
+        فقط تاریخ‌های **از خودِ تاریخِ انتخابی به بعد** می‌مانند؛ وگرنه
+        انتخابِ چهارشنبه با تیکِ شنبه، جلسه‌ای در گذشته می‌ساخت.
+        """
+        from datetime import timedelta
+
+        base = validated['date']
+        weeks = validated.get('repeatWeeks') or 1
+        days = sorted(set(validated.get('repeatWeekdays') or []))
+        if weeks <= 1 and not days:
+            return [base]
+        if not days:
+            days = [(base.weekday() + 2) % 7]
+
+        saturday = base - timedelta(days=(base.weekday() + 2) % 7)
+        out = [saturday + timedelta(days=7 * w + d) for w in range(weeks) for d in days]
+        return sorted(d for d in out if d >= base)
+
     def create(self, validated):
+        """نزدیک‌ترین تکرار را برمی‌گرداند؛ کلِ سلسله در `self.occurrences` است.
+
+        ویو به `occurrences` نیاز دارد تا بداند پیامک را برای کدام بفرستد و
+        کدام‌ها را از هشدار تداخل کنار بگذارد.
+        """
+        import uuid
+
+        from django.db import transaction
+
+        dates = self.occurrence_dates(validated)
+        # یک تراکنش برای کلِ سلسله: پیش از این هیچ `atomic`ی در مسیر ساخت نبود،
+        # و با چند سطر، شکستِ وسطِ کار سلسلهٔ نیمه‌ساخته به‌جا می‌گذاشت.
+        with transaction.atomic():
+            series = uuid.uuid4() if len(dates) > 1 else None
+            self.occurrences = [self._one(validated, day, series) for day in dates]
+        return self.occurrences[0]
+
+    def _one(self, validated, day, series):
+        # واردکردنِ تأخیری، مثل `get_fields` پایین‌تر: `views` خودش این فایل را
+        # وارد می‌کند و واردکردنِ سطح‌بالا حلقه می‌سازد.
+        from .views import can_approve_meeting
+
+        room = validated.get('room')
+        # محل‌هایی مثل دفتر مدیرعامل تا تایید ادمین یا مدیرعامل در انتظار
+        # می‌مانند. سازنده‌ای که خودش اجازهٔ تایید دارد، نیازی به تاییدِ خودش
+        # ندارد — وگرنه مدیرعامل باید جلسهٔ خودش را تایید کند.
+        creator = self.context.get('creator')
+        needs = bool(room and room.needs_approval) and not can_approve_meeting(creator)
         meeting = Meeting.objects.create(
             title=validated['title'],
             category=validated['category'],
             meeting_type=validated['type'],
-            status=Meeting.Status.CONFIRMED,
+            status=Meeting.Status.PENDING if needs else Meeting.Status.CONFIRMED,
             priority=validated.get('priority', Meeting.Priority.NORMAL),
             meet_link=Meeting.normalize_meet(validated.get('meetLink', '')),
-            location=validated.get('room'),
+            location=room,
             organizer=validated['organizer'],
-            start=from_date_hour(validated['date'], validated['start']),
-            end=from_date_hour(validated['date'], validated['end']),
+            start=from_date_hour(day, validated['start']),
+            end=from_date_hour(day, validated['end']),
+            series=series,
         )
         # برگزارکننده خودش پذیرفته حساب می‌شود؛ بقیه دعوت‌اند و باید پاسخ بدهند
         # — بدون این، فهرست «دعوت‌های در انتظار پاسخ» هیچ‌وقت چیزی نشان نمی‌دهد.

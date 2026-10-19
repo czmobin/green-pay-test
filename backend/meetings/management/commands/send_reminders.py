@@ -61,9 +61,14 @@ class Command(BaseCommand):
         horizon = now + timedelta(minutes=opts['window'])
         default_lead = settings.MEETING_REMINDER_LEAD_MINUTES
 
+        # `PENDING` هم مثل `CANCELLED` کنار می‌رود: جلسه‌ای که هنوز تایید نشده
+        # ممکن است هرگز برگزار نشود، و یادآورِ آن یعنی خبردادن از جلسه‌ای که
+        # شرکت‌کننده هیچ پیامکِ ایجادی برایش نگرفته. حلقهٔ پایین‌تر خودش
+        # `MeetingReminder` نداشته را با پیش‌فرضِ شصت‌دقیقه‌ای می‌سازد، پس بی
+        # این صافی، هر کسی که شماره دارد یادآور می‌گرفت.
         meetings = (Meeting.objects
                     .filter(start__gt=now, start__lte=horizon)
-                    .exclude(status=Meeting.Status.CANCELLED)
+                    .exclude(status__in=[Meeting.Status.CANCELLED, Meeting.Status.PENDING])
                     .select_related('location')
                     .prefetch_related('meeting_participants__user', 'reminders'))
 

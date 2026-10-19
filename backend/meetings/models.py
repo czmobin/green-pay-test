@@ -70,6 +70,12 @@ class User(AbstractUser):
     color = models.CharField('رنگ آواتار', max_length=40, blank=True, help_text='گرادیان "start,end"')
     is_external = models.BooleanField('مهمان خارجی', default=False)
     sms_enabled = models.BooleanField('ارسال پیامک', default=False)
+    # پیش‌فرض روشن است: تا امروز همه می‌توانستند جلسه بسازند و خاموش‌کردنش برای
+    # همه، رفتارِ موجود را می‌شکست. خاموش‌کردنِ موردی از پنل ادمین انجام می‌شود.
+    can_create_meetings = models.BooleanField(
+        'اجازهٔ ایجاد جلسه', default=True,
+        help_text='خاموش که باشد، این کاربر نمی‌تواند جلسه بسازد.',
+    )
 
     class Meta:
         verbose_name = 'کاربر/فرد'
@@ -99,6 +105,12 @@ class Location(models.Model):
         Organization, on_delete=models.CASCADE, related_name='locations', verbose_name='سازمان',
     )
     is_online = models.BooleanField('آنلاین', default=False)
+    # جلسه‌ای که این محل را بگیرد، تا ادمین یا مدیرعامل تاییدش نکند در وضعیت
+    # «در انتظار» می‌ماند و هیچ پیامک و دعوت‌نامه‌ای برایش بیرون نمی‌رود.
+    needs_approval = models.BooleanField(
+        'نیاز به تایید مدیرعامل یا ادمین', default=False,
+        help_text='برای محل‌هایی مثل دفتر مدیرعامل که رزروشان باید تایید شود.',
+    )
     address = models.TextField('نشانی کامل', blank=True)
     lat = models.FloatField('عرض جغرافیایی', null=True, blank=True)
     lng = models.FloatField('طول جغرافیایی', null=True, blank=True)
@@ -203,6 +215,14 @@ class Meeting(models.Model):
     outlook_conflict_at = models.DateTimeField('زمان تعارض', null=True, blank=True)
     outlook_conflict_note = models.CharField('شرح تعارض', max_length=255, blank=True)
 
+    # جلسه‌های یک «سلسلهٔ تکرار» این شناسه را مشترک دارند.
+    #
+    # تکرار به‌شکل چند سطر پیاده شده نه یک قاعدهٔ تکرار، چون هر چیزِ این سامانه
+    # per-meeting است: سطلِ صورت‌جلسه، یادآورِ هر کاربر، رویدادِ Outlook و
+    # تشخیص تداخل. این فیلد فقط برای این است که بشود سلسله را یک‌جا تایید کرد و
+    # به کاربر گفت «جلسهٔ ۲ از ۴».
+    series = models.UUIDField('شناسهٔ سلسلهٔ تکرار', null=True, blank=True, db_index=True)
+
     cancel_reason = models.TextField('دلیل لغو', blank=True)
     cancelled_at = models.DateTimeField('زمان لغو', null=True, blank=True)
     cancelled_by = models.ForeignKey(
@@ -239,6 +259,12 @@ class Meeting(models.Model):
         • **جلسهٔ فقط‌خواندنی هرگز dirty نمی‌شود** — برگزارکننده‌اش بیرون از
           سازمان است و ما اجازهٔ نوشتن روی رویدادش را نداریم.
 
+        • **جلسهٔ در انتظار تایید هم نه.** صفِ ارسال (`dirty_meetings`) تنها
+          جایی است که دعوت‌نامهٔ Exchange از آن بیرون می‌رود؛ اگر جلسه‌ای که
+          هنوز تایید نشده dirty شود، ایمیلِ دعوت به تقویم و موبایل همهٔ
+          شرکت‌کننده‌ها می‌رسد و کلِ دروازهٔ تایید بی‌معنا می‌شود — چیزی که
+          هیچ پیامکی جلویش را نمی‌گرفت.
+
         ارسال هم اینجا انجام نمی‌شود، فقط علامت می‌خورد: مسیر ساخت/ویرایش جلسه
         همین حالا چند تماس پیامکی همزمان دارد؛ افزودن دو وابستگی شبکهٔ بیست‌ثانیه‌ای
         به مسیر کاربر بدترش می‌کند. تایمر هر دقیقه صف را خالی می‌کند، و چند
@@ -249,7 +275,7 @@ class Meeting(models.Model):
         from . import graph
         fields = ['local_changed_at']
         self.local_changed_at = when or timezone.now()
-        if graph.enabled() and not self.outlook_readonly:
+        if graph.enabled() and not self.outlook_readonly and self.status != Meeting.Status.PENDING:
             self.outlook_dirty = True
             fields.append('outlook_dirty')
         if self.pk:
