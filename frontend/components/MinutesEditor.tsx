@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { useStore } from './store';
 import { minuteMeta, toFa, initials, todayISO, remindLabel } from '@/lib/data';
+import { uploadSizeError } from '@/lib/uploads';
 import DatePicker from './DatePicker';
 import DueBadge from './DueBadge';
 import TimePicker from './TimePicker';
@@ -9,7 +10,7 @@ import type { AgendaItem, Meeting, Minute, MinuteType } from '@/lib/types';
 import { minuteIcon, IconDoc, IconPlus, IconTrash, IconCheck, IconClock, IconCall, IconPaperclip, IconEdit, IconList } from './Icons';
 
 /** انواعی که کاربر می‌تواند ثبت کند — بقیه فقط در دادهٔ قدیمی دیده می‌شوند */
-const order: MinuteType[] = ['note', 'reminder'];
+const order: MinuteType[] = ['note', 'reminder', 'letter', 'file'];
 /** انواعی که وضعیت انجام دارند */
 const DONEABLE = new Set<MinuteType>(['reminder', 'call']);
 
@@ -25,8 +26,10 @@ export default function MinutesEditor({ meeting }: { meeting: Meeting }) {
   const [remindDate, setRemindDate] = useState('');   // تاریخ ISO یادآوری
   const [remindHour, setRemindHour] = useState(9);    // ساعت اعشاری یادآوری
   const [agendaItem, setAgendaItem] = useState('');   // اختیاری — این آیتم ذیل کدام بند مطرح شد
+  const [file, setFile] = useState<File | null>(null);
 
   const [saving, setSaving] = useState(false);
+  const isFile = type === 'letter' || type === 'file';
   /**
    * اجازهٔ نوشتن — برای تقویمی که فقط «دیدن»‌اش به ما داده شده، خاموش است.
    *
@@ -38,19 +41,28 @@ export default function MinutesEditor({ meeting }: { meeting: Meeting }) {
   const bucketOf = (pid: string) => list.filter((m) => (pid === 'general' ? !m.participant : m.participant === pid)).length;
 
   async function add() {
-    if (!text.trim()) { store.toast('متن صورت‌جلسه را بنویسید', 'info'); return; }
+    if (!text.trim() && !(isFile && file)) {
+      store.toast(isFile ? 'فایل را انتخاب یا توضیح بنویسید' : 'متن صورت‌جلسه را بنویسید', 'info');
+      return;
+    }
+    if (file) {
+      const err = uploadSizeError(file);
+      if (err) { store.toast(err, 'info'); return; }
+    }
     setSaving(true);
     await store.addMinute({
       meeting: meeting.id,
       participant: activeP === 'general' ? null : activeP,
       type,
-      text: text.trim(),
+      text: text.trim() || (file?.name ?? ''),
       remindDate: type === 'reminder' ? (remindDate || todayISO()) : null,
       remindHour: type === 'reminder' ? remindHour : null,
       agendaItem: agendaItem || null,
+      fileName: file?.name,
+      file: file ?? null,
     });
     setSaving(false);
-    setText(''); setRemindDate(''); setRemindHour(9); setAgendaItem('');
+    setText(''); setRemindDate(''); setRemindHour(9); setAgendaItem(''); setFile(null);
     store.toast(`${minuteMeta[type].label} ثبت شد`, 'ok');
   }
 
@@ -124,6 +136,21 @@ export default function MinutesEditor({ meeting }: { meeting: Meeting }) {
             <div className="field"><label>ساعت یادآوری</label>
               <TimePicker value={remindHour} onChange={setRemindHour} />
             </div>
+          </div>
+        )}
+
+        {isFile && (
+          <div className="extra">
+            <label className="file-btn full">
+              <IconPaperclip size={15} />
+              <span className="fn">{file?.name || (type === 'letter' ? 'انتخاب نامه (تا ۱۰ مگابایت)' : 'انتخاب فایل (تا ۱۰ مگابایت)')}</span>
+              <input type="file" hidden onChange={(e) => {
+                const f = e.target.files?.[0] ?? null;
+                const err = uploadSizeError(f);
+                if (err) { store.toast(err, 'info'); e.target.value = ''; setFile(null); return; }
+                setFile(f);
+              }} />
+            </label>
           </div>
         )}
 
@@ -290,7 +317,10 @@ function MinuteRow({ m, mid, agenda, canWrite }: {
 }
 
 function placeholderFor(t: MinuteType): string {
-  return t === 'reminder' ? 'چه چیزی را باید یادآوری کرد؟' : 'یادداشت آزاد از جلسه…';
+  if (t === 'reminder') return 'چه چیزی را باید یادآوری کرد؟';
+  if (t === 'letter') return 'توضیح نامه (اختیاری)…';
+  if (t === 'file') return 'توضیح فایل (اختیاری)…';
+  return 'یادداشت آزاد از جلسه…';
 }
 function formatClock(ts: number): string {
   const d = new Date(ts);

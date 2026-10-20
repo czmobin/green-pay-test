@@ -134,13 +134,16 @@ class ScopeTests(RoomBookingTestBase):
         self.assertNotIn(16, hours)
         self.assertEqual(cancelled.status, Meeting.Status.CANCELLED)
 
-    def test_a_pending_meeting_does_hold_the_room(self):
-        """رزروِ موقت هم رزرو است؛ وگرنه دو نفر همان ساعت را می‌گیرند."""
+    def test_a_pending_meeting_stays_out_of_room_bookings(self):
+        """تا تایید نشود در نمای رزرو محل دیده نمی‌شود — مثل تقویم و فهرست جلسات.
+
+        تداخلِ ساخت جلسه هنوز PENDING را می‌بیند (`_overlapping`)، تا دو نفر
+        همان ساعت را همزمان نگیرند؛ فقط این نما آن را نشان نمی‌دهد.
+        """
         self.meeting('در انتظار', self.member, self.room_a, 17,
                      status=Meeting.Status.PENDING)
-        row = [r for r in self.bookings(self.member) if r['start'] == 17]
-        self.assertEqual(len(row), 1)
-        self.assertEqual(row[0]['status'], Meeting.Status.PENDING)
+        hours = [r['start'] for r in self.bookings(self.member)]
+        self.assertNotIn(17, hours)
 
     def test_a_meeting_without_a_room_is_not_listed(self):
         begins = timezone.make_aware(

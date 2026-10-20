@@ -74,9 +74,11 @@ interface Store {
   canEdit: (m: Meeting) => boolean;
   createMeeting: (m: NewMeeting) => Promise<Meeting | null>;
   updateMeeting: (id: string, patch: MeetingPatch) => Promise<CreatedMeeting | null>;
-  addAgenda: (meetingId: string, item: { title: string; dur: number }) => Promise<void>;
-  updateAgenda: (meetingId: string, id: string, item: { title?: string; dur?: number }) => Promise<void>;
+  addAgenda: (meetingId: string, item: { title: string; dur: number; file?: File | null }) => Promise<void>;
+  updateAgenda: (meetingId: string, id: string, item: { title?: string; dur?: number; file?: File | null }) => Promise<void>;
   deleteAgenda: (meetingId: string, id: string) => Promise<void>;
+  /** پیوست فایل به خودِ جلسه — سقف ۱۰ مگابایت */
+  attachMeetingFile: (id: string, file: File) => Promise<Meeting | null>;
   respondMeeting: (id: string, accept: boolean) => Promise<void>;
   /** تایید جلسهٔ در انتظار — فقط ادمین و مدیرعامل. سلسلهٔ تکرار یک‌جا. */
   approveMeeting: (id: string) => Promise<void>;
@@ -483,14 +485,16 @@ export default function Providers({ children }: { children: React.ReactNode }) {
   const patchAgenda = (meetingId: string, fn: (list: AgendaItem[]) => AgendaItem[]) =>
     setMeetings((ms) => ms.map((m) => (m.id === meetingId ? { ...m, agenda: fn(m.agenda) } : m)));
 
-  const addAgenda = useCallback(async (meetingId: string, item: { title: string; dur: number }) => {
+  const addAgenda = useCallback(async (meetingId: string, item: { title: string; dur: number; file?: File | null }) => {
     await guarded(async () => {
       const created = await api.createAgenda({ meeting: meetingId, ...item });
       patchAgenda(meetingId, (l) => [...l, created]);
     });
   }, [guarded]);
 
-  const updateAgendaItem = useCallback(async (meetingId: string, id: string, item: { title?: string; dur?: number }) => {
+  const updateAgendaItem = useCallback(async (
+    meetingId: string, id: string, item: { title?: string; dur?: number; file?: File | null },
+  ) => {
     await guarded(async () => {
       const updated = await api.updateAgenda(id, item);
       patchAgenda(meetingId, (l) => l.map((a) => (a.id === id ? updated : a)));
@@ -503,6 +507,13 @@ export default function Providers({ children }: { children: React.ReactNode }) {
       patchAgenda(meetingId, (l) => l.filter((a) => a.id !== id));
     });
   }, [guarded]);
+
+  const attachMeetingFile = useCallback(async (id: string, file: File) =>
+    guarded(async () => {
+      const updated = await api.attachMeetingFile(id, file);
+      upsertMeeting(updated);
+      return updated;
+    }), [guarded]);
 
   /**
    * تایید و ردِ جلسهٔ در انتظار.
@@ -521,7 +532,9 @@ export default function Providers({ children }: { children: React.ReactNode }) {
   const rejectMeeting = useCallback(async (id: string, reason: string) => {
     const done = await guarded(async () => api.rejectMeeting(id, reason));
     if (!done) return;
-    toast('جلسه رد شد — پیامکی فرستاده نشد', 'ok');
+    toast(done.smsSent
+      ? `جلسه رد شد — ${toFa(done.smsSent)} پیامک به سازنده رفت`
+      : 'جلسه رد شد', 'ok');
     await reload({ silent: true });
   }, [guarded, toast, reload]);
 
@@ -746,20 +759,22 @@ export default function Providers({ children }: { children: React.ReactNode }) {
       && (m.organizer === s.owner || m.parts.includes(s.owner)));
   }, [currentUser, role, sharedWithMe]);
 
-  const liveCount = useMemo(() => meetings.filter((m) => m.status !== 'cancelled').length, [meetings]);
+  const isListed = useCallback(
+    (m: Meeting) => m.status !== 'cancelled' && m.status !== 'pending', []);
+
+  const liveCount = useMemo(() => meetings.filter(isListed).length, [meetings, isListed]);
 
   const mineCount = useMemo(
-    () => meetings.filter((m) => m.status !== 'cancelled' && mine(m)).length,
-    [meetings, mine]);
+    () => meetings.filter((m) => isListed(m) && mine(m)).length,
+    [meetings, mine, isListed]);
 
   const ceoCount = useMemo(
-    () => meetings.filter((m) => m.status !== 'cancelled' && isCeoMeeting(m)).length,
-    [meetings, isCeoMeeting]);
+    () => meetings.filter((m) => isListed(m) && isCeoMeeting(m)).length,
+    [meetings, isCeoMeeting, isListed]);
 
   const sharedCount = useMemo(
-    () => meetings.filter((m) => m.status !== 'cancelled'
-      && onSharedCalendar(m, sharedOwnerIds)).length,
-    [meetings, onSharedCalendar, sharedOwnerIds]);
+    () => meetings.filter((m) => isListed(m) && onSharedCalendar(m, sharedOwnerIds)).length,
+    [meetings, onSharedCalendar, sharedOwnerIds, isListed]);
 
   /**
    * فهرست‌های اپ (داشبورد، جلسات، تقویم) جلسهٔ لغوشده را نشان نمی‌دهند؛
@@ -791,7 +806,9 @@ export default function Providers({ children }: { children: React.ReactNode }) {
   }, [meetings]);
 
   const visibleMeetings = useMemo(() => {
-    const live = meetings.filter((m) => m.status !== 'cancelled');
+    // تا تایید نشده در تقویم و فهرست جلسات دیده نشود؛ صفحهٔ تاییدها از
+    // `pendingMeetings` (روی `meetings` خام) تغذیه می‌شود.
+    const live = meetings.filter((m) => m.status !== 'cancelled' && m.status !== 'pending');
     // دامنهٔ اشتراکی پیش از شرط «مدیر است یا نه» می‌آید: کاربر عادی هم می‌تواند
     // گیرندهٔ اشتراک باشد و بدون این، جلسه‌های اشتراکی بی‌صدا دور ریخته می‌شدند.
     if (scope === 'shared') {
@@ -814,7 +831,8 @@ export default function Providers({ children }: { children: React.ReactNode }) {
 
   const myInvites = useMemo(
     () => meetings
-      .filter((m) => m.status !== 'cancelled' && mine(m) && myResponse(m) === 'pending')
+      .filter((m) => m.status !== 'cancelled' && m.status !== 'pending'
+        && mine(m) && myResponse(m) === 'pending')
       .sort((a, b) => a.date.localeCompare(b.date) || a.start - b.start),
     [meetings, mine, myResponse]);
 
@@ -834,6 +852,7 @@ export default function Providers({ children }: { children: React.ReactNode }) {
     meetings, visibleMeetings, minutes, reminders, people, guests, rooms, orgs, orgKinds, categories,
     getMeeting, canEdit, createMeeting, updateMeeting,
     addAgenda, updateAgenda: updateAgendaItem, deleteAgenda: deleteAgendaItem,
+    attachMeetingFile,
     respondMeeting, cancelMeeting,
     approveMeeting, rejectMeeting, pendingMeetings,
     canCreateMeetings, canApproveMeetings,
@@ -860,6 +879,7 @@ export default function Providers({ children }: { children: React.ReactNode }) {
     ready, error, reload, checkNow, refresh, refreshing, holdRefresh, releaseRefresh,
     meetings, visibleMeetings, minutes, reminders, people, guests, rooms, orgs, orgKinds, categories,
     getMeeting, canEdit, createMeeting, updateMeeting, addAgenda, updateAgendaItem, deleteAgendaItem,
+    attachMeetingFile,
     respondMeeting, cancelMeeting, approveMeeting, rejectMeeting, pendingMeetings,
     canCreateMeetings, canApproveMeetings,
     addMinute, deleteMinute, toggleDone, updateMinute,

@@ -229,6 +229,8 @@ export interface NewMinute {
   who?: string;
   phone?: string;
   fileName?: string;
+  /** فایل واقعی پیوست — سقف ۱۰ مگابایت؛ با FormData فرستاده می‌شود */
+  file?: File | null;
   /** بند دستور جلسه‌ای که این آیتم ذیل آن مطرح شد (اختیاری) */
   agendaItem?: string | null;
 }
@@ -355,15 +357,38 @@ export const api = {
     guests?: string[]; room?: string; exclude?: string }) =>
     post<{ conflicts: Conflict[]; roomConflicts: RoomConflict[] }>('/meetings/check-conflicts/', q),
 
-  createAgenda: (a: { meeting: string; title: string; dur: number }) =>
-    post<AgendaItem>('/agenda/', a),
-  updateAgenda: (id: string, a: { title?: string; dur?: number; order?: number }) =>
-    request<AgendaItem>(`/agenda/${id}/`, { method: 'PATCH', body: JSON.stringify(a) }),
+  createAgenda: (a: { meeting: string; title: string; dur: number; file?: File | null }) => {
+    if (a.file) {
+      const body = new FormData();
+      body.append('meeting', a.meeting);
+      body.append('title', a.title);
+      body.append('dur', String(a.dur));
+      body.append('file', a.file);
+      return request<AgendaItem>('/agenda/', { method: 'POST', body, headers: {} }, true, true);
+    }
+    return post<AgendaItem>('/agenda/', { meeting: a.meeting, title: a.title, dur: a.dur });
+  },
+  updateAgenda: (id: string, a: { title?: string; dur?: number; order?: number; file?: File | null }) => {
+    if (a.file) {
+      const body = new FormData();
+      if (a.title !== undefined) body.append('title', a.title);
+      if (a.dur !== undefined) body.append('dur', String(a.dur));
+      if (a.order !== undefined) body.append('order', String(a.order));
+      body.append('file', a.file);
+      return request<AgendaItem>(`/agenda/${id}/`, { method: 'PATCH', body, headers: {} }, true, true);
+    }
+    return request<AgendaItem>(`/agenda/${id}/`, { method: 'PATCH', body: JSON.stringify(a) });
+  },
   deleteAgenda: (id: string) => request<void>(`/agenda/${id}/`, { method: 'DELETE' }),
   respondMeeting: (id: string, accept: boolean) => post<Meeting>(`/meetings/${id}/respond/`, { accept }),
   approveMeeting: (id: string) => post<CreatedMeeting>(`/meetings/${id}/approve/`),
   rejectMeeting: (id: string, reason: string) =>
     post<CreatedMeeting>(`/meetings/${id}/reject/`, { reason }),
+  attachMeetingFile: (id: string, file: File) => {
+    const body = new FormData();
+    body.append('file', file);
+    return request<Meeting>(`/meetings/${id}/attach/`, { method: 'POST', body, headers: {} }, true, true);
+  },
   roomBookings: (q: { from: string; to: string; room?: string }) =>
     request<RoomBooking[]>('/room-bookings/?' + new URLSearchParams(
       Object.entries(q).filter(([, v]) => v) as [string, string][]).toString()),
@@ -375,7 +400,25 @@ export const api = {
   setReminder: (id: string, body: { leadMinutes?: number; enabled?: boolean }) =>
     post<MeetingReminder>(`/meetings/${id}/reminder/`, body),
 
-  createMinute: (m: NewMinute) => post<Minute>('/entries/', m),
+  createMinute: (m: NewMinute) => {
+    if (m.file) {
+      const body = new FormData();
+      body.append('meeting', m.meeting);
+      body.append('type', m.type);
+      body.append('text', m.text ?? '');
+      if (m.participant != null) body.append('participant', m.participant);
+      if (m.remindDate) body.append('remindDate', m.remindDate);
+      if (m.remindHour != null) body.append('remindHour', String(m.remindHour));
+      if (m.when) body.append('when', m.when);
+      if (m.who) body.append('who', m.who);
+      if (m.phone) body.append('phone', m.phone);
+      if (m.agendaItem) body.append('agendaItem', m.agendaItem);
+      if (m.fileName) body.append('fileName', m.fileName);
+      body.append('file', m.file);
+      return request<Minute>('/entries/', { method: 'POST', body, headers: {} }, true, true);
+    }
+    return post<Minute>('/entries/', m);
+  },
   deleteMinute: (id: string) => request<void>(`/entries/${id}/`, { method: 'DELETE' }),
   toggleMinute: (id: string) => post<Minute>(`/entries/${id}/toggle/`),
 

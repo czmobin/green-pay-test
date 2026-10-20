@@ -85,7 +85,7 @@ class ManagerOnlyDeleteMixin:
         instance.delete()
 
 
-HIDDEN_TITLE = 'جلسهٔ دیگر'
+HIDDEN_TITLE = 'جلسه سازمانی'
 
 
 def _overlapping(start, end, exclude_meeting_id=None):
@@ -296,6 +296,49 @@ def notify_cancelled(meeting) -> tuple[int, int]:
     return ok, bad
 
 
+def notify_approval_result(meeting, *, approved: bool, reason: str = '') -> tuple[int, int]:
+    """نتیجهٔ تایید/رد رزرو را فقط به سازندهٔ جلسه پیامک می‌کند.
+
+    شرکت‌کنندگان تا لحظهٔ تایید هیچ خبری از این جلسه نگرفته‌اند؛ رد هم برایشان
+    بی‌معناست. سازنده اما منتظر جواب است — پس چه تایید شود چه رد، به او خبر
+    می‌دهیم. پیامکِ ایجاد برای شرکت‌کنندگان جدا و فقط بعد از تایید می‌رود.
+    """
+    from .jalali import fa_date, fa_digits, fa_weekday
+    from .sms import send_text
+
+    creator = meeting.organizer
+    if not creator or not creator.phone:
+        return 0, 0
+
+    local = timezone.localtime(meeting.start)
+    clock = fa_digits(f'{local.hour:02d}:{local.minute:02d}')
+    when = f'{fa_weekday(local.date())} {fa_date(local.date())} ساعت {clock}'
+    where = meeting.location.name if meeting.location_id else 'جلسهٔ آنلاین'
+    if approved:
+        lines = [f'رزرو محل جلسه «{meeting.title}» تایید شد.',
+                 f'{when}', f'محل: {where}', 'گرین‌پی']
+        tag = 'greenpay-meeting-approved'
+    else:
+        lines = [f'رزرو محل جلسه «{meeting.title}» رد شد.',
+                 f'{when}', f'محل: {where}']
+        if reason:
+            lines.append(f'دلیل: {reason}')
+        lines.append('گرین‌پی')
+        tag = 'greenpay-meeting-rejected'
+    text = '\n'.join(lines)
+    if send_text(creator.phone, text, tag=tag).sent:
+        return 1, 0
+    return 0, 1
+
+
+def _safe_notify_approval_result(meeting, *, approved: bool, reason: str = '') -> tuple[int, int]:
+    try:
+        return notify_approval_result(meeting, approved=approved, reason=reason)
+    except Exception:                                       # noqa: BLE001
+        logger.exception('پیامک نتیجهٔ تایید فرستاده نشد')
+        return 0, 0
+
+
 def reminder_state(meeting, user):
     """
     تنظیم یادآور همین کاربر برای همین جلسه.
@@ -391,7 +434,7 @@ def meetings_queryset(user=None):
     """
     qs = (Meeting.objects
           .select_related('category', 'location', 'organizer')
-          .prefetch_related('meeting_participants', 'agenda')
+          .prefetch_related('meeting_participants', 'agenda__attachments', 'attachments')
           .order_by('start'))
     if user is None or is_admin(user):
         return qs
@@ -492,9 +535,12 @@ def room_bookings(request):
     lo = from_date_hour(begins, 0)
     hi = from_date_hour(ends + timedelta(days=1), 0)
 
+    # `PENDING` مثل `CANCELLED` از این نما کنار می‌رود: تا تایید نشده،
+    # رزرو در تقویم و نمای محل دیده نشود. تداخلِ ساخت جلسه جداگانه از
+    # `_overlapping` هنوز PENDING را می‌بیند تا دو نفر همان ساعت را نگیرند.
     qs = (Meeting.objects
           .filter(start__lt=hi, end__gt=lo)
-          .exclude(status=Meeting.Status.CANCELLED)
+          .exclude(status__in=[Meeting.Status.CANCELLED, Meeting.Status.PENDING])
           .exclude(location__isnull=True)
           .select_related('location')
           .order_by('start'))
@@ -851,10 +897,12 @@ class MeetingViewSet(viewsets.ModelViewSet):
             row.mark_dirty()
 
         nearest = rows[0]
-        sms_ok, sms_bad = _safe_notify_created(nearest, nearest.organizer, len(rows))
+        # اول به سازنده خبر تایید، بعد پیامکِ ایجادِ معوقه به شرکت‌کنندگان.
+        a_ok, a_bad = _safe_notify_approval_result(nearest, approved=True)
+        c_ok, c_bad = _safe_notify_created(nearest, nearest.organizer, len(rows))
         meeting.refresh_from_db()
         data = MeetingSerializer(meeting).data
-        data['smsSent'], data['smsFailed'] = sms_ok, sms_bad
+        data['smsSent'], data['smsFailed'] = a_ok + c_ok, a_bad + c_bad
         data['occurrences'] = [str(row.pk) for row in rows]
         return Response(data)
 
@@ -862,9 +910,8 @@ class MeetingViewSet(viewsets.ModelViewSet):
     def reject(self, request, pk=None):
         """رد جلسهٔ در انتظار تایید — فقط ادمین یا مدیرعامل.
 
-        **هیچ پیامکی نمی‌رود**، برخلاف لغو. شرکت‌کننده هیچ‌وقت خبرِ ایجاد این
-        جلسه را نگرفته بود، پس خبرِ لغوش هم برایش معنا ندارد؛ فقط سازنده در
-        خودِ اپ می‌بیند که رد شده و چرا.
+        شرکت‌کنندگان هیچ‌وقت خبرِ ایجاد نگرفته بودند، پس پیامکِ لغو برایشان
+        نمی‌رود. فقط سازنده از نتیجهٔ رد باخبر می‌شود.
         """
         meeting = self.get_object()
         if not can_approve_meeting(request.user):
@@ -883,11 +930,39 @@ class MeetingViewSet(viewsets.ModelViewSet):
                                     'cancelled_by', 'updated_at'])
             row.reminders.filter(sent_at__isnull=True).update(enabled=False)
 
+        nearest = rows[0]
+        sms_ok, sms_bad = _safe_notify_approval_result(
+            nearest, approved=False, reason=nearest.cancel_reason)
         meeting.refresh_from_db()
         data = MeetingSerializer(meeting).data
-        data['smsSent'] = data['smsFailed'] = 0
+        data['smsSent'], data['smsFailed'] = sms_ok, sms_bad
         data['occurrences'] = [str(row.pk) for row in rows]
         return Response(data)
+
+    @action(detail=True, methods=['post'], url_path='attach')
+    def attach(self, request, pk=None):
+        """پیوست فایل به خودِ جلسه — سقف ۱۰ مگابایت."""
+        from .models import Attachment
+        from .uploads import assert_upload_size
+
+        meeting = self.get_object()
+        assert_can_edit(request.user, meeting)
+        upload = request.FILES.get('file')
+        if not upload:
+            raise ValidationError({'file': 'فایلی فرستاده نشده است.'})
+        assert_upload_size(upload)
+        att = meeting.attachments.first()
+        if att:
+            att.file = upload
+            att.name = upload.name
+            att.uploaded_by = request.user
+            att.save()
+        else:
+            Attachment.objects.create(
+                meeting=meeting, kind=Attachment.Kind.FILE,
+                file=upload, name=upload.name, uploaded_by=request.user)
+        meeting.mark_dirty()
+        return Response(MeetingSerializer(meeting).data)
 
     @action(detail=True, methods=['get', 'post'], url_path='reminder')
     def reminder(self, request, pk=None):
@@ -967,7 +1042,14 @@ class MinuteEntryViewSet(viewsets.ModelViewSet):
     def create(self, request, *args, **kwargs):
         # سریالایزر جلسه را در دامنهٔ دید همین کاربر حل می‌کند (context)، پس
         # جلسهٔ نادیدنی اصلاً اعتبارسنجی نمی‌شود؛ اجازهٔ نوشتن جدا بررسی می‌شود.
-        write = MinuteEntryCreateSerializer(data=request.data, context={'request': request})
+        # فایلِ پیوست از multipart می‌آید (سقف ۱۰ مگابایت در uploads.py).
+        write = MinuteEntryCreateSerializer(
+            data=request.data,
+            context={
+                'request': request,
+                'upload': request.FILES.get('file'),
+                'uploader': request.user,
+            })
         write.is_valid(raise_exception=True)
         assert_can_write_minutes(request.user, write.validated_data['meeting'])
         entry = write.save()
@@ -1030,22 +1112,48 @@ class MinuteEntryViewSet(viewsets.ModelViewSet):
 
 class AgendaItemViewSet(viewsets.ModelViewSet):
     """دستور جلسه — ایجاد/ویرایش/حذف فقط توسط سازندهٔ جلسه، مدیرعامل یا ادمین."""
-    queryset = AgendaItem.objects.select_related('meeting').order_by('order')
+    queryset = AgendaItem.objects.select_related('meeting').prefetch_related('attachments').order_by('order')
     serializer_class = AgendaItemSerializer
 
     def perform_create(self, serializer):
+        from .models import Attachment
+        from .uploads import assert_upload_size
+
         meeting = serializer.validated_data.get('meeting')
         assert_can_edit(self.request.user, meeting)
         last = meeting.agenda.order_by('-order').first()
-        serializer.save(created_by=self.request.user,
-                        order=serializer.validated_data.get('order') or ((last.order if last else 0) + 1))
+        item = serializer.save(
+            created_by=self.request.user,
+            order=serializer.validated_data.get('order') or ((last.order if last else 0) + 1))
+        upload = self.request.FILES.get('file')
+        if upload:
+            assert_upload_size(upload)
+            Attachment.objects.create(
+                agenda_item=item, kind=Attachment.Kind.FILE,
+                file=upload, name=upload.name, uploaded_by=self.request.user)
         # دستور جلسه در بدنهٔ رویداد Outlook می‌رود، پس تغییرش هم باید برود.
         meeting.mark_dirty()
 
     def perform_update(self, serializer):
+        from .models import Attachment
+        from .uploads import assert_upload_size
+
         assert_can_edit(self.request.user, serializer.instance.meeting)
-        serializer.save()
-        serializer.instance.meeting.mark_dirty()
+        item = serializer.save()
+        upload = self.request.FILES.get('file')
+        if upload:
+            assert_upload_size(upload)
+            att = item.attachments.first()
+            if att:
+                att.file = upload
+                att.name = upload.name
+                att.uploaded_by = self.request.user
+                att.save()
+            else:
+                Attachment.objects.create(
+                    agenda_item=item, kind=Attachment.Kind.FILE,
+                    file=upload, name=upload.name, uploaded_by=self.request.user)
+        item.meeting.mark_dirty()
 
     def perform_destroy(self, instance):
         assert_can_edit(self.request.user, instance.meeting)
@@ -1101,8 +1209,9 @@ class PersonViewSet(ManagerOnlyDeleteMixin, viewsets.ModelViewSet):
         upload = request.FILES.get('file')
         if not upload:
             raise ValidationError({'file': 'فایلی فرستاده نشده است.'})
-        if upload.size > 4 * 1024 * 1024:
-            raise ValidationError({'file': 'حجم فایل نباید از ۴ مگابایت بیشتر باشد.'})
+        # درون‌ریزی اکسل سقفِ جداگانه‌ای دارد؛ پیوستِ جلسه ۱۰ مگابایت است.
+        from .uploads import assert_upload_size
+        assert_upload_size(upload, limit=4 * 1024 * 1024)
 
         from .people_import import import_people
         try:

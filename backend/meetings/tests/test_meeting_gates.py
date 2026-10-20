@@ -167,7 +167,8 @@ class ApproveRejectTests(GateTestBase):
         for user in (self.admin, self.ceo):
             Meeting.objects.all().delete()
             meeting = self.pending()
-            with mock.patch('meetings.views.notify_created', return_value=(1, 0)) as sms:
+            with mock.patch('meetings.views.notify_approval_result', return_value=(0, 0)), \
+                 mock.patch('meetings.views.notify_created', return_value=(1, 0)) as sms:
                 res = self.as_(user).post(reverse('meeting-approve', args=[meeting.pk]))
             self.assertEqual(res.status_code, 200, msg=user.username)
             meeting.refresh_from_db()
@@ -176,7 +177,8 @@ class ApproveRejectTests(GateTestBase):
 
     def test_approving_sends_the_creation_sms_that_was_held_back(self):
         meeting = self.pending()
-        with mock.patch('meetings.views.notify_created', return_value=(2, 0)) as sms:
+        with mock.patch('meetings.views.notify_approval_result', return_value=(0, 0)), \
+             mock.patch('meetings.views.notify_created', return_value=(2, 0)) as sms:
             res = self.as_(self.admin).post(reverse('meeting-approve', args=[meeting.pk]))
         self.assertEqual(res.data['smsSent'], 2)
         sms.assert_called_once()
@@ -184,28 +186,46 @@ class ApproveRejectTests(GateTestBase):
     def test_approving_releases_it_to_outlook(self):
         meeting = self.pending()
         with mock.patch('meetings.graph.enabled', return_value=True), \
+             mock.patch('meetings.views.notify_approval_result', return_value=(0, 0)), \
              mock.patch('meetings.views.notify_created', return_value=(0, 0)):
             self.as_(self.admin).post(reverse('meeting-approve', args=[meeting.pk]))
         meeting.refresh_from_db()
         self.assertTrue(meeting.outlook_dirty)
 
-    def test_rejecting_cancels_and_sends_nothing(self):
+    def test_rejecting_cancels_and_sms_goes_only_to_the_creator(self):
+        """شرکت‌کنندگان خبر ایجاد نگرفته‌اند؛ فقط سازنده از رد باخبر می‌شود."""
         meeting = self.pending()
         with mock.patch('meetings.views.notify_cancelled') as cancel_sms, \
-             mock.patch('meetings.views.notify_created') as create_sms:
+             mock.patch('meetings.views.notify_created') as create_sms, \
+             mock.patch('meetings.views.notify_approval_result', return_value=(1, 0)) as decision:
             res = self.as_(self.admin).post(
                 reverse('meeting-reject', args=[meeting.pk]), {'reason': 'اتاق لازم است'},
                 format='json')
         self.assertEqual(res.status_code, 200)
         cancel_sms.assert_not_called()
         create_sms.assert_not_called()
+        decision.assert_called_once()
+        self.assertFalse(decision.call_args.kwargs['approved'])
+        self.assertEqual(res.data['smsSent'], 1)
         meeting.refresh_from_db()
         self.assertEqual(meeting.status, Meeting.Status.CANCELLED)
         self.assertEqual(meeting.cancel_reason, 'اتاق لازم است')
 
+    def test_approving_also_smses_the_creator(self):
+        meeting = self.pending()
+        with mock.patch('meetings.views.notify_approval_result', return_value=(1, 0)) as decision, \
+             mock.patch('meetings.views.notify_created', return_value=(2, 0)) as create_sms:
+            res = self.as_(self.admin).post(reverse('meeting-approve', args=[meeting.pk]))
+        self.assertEqual(res.status_code, 200)
+        decision.assert_called_once()
+        self.assertTrue(decision.call_args.kwargs['approved'])
+        create_sms.assert_called_once()
+        self.assertEqual(res.data['smsSent'], 3)
+
     def test_approving_twice_is_refused(self):
         meeting = self.pending()
-        with mock.patch('meetings.views.notify_created', return_value=(0, 0)):
+        with mock.patch('meetings.views.notify_approval_result', return_value=(0, 0)), \
+             mock.patch('meetings.views.notify_created', return_value=(0, 0)):
             self.as_(self.admin).post(reverse('meeting-approve', args=[meeting.pk]))
         res = self.as_(self.admin).post(reverse('meeting-approve', args=[meeting.pk]))
         self.assertEqual(res.status_code, 400)
@@ -216,7 +236,8 @@ class ApproveRejectTests(GateTestBase):
         self.assertGreater(total, 1)
         first = Meeting.objects.order_by('start').first()
 
-        with mock.patch('meetings.views.notify_created', return_value=(1, 0)) as sms:
+        with mock.patch('meetings.views.notify_approval_result', return_value=(0, 0)), \
+             mock.patch('meetings.views.notify_created', return_value=(1, 0)) as sms:
             res = self.as_(self.admin).post(reverse('meeting-approve', args=[first.pk]))
         self.assertEqual(res.status_code, 200)
         self.assertEqual(
