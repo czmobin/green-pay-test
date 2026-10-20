@@ -1604,6 +1604,8 @@ select.field-in option{direction:rtl;text-align:right}
 /* فاصلهٔ یادآور هنگام ساخت جلسه */
 .rl-picks{display:flex;flex-wrap:wrap;gap:6px}
 .rl-picks .chip-btn{padding:6px 11px;font-size:12px}
+/* فاصلهٔ عمودی بین ردیف روزهای تکرار و کنترل «تعداد هفته» */
+.rl-picks + .rl-picks{margin-top:12px}
 /* فاصلهٔ دلخواهِ یادآور — فقط با زدن «دلخواه» باز می‌شود */
 .rl-custom{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-top:9px;padding:10px 12px;
   border:1px solid var(--line);border-radius:12px;background:var(--panel-2)}

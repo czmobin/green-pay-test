@@ -10,9 +10,10 @@ import CancelMeetingDialog from '@/components/CancelMeetingDialog';
 import LocationDialog from '@/components/LocationDialog';
 import { useReveal } from '@/components/useReveal';
 import { statusLabels, fmtTime, initials, toFa, priorityLabels, priorityColor, faDate, faWeekdayOf, isUrl, meetPlatform, meetingColor } from '@/lib/data';
+import { uploadSizeError } from '@/lib/uploads';
 import {
   IconBack, IconClock, IconMapPin, IconUsers, IconList, IconChevron, IconVideo, IconEdit,
-  IconX, IconEye, IconAlert, IconCheck, IconShare,
+  IconX, IconEye, IconAlert, IconCheck, IconShare, IconPaperclip,
 } from '@/components/Icons';
 
 export default function MeetingDetail() {
@@ -94,6 +95,28 @@ export default function MeetingDetail() {
 
       <div className="detail-head">
         <div className="hrow"><h1>{m.title}</h1></div>
+        {(m.fileName || store.canEdit(m)) && m.status !== 'cancelled' && (
+          <div className="meet-file" style={{ marginTop: 8, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            {m.fileName && (
+              <span className="file-chip"><IconPaperclip size={12} />{m.fileName}</span>
+            )}
+            {store.canEdit(m) && (
+              <label className="file-btn" style={{ padding: '6px 10px', fontSize: 12 }}>
+                <IconPaperclip size={13} />
+                <span className="fn">{m.fileName ? 'تعویض پیوست' : 'پیوست جلسه (تا ۱۰ مگابایت)'}</span>
+                <input type="file" hidden onChange={async (e) => {
+                  const f = e.target.files?.[0];
+                  e.target.value = '';
+                  if (!f) return;
+                  const err = uploadSizeError(f);
+                  if (err) { store.toast(err, 'info'); return; }
+                  const ok = await store.attachMeetingFile(m.id, f);
+                  if (ok) store.toast('پیوست جلسه ذخیره شد', 'ok');
+                }} />
+              </label>
+            )}
+          </div>
+        )}
         <div className="meta-grid">
           <div className="meta-box">
             <small><IconClock size={13} />زمان</small>

@@ -2,8 +2,9 @@
 import React, { useState } from 'react';
 import { useStore } from './store';
 import { toFa } from '@/lib/data';
+import { uploadSizeError } from '@/lib/uploads';
 import type { Meeting } from '@/lib/types';
-import { IconPlus, IconTrash, IconCheck, IconX, IconEdit } from './Icons';
+import { IconPlus, IconTrash, IconCheck, IconX, IconEdit, IconPaperclip } from './Icons';
 
 /**
  * دستور جلسه — فهرست موضوعات ذیل جلسه.
@@ -16,6 +17,7 @@ export default function AgendaEditor({ meeting }: { meeting: Meeting }) {
 
   const [title, setTitle] = useState('');
   const [dur, setDur] = useState(15);
+  const [file, setFile] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState('');
@@ -26,10 +28,13 @@ export default function AgendaEditor({ meeting }: { meeting: Meeting }) {
   async function add(e: React.FormEvent) {
     e.preventDefault();
     if (!title.trim()) { store.toast('موضوع بند را بنویسید', 'info'); return; }
+    const err = uploadSizeError(file);
+    if (err) { store.toast(err, 'info'); return; }
     setBusy(true);
-    await store.addAgenda(meeting.id, { title: title.trim(), dur });
+    await store.addAgenda(meeting.id, { title: title.trim(), dur, file });
     setBusy(false);
     setTitle('');
+    setFile(null);
   }
 
   function startEdit(id: string, t: string, d: number) {
@@ -75,6 +80,11 @@ export default function AgendaEditor({ meeting }: { meeting: Meeting }) {
                 <>
                   <span>{a.title}</span>
                   <span className="dur num">{toFa(a.dur)} دقیقه</span>
+                  {a.fileName && (
+                    <span className="file-chip" title={a.fileName}>
+                      <IconPaperclip size={12} />{a.fileName}
+                    </span>
+                  )}
                   {editable && (
                     <span className="ag-tools">
                       <button className="ag-act" onClick={() => startEdit(a.id, a.title, a.dur)} aria-label="ویرایش"><IconEdit size={14} /></button>
@@ -103,6 +113,16 @@ export default function AgendaEditor({ meeting }: { meeting: Meeting }) {
               value={dur} onChange={(e) => setDur(Number(e.target.value))} aria-label="مدت به دقیقه" />
             <i>دقیقه</i>
           </span>
+          <label className="file-btn" title="پیوست تا ۱۰ مگابایت">
+            <IconPaperclip size={14} />
+            <span className="fn">{file?.name || 'پیوست'}</span>
+            <input type="file" hidden onChange={(e) => {
+              const f = e.target.files?.[0] ?? null;
+              const err = uploadSizeError(f);
+              if (err) { store.toast(err, 'info'); e.target.value = ''; setFile(null); return; }
+              setFile(f);
+            }} />
+          </label>
           <button className="btn btn-primary" type="submit" disabled={busy}>
             <IconPlus size={15} />{busy ? '…' : 'افزودن'}
           </button>

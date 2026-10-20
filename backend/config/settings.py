@@ -154,6 +154,12 @@ STATIC_ROOT = BASE_DIR / 'staticfiles'
 MEDIA_URL = 'media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
+# سقف پیوستِ جلسه / صورت‌جلسه / دستورجلسه (۱۰ مگابایت). nginx هم
+# `client_max_body_size` بزرگ‌تری دارد؛ این محدودیتِ خودِ اپ است.
+MAX_UPLOAD_BYTES = int(os.environ.get('MAX_UPLOAD_BYTES', str(10 * 1024 * 1024)))
+DATA_UPLOAD_MAX_MEMORY_SIZE = MAX_UPLOAD_BYTES
+FILE_UPLOAD_MAX_MEMORY_SIZE = MAX_UPLOAD_BYTES
+
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # --- API ---

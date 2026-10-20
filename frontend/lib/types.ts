@@ -86,6 +86,8 @@ export interface AgendaItem {
   title: string;
   dur: number; // دقیقه
   order?: number;
+  /** نام فایل پیوست (سقف ۱۰ مگابایت) */
+  fileName?: string | null;
 }
 
 export interface Meeting {
@@ -111,6 +113,8 @@ export interface Meeting {
   /** نوبت‌های یک سلسلهٔ تکرار این شناسه را مشترک دارند. */
   series?: string | null;
   agenda: AgendaItem[];
+  /** نام فایل پیوست خودِ جلسه (سقف ۱۰ مگابایت) */
+  fileName?: string | null;
   /** با Outlook همگام است — ویرایش فقط دستِ سازنده و ادمین */
   outlookSynced?: boolean;
   /** برگزارکننده‌اش بیرون از سازمان است — در اپ فقط خوانده می‌شود */

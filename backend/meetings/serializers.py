@@ -156,11 +156,16 @@ class AgendaItemSerializer(serializers.ModelSerializer):
     id = serializers.CharField(source='pk', read_only=True)
     dur = serializers.IntegerField(source='duration_minutes')
     meeting = serializers.PrimaryKeyRelatedField(queryset=Meeting.objects.all(), write_only=True, required=False)
+    fileName = serializers.SerializerMethodField()
 
     class Meta:
         model = AgendaItem
-        fields = ['id', 'meeting', 'order', 'title', 'dur']
+        fields = ['id', 'meeting', 'order', 'title', 'dur', 'fileName']
         extra_kwargs = {'order': {'required': False}}
+
+    def get_fileName(self, obj):
+        att = obj.attachments.first()
+        return (att.name or (att.file.name.rsplit('/', 1)[-1] if att.file else '')) if att else None
 
 
 class MeetingSerializer(serializers.ModelSerializer):
@@ -185,13 +190,18 @@ class MeetingSerializer(serializers.ModelSerializer):
     # نشان می‌دهد که سرور ردش می‌کند.
     outlookSynced = serializers.BooleanField(source='outlook_synced', read_only=True)
     outlookReadonly = serializers.BooleanField(source='outlook_readonly', read_only=True)
+    fileName = serializers.SerializerMethodField()
 
     class Meta:
         model = Meeting
         fields = ['id', 'title', 'category', 'type', 'status', 'priority', 'date', 'start', 'end',
                   'room', 'organizer', 'parts', 'guests', 'partStatus', 'meetLink',
                   'agenda', 'cancelReason', 'cancelledAt', 'cancelledBy',
-                  'outlookSynced', 'outlookReadonly', 'series']
+                  'outlookSynced', 'outlookReadonly', 'series', 'fileName']
+
+    def get_fileName(self, obj):
+        att = obj.attachments.first()
+        return (att.name or (att.file.name.rsplit('/', 1)[-1] if att.file else '')) if att else None
 
     def get_cancelledAt(self, obj):
         return int(obj.cancelled_at.timestamp() * 1000) if obj.cancelled_at else None
@@ -437,6 +447,8 @@ class MinuteEntryCreateSerializer(serializers.Serializer):
         queryset=AgendaItem.objects.all(), required=False, allow_null=True, default=None)
 
     def create(self, validated):
+        from .uploads import assert_upload_size
+
         minutes, _ = Minutes.objects.get_or_create(
             meeting=validated['meeting'], participant=validated.get('participant'))
         remind_at = None
@@ -453,11 +465,16 @@ class MinuteEntryCreateSerializer(serializers.Serializer):
             agenda_item=validated.get('agendaItem'),
             is_done=False,
         )
-        name = validated.get('fileName', '')
-        if name:
+        upload = self.context.get('upload')
+        name = validated.get('fileName', '') or (getattr(upload, 'name', '') if upload else '')
+        if upload:
+            assert_upload_size(upload)
+        if name or upload:
             Attachment.objects.create(
-                minutes=minutes, entry=entry, name=name,
+                minutes=minutes, entry=entry, name=name or '',
+                file=upload if upload else '',
                 kind=Attachment.Kind.LETTER if validated['type'] == 'letter' else Attachment.Kind.FILE,
+                uploaded_by=self.context.get('uploader'),
             )
         return entry
 

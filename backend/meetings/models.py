@@ -408,17 +408,28 @@ class MinuteEntry(models.Model):
 
 
 class Attachment(models.Model):
-    """پیوست نامه/فایل متصل به یک صورت‌جلسه (و به‌صورت اختیاری یک آیتم)."""
+    """پیوست فایل — به جلسه، بند دستور جلسه، یا آیتم صورت‌جلسه وصل می‌شود.
+
+    دقیقاً یکی از والدین باید پر باشد. سقف حجم در `uploads.assert_upload_size`
+    و `settings.MAX_UPLOAD_BYTES` است (۱۰ مگابایت).
+    """
     class Kind(models.TextChoices):
         LETTER = 'letter', 'نامه'
         FILE = 'file', 'فایل'
 
-    minutes = models.ForeignKey(Minutes, on_delete=models.CASCADE, related_name='attachments')
+    minutes = models.ForeignKey(
+        Minutes, null=True, blank=True, on_delete=models.CASCADE, related_name='attachments',
+    )
     entry = models.ForeignKey(
         MinuteEntry, null=True, blank=True, on_delete=models.CASCADE, related_name='attachments',
     )
+    meeting = models.ForeignKey(
+        'Meeting', null=True, blank=True, on_delete=models.CASCADE, related_name='attachments',
+    )
+    agenda_item = models.ForeignKey(
+        'AgendaItem', null=True, blank=True, on_delete=models.CASCADE, related_name='attachments',
+    )
     kind = models.CharField('نوع', max_length=10, choices=Kind.choices, default=Kind.FILE)
-    # تا پیش از آپلود واقعی، رکورد فقط نام فایل انتخاب‌شده را نگه می‌دارد
     file = models.FileField('فایل', upload_to='attachments/%Y/%m/', blank=True)
     name = models.CharField('نام نمایشی', max_length=255, blank=True)
     uploaded_by = models.ForeignKey(
