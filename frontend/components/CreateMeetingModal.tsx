@@ -2,9 +2,9 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useStore } from './store';
-import { typeLabels, toFa, fmtTime, normalizeFa, priorityLabels, priorityColor, todayISO, minuteMeta, isoToJ } from '@/lib/data';
+import { typeLabels, toFa, fmtTime, normalizeFa, priorityLabels, priorityColor, todayISO, isoToJ } from '@/lib/data';
 import { jWeekdaysShort, faWeekday } from '@/lib/jalali';
-import type { MeetingType, MinuteType, Priority } from '@/lib/types';
+import type { MeetingType, Priority } from '@/lib/types';
 import { api, type Conflict, type RoomConflict } from '@/lib/api';
 import DatePicker from './DatePicker';
 import { useSheet } from './useSheet';
@@ -60,11 +60,11 @@ export default function CreateMeetingModal() {
   // جلسهٔ تک‌نوبتیِ همیشگی.
   const [repeatDays, setRepeatDays] = useState<number[]>([]);
   const [repeatWeeks, setRepeatWeeks] = useState(1);
-  // صورت‌جلسهٔ از پیش‌نوشته — تا جلسه ساخته نشود جایی برای ثبتش نیست، پس
+  // دستور جلسه — تا جلسه ساخته نشود شناسه‌ای نیست که بند به آن بچسبد، پس
   // این‌جا محلی جمع می‌شود و پس از ساخت فرستاده می‌شود.
-  const [notes, setNotes] = useState<{ type: MinuteType; text: string }[]>([]);
-  const [noteType, setNoteType] = useState<MinuteType>('note');
-  const [noteText, setNoteText] = useState('');
+  const [agenda, setAgenda] = useState<{ title: string; dur: number }[]>([]);
+  const [agTitle, setAgTitle] = useState('');
+  const [agDur, setAgDur] = useState(15);
   const [liveConflicts, setLiveConflicts] = useState<Conflict[]>([]);
   const [liveRoomConflicts, setLiveRoomConflicts] = useState<RoomConflict[]>([]);
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -171,8 +171,15 @@ export default function CreateMeetingModal() {
     setLeadCustom(false); setLeadText('');
     setLiveConflicts([]); setLiveRoomConflicts([]);
     setRepeatDays([]); setRepeatWeeks(1);
-    setNotes([]); setNoteType('note'); setNoteText('');
+    setAgenda([]); setAgTitle(''); setAgDur(15);
   }
+  function addAgendaRow() {
+    const title = agTitle.trim();
+    if (!title) return;
+    setAgenda((v) => [...v, { title, dur: agDur }]);
+    setAgTitle('');
+  }
+
   function onStart(v: number) { setStart(v); if (end <= v) setEnd(Math.min(v + 1, 23.75)); }
   function toggle(id: string) {
     setParts(() => {
@@ -209,29 +216,24 @@ export default function CreateMeetingModal() {
     });
     if (!created) { setSaving(false); return; }
 
-    // صورت‌جلسهٔ از پیش‌نوشته، **پس از** ساختِ جلسه ثبت می‌شود: پیش از آن
-    // شناسه‌ای نیست که آیتم به آن بچسبد. سطلِ عمومی (`participant: null`) —
-    // موقع ساخت، شرکت‌کننده‌ها همان لحظه انتخاب می‌شوند و سطل‌بندیِ هر نفر
-    // گیج‌کننده است؛ صورت‌جلسهٔ هر نفر سر جایش در صفحهٔ جلسه می‌ماند.
+    // دستور جلسه **پس از** ساختِ جلسه ثبت می‌شود: پیش از آن شناسه‌ای نیست
+    // که بند به آن بچسبد. ترتیب حفظ می‌شود، پس ترتیبی (نه موازی) فرستاده
+    // می‌شوند — سرور `order` را از ترتیبِ رسیدن می‌گیرد.
     //
     // شکستش ساختِ جلسه را شکست‌خورده نشان نمی‌دهد — جلسه ساخته شده و
     // بی‌خبر‌گذاشتنِ کاربر بدتر از یک توستِ جداگانه است.
-    let notesFailed = false;
-    for (const note of notes) {
+    let agendaFailed = false;
+    for (const item of agenda) {
       try {
-        await api.createMinute({
-          meeting: created.id, participant: null, type: note.type, text: note.text,
-          remindDate: note.type === 'reminder' ? selectedDate : null,
-          remindHour: note.type === 'reminder' ? Math.floor(start) : null,
-        });
-      } catch { notesFailed = true; }
+        await api.createAgenda({ meeting: created.id, title: item.title, dur: item.dur });
+      } catch { agendaFailed = true; }
     }
     setSaving(false);
 
     justCreated.current = true;
     dismiss();
     const pending = created.status === 'pending';
-    if (notesFailed) store.toast('جلسه ساخته شد، ولی ثبت صورت‌جلسه ناموفق بود', 'info');
+    if (agendaFailed) store.toast('جلسه ساخته شد، ولی ثبت دستور جلسه ناموفق بود', 'info');
     else if (pending) store.toast('جلسه ثبت شد و در انتظار تایید است', 'ok');
     else store.toast('جلسهٔ جدید ساخته شد', 'ok');
     router.push(`/meetings/${created.id}`);
@@ -481,62 +483,56 @@ export default function CreateMeetingModal() {
             )}
           </div>
 
-          {/* صورت‌جلسهٔ از پیش‌نوشته.
-              فقط سطلِ «عمومی» و فقط دو نوعِ یادداشت و یادآور — همان دو تایی که
-              `MinutesEditor` ساختنی کرده. صورت‌جلسهٔ هر شرکت‌کننده سر جایش در
-              صفحهٔ جلسه می‌ماند: این‌جا شرکت‌کننده‌ها همین حالا انتخاب می‌شوند
-              و سطل‌بندیِ هر نفر گیج‌کننده است. */}
+          {/* دستور جلسه — بندهای از پیش‌تعیین‌شده.
+              تا جلسه ساخته نشود شناسه‌ای نیست که بند به آن بچسبد، پس این‌جا
+              محلی جمع می‌شوند و پس از ساخت فرستاده می‌شوند. ویرایش و ترتیب‌دهیِ
+              بعدی سر جایش در صفحهٔ جلسه است (`AgendaEditor`). */}
           <div className="field">
-            <label>صورت‌جلسه <small className="fhint-inline">اختیاری — بعداً هم می‌شود</small></label>
+            <label>
+              دستور جلسه <small className="fhint-inline">اختیاری — بعداً هم می‌شود</small>
+            </label>
 
-            {notes.length > 0 && (
+            {agenda.length > 0 && (
               <ul className="pre-notes">
-                {notes.map((n, i) => (
-                  <li key={`${n.type}-${i}`}>
-                    <span className="pn-type" style={{ color: minuteMeta[n.type].color }}>
-                      {minuteMeta[n.type].label}
-                    </span>
-                    <span className="pn-text">{n.text}</span>
-                    <button type="button" aria-label="حذف"
-                      onClick={() => setNotes((v) => v.filter((_, x) => x !== i))}>
+                {agenda.map((a, i) => (
+                  <li key={`${a.title}-${i}`}>
+                    <span className="pn-type">{toFa(i + 1)}.</span>
+                    <span className="pn-text">{a.title}</span>
+                    <span className="pn-dur num">{toFa(a.dur)} دقیقه</span>
+                    <button type="button" aria-label="حذف بند"
+                      onClick={() => setAgenda((v) => v.filter((_, x) => x !== i))}>
                       <IconX size={13} />
                     </button>
                   </li>
                 ))}
+                <li className="pn-total">
+                  <span className="pn-text">جمع</span>
+                  <span className="pn-dur num">
+                    {toFa(agenda.reduce((t, a) => t + a.dur, 0))} دقیقه
+                  </span>
+                </li>
               </ul>
             )}
 
-            <div className="rl-picks">
-              {(['note', 'reminder'] as MinuteType[]).map((t) => (
-                <button type="button" key={t}
-                  className={'chip-btn' + (noteType === t ? ' active' : '')}
-                  onClick={() => setNoteType(t)}>
-                  {minuteMeta[t].label}
-                </button>
-              ))}
-            </div>
-
             <div className="pn-add">
-              <input className="field-in" value={noteText} placeholder="متن صورت‌جلسه…"
-                aria-label="متن صورت‌جلسه"
-                onChange={(e) => setNoteText(e.target.value)}
+              <input className="field-in" value={agTitle} placeholder="موضوع بند…"
+                aria-label="موضوع بند دستور جلسه"
+                onChange={(e) => setAgTitle(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key !== 'Enter') return;
-                  // Enter این‌جا آیتم اضافه می‌کند، نه اینکه فرم را ثبت کند —
-                  // وگرنه نوشتنِ یک یادداشت جلسه را نیمه‌کاره ثبت می‌کرد.
+                  // Enter بند اضافه می‌کند، نه اینکه فرم را ثبت کند — وگرنه
+                  // نوشتنِ یک بند، جلسه را نیمه‌کاره ثبت می‌کرد.
                   e.preventDefault();
-                  const text = noteText.trim();
-                  if (!text) return;
-                  setNotes((v) => [...v, { type: noteType, text }]);
-                  setNoteText('');
+                  addAgendaRow();
                 }} />
-              <button type="button" className="btn btn-ghost" disabled={!noteText.trim()}
-                onClick={() => {
-                  const text = noteText.trim();
-                  if (!text) return;
-                  setNotes((v) => [...v, { type: noteType, text }]);
-                  setNoteText('');
-                }}>
+              <span className="ag-dur-wrap">
+                <input className="field-in ag-dur num" type="number" min={5} max={240} step={5}
+                  value={agDur} aria-label="مدت بند به دقیقه"
+                  onChange={(e) => setAgDur(Math.max(5, Math.min(240, Number(e.target.value) || 5)))} />
+                <i>دقیقه</i>
+              </span>
+              <button type="button" className="btn btn-ghost" disabled={!agTitle.trim()}
+                onClick={addAgendaRow}>
                 <IconPlus size={15} />افزودن
               </button>
             </div>

@@ -73,8 +73,18 @@ class LocationAdmin(admin.ModelAdmin):
     list_display = ('name', 'organization', 'capacity', 'has_map', 'needs_approval')
     list_filter = ('organization', 'is_online', 'needs_approval')
     search_fields = ('name', 'address')
+    # `needs_approval` باید در `fieldsets` هم باشد، نه فقط در `list_display`:
+    # این کلاس fieldsets صریح دارد و هر فیلدی که در آن نباشد در فرمِ ویرایش
+    # **رندر نمی‌شود** — یعنی ستونش در فهرست دیده می‌شود ولی تیکش را نمی‌شود زد.
     fieldsets = (
         (None, {'fields': ('name', 'organization', 'capacity', 'is_online')}),
+        ('تایید رزرو', {
+            'fields': ('needs_approval',),
+            'description': 'با روشن‌کردن این گزینه، هر جلسه‌ای که این محل را بگیرد در '
+                           'وضعیت «در انتظار» می‌ماند تا ادمین یا مدیرعامل تاییدش کند. '
+                           'تا تایید نشود هیچ پیامکی برای شرکت‌کنندگان نمی‌رود و جلسه '
+                           'به تقویم Outlook هم فرستاده نمی‌شود.',
+        }),
         ('نشانی و نقشه', {
             'fields': ('address', 'lat', 'lng'),
             'description': 'مختصات را از نشان یا گوگل‌مپ کپی کنید؛ با داشتن آن، '
