@@ -768,9 +768,14 @@ select.field-in option{direction:rtl;text-align:right}
 .ag-act.del:hover{color:var(--danger);background:var(--danger-soft)}
 .ag-tools{display:flex;gap:2px;margin-inline-start:4px}
 .ag-total{margin-top:8px;text-align:end;font-size:11.5px;color:var(--muted);font-weight:700}
-.ag-add{display:flex;gap:8px;margin-top:12px;padding-top:12px;border-top:1px dashed var(--line)}
-.ag-add .field-in{flex:1;min-width:0;padding:9px 11px;font-size:13px}
-.ag-add .btn{flex:0 0 auto;white-space:nowrap}
+/* ردیف افزودن بند: با پیوست و مدت، در عرض تنگ دکمهٔ «افزودن» از لبه
+   بریده می‌شد (disclosure هم overflow:hidden دارد). wrap + جلوگیری از
+   جمع‌شدن دکمه، کل کنترل را دیدنی و قابل کلیک نگه می‌دارد. */
+.ag-add{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:12px;padding-top:12px;border-top:1px dashed var(--line)}
+.ag-add .field-in{flex:1 1 140px;min-width:0;padding:9px 11px;font-size:13px}
+.ag-add .ag-dur-wrap{flex:0 0 auto}
+.ag-add .file-btn{flex:0 1 auto;min-width:0;max-width:100%;padding:8px 11px;font-size:12.5px}
+.ag-add .btn{flex:0 0 auto;white-space:nowrap;position:relative;z-index:1}
 
 /* دکمهٔ ویرایش جلسه */
 .edit-btn{margin-inline-start:auto;width:36px;height:36px;border-radius:10px;flex:0 0 auto;

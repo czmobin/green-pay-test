@@ -292,6 +292,39 @@ class RecurrenceTests(GateTestBase):
         self.assertEqual(res.status_code, 400)
         self.assertEqual(Meeting.objects.count(), 0)
 
+    def test_biweekly_skips_every_other_week(self):
+        """«یک هفته در میان»: نوبت‌ها دو هفته‌ای جلو می‌روند، نه هفتگی."""
+        day = timezone.localdate() + timedelta(days=10)
+        # از خودِ روزِ انتخابی فقط همان روزِ هفته را می‌خواهیم تا شمارش ساده باشد.
+        weekday = (day.weekday() + 2) % 7
+        res = self.create_as(
+            self.member, date=day.isoformat(),
+            repeatWeekdays=[weekday], repeatWeeks=3, repeatInterval=2)
+        self.assertEqual(res.status_code, 201, res.data)
+        rows = list(Meeting.objects.order_by('start'))
+        self.assertEqual(len(rows), 3)
+        dates = [timezone.localtime(r.start).date() for r in rows]
+        self.assertEqual(dates[0], day)
+        self.assertEqual((dates[1] - dates[0]).days, 14)
+        self.assertEqual((dates[2] - dates[1]).days, 14)
+
+    def test_weekly_interval_is_still_seven_days(self):
+        """قرینه: فاصلهٔ پیش‌فرض همان هفتهٔ کامل بماند."""
+        day = timezone.localdate() + timedelta(days=10)
+        weekday = (day.weekday() + 2) % 7
+        res = self.create_as(
+            self.member, date=day.isoformat(),
+            repeatWeekdays=[weekday], repeatWeeks=3, repeatInterval=1)
+        self.assertEqual(res.status_code, 201, res.data)
+        dates = [timezone.localtime(r.start).date()
+                 for r in Meeting.objects.order_by('start')]
+        self.assertEqual((dates[1] - dates[0]).days, 7)
+
+    def test_interval_above_two_is_refused(self):
+        res = self.create_as(self.member, repeatWeekdays=[0], repeatWeeks=2, repeatInterval=3)
+        self.assertEqual(res.status_code, 400)
+        self.assertEqual(Meeting.objects.count(), 0)
+
     def test_siblings_do_not_report_each_other_as_conflicts(self):
         """`exclude_meeting_id` مفرد است؛ بی این کنارگذاری، هر نوبت خواهرهایش را هشدار می‌داد."""
         res = self.create_as(self.member, room=str(self.free_room.pk),
