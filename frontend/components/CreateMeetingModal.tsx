@@ -56,10 +56,11 @@ export default function CreateMeetingModal() {
   const [gName, setGName] = useState('');
   const [gOrg, setGOrg] = useState('');
   const [gBusy, setGBusy] = useState(false);
-  // تکرار: روزهای هفته (۰=شنبه) و تعداد هفته. فهرست خالی + یک هفته یعنی
-  // جلسهٔ تک‌نوبتیِ همیشگی.
+  // تکرار: روزهای هفته (۰=شنبه)، تعداد نوبت، و فاصله (۱=هفتگی، ۲=یک هفته در میان).
+  // فهرست خالی + یک نوبت یعنی جلسهٔ تک‌نوبتیِ همیشگی.
   const [repeatDays, setRepeatDays] = useState<number[]>([]);
   const [repeatWeeks, setRepeatWeeks] = useState(1);
+  const [repeatInterval, setRepeatInterval] = useState<1 | 2>(1);
   // دستور جلسه — تا جلسه ساخته نشود شناسه‌ای نیست که بند به آن بچسبد، پس
   // این‌جا محلی جمع می‌شود و پس از ساخت فرستاده می‌شود.
   const [agenda, setAgenda] = useState<{ title: string; dur: number }[]>([]);
@@ -126,6 +127,7 @@ export default function CreateMeetingModal() {
    *
    * عمداً تکرار شده تا کاربر **پیش از** ثبت بداند چه چیزی می‌سازد؛ مرجع
    * همان سرور است و اگر قاعده عوض شد، این هم باید عوض شود.
+   * `repeatInterval` فقط فاصلهٔ تقویمی نوبت‌ها را عوض می‌کند، نه تعدادشان.
    */
   const occurrenceCount = useMemo(() => {
     const days = Array.from(new Set([baseWeekday, ...repeatDays]));
@@ -170,7 +172,7 @@ export default function CreateMeetingModal() {
     setGuests([]); setGuestOpen(false); setGName(''); setGOrg(''); setReminderLead(60);
     setLeadCustom(false); setLeadText('');
     setLiveConflicts([]); setLiveRoomConflicts([]);
-    setRepeatDays([]); setRepeatWeeks(1);
+    setRepeatDays([]); setRepeatWeeks(1); setRepeatInterval(1);
     setAgenda([]); setAgTitle(''); setAgDur(15);
   }
   function addAgendaRow() {
@@ -213,6 +215,7 @@ export default function CreateMeetingModal() {
       room: selectedRoom || '', organizer: store.currentUser, parts: selectedParts,
       guests, priority, reminderLead, meetLink: type === 'online' ? meetLink.trim() : '',
       repeatWeekdays: repeatDays, repeatWeeks,
+      repeatInterval: repeatWeeks > 1 || repeatDays.length > 0 ? repeatInterval : 1,
     });
     if (!created) { setSaving(false); return; }
 
@@ -287,9 +290,10 @@ export default function CreateMeetingModal() {
             </div>
           </div>
 
-          {/* تکرار هفتگی — سقف چهار هفته (روی سرور هم بسته است).
+          {/* تکرار — سقف چهار نوبت (روی سرور هم بسته است).
               روزِ خودِ تاریخِ انتخابی همیشه تیک‌خورده نشان داده می‌شود، چون
-              جلسه در آن روز حتماً ساخته می‌شود؛ تیکِ خاموشِ آن گمراه‌کننده بود. */}
+              جلسه در آن روز حتماً ساخته می‌شود؛ تیکِ خاموشِ آن گمراه‌کننده بود.
+              «یک هفته در میان» فاصلهٔ نوبت‌ها را دو هفته می‌کند. */}
           <div className="field">
             <label>تکرار هفتگی <small className="fhint-inline">اختیاری</small></label>
             <div className="rl-picks">
@@ -319,10 +323,28 @@ export default function CreateMeetingModal() {
                 </button>
               ))}
             </div>
+            {(repeatWeeks > 1 || repeatDays.length > 0) && (
+              <div className="rl-picks" role="group" aria-label="فاصلهٔ تکرار">
+                <button type="button"
+                  className={'chip-btn' + (repeatInterval === 1 ? ' active' : '')}
+                  aria-pressed={repeatInterval === 1}
+                  onClick={() => setRepeatInterval(1)}>
+                  هر هفته
+                </button>
+                <button type="button"
+                  className={'chip-btn' + (repeatInterval === 2 ? ' active' : '')}
+                  aria-pressed={repeatInterval === 2}
+                  onClick={() => setRepeatInterval(2)}>
+                  یک هفته در میان
+                </button>
+              </div>
+            )}
             {occurrenceCount > 1 && (
               <small className="fhint">
-                {toFa(occurrenceCount)} جلسه ساخته می‌شود. پیامک فقط برای
-                نزدیک‌ترین جلسه می‌رود و بقیه در تقویم شرکت‌کنندگان می‌آید.
+                {toFa(occurrenceCount)} جلسه ساخته می‌شود
+                {repeatInterval === 2 ? ' (یک هفته در میان)' : ''}.
+                {' '}پیامک فقط برای نزدیک‌ترین جلسه می‌رود و بقیه در تقویم
+                شرکت‌کنندگان می‌آید.
               </small>
             )}
           </div>

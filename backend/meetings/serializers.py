@@ -305,14 +305,16 @@ class MeetingCreateSerializer(serializers.Serializer):
     # مالِ خودش را عوض کند. صفر یعنی یادآور برای این جلسه خاموش باشد.
     reminderLead = serializers.IntegerField(required=False, allow_null=True, default=None,
                                             min_value=0, max_value=10080)
-    # تکرار: کدام روزهای هفته (۰=شنبه … ۶=جمعه) و چند هفته.
+    # تکرار: کدام روزهای هفته (۰=شنبه … ۶=جمعه)، چند نوبت، و فاصلهٔ نوبت‌ها.
     #
-    # سقف چهار هفته خواستهٔ کارفرماست و این‌جا بسته می‌شود نه در رابط: رابط
+    # سقف چهار نوبت خواستهٔ کارفرماست و این‌جا بسته می‌شود نه در رابط: رابط
     # چیپ‌هایش را محدود می‌کند ولی درخواست خام هم باید رد شود.
+    # `repeatInterval`=۲ یعنی «یک هفته در میان» — نوبت‌ها دو هفته‌ای جلو می‌روند.
     repeatWeekdays = serializers.ListField(
         child=serializers.IntegerField(min_value=0, max_value=6),
         required=False, default=list)
     repeatWeeks = serializers.IntegerField(required=False, default=1, min_value=1, max_value=4)
+    repeatInterval = serializers.IntegerField(required=False, default=1, min_value=1, max_value=2)
 
     def validate(self, attrs):
         if attrs['end'] <= attrs['start']:
@@ -324,7 +326,8 @@ class MeetingCreateSerializer(serializers.Serializer):
 
         قاعدهٔ روزِ هفته همان قاعدهٔ موجودِ سامانه است: `jalali.fa_weekday` با
         `(weekday()+2) % 7`، یعنی ۰=شنبه. از شنبهٔ همان هفتهٔ تاریخِ انتخابی
-        شروع می‌کنیم و `repeatWeeks` هفته جلو می‌رویم.
+        شروع می‌کنیم و `repeatWeeks` نوبت جلو می‌رویم؛ فاصلهٔ نوبت‌ها
+        `repeatInterval` هفته است (۱=هر هفته، ۲=یک هفته در میان).
 
         فقط تاریخ‌های **از خودِ تاریخِ انتخابی به بعد** می‌مانند؛ وگرنه
         انتخابِ چهارشنبه با تیکِ شنبه، جلسه‌ای در گذشته می‌ساخت.
@@ -333,6 +336,7 @@ class MeetingCreateSerializer(serializers.Serializer):
 
         base = validated['date']
         weeks = validated.get('repeatWeeks') or 1
+        interval = validated.get('repeatInterval') or 1
         days = sorted(set(validated.get('repeatWeekdays') or []))
         if weeks <= 1 and not days:
             return [base]
@@ -340,7 +344,8 @@ class MeetingCreateSerializer(serializers.Serializer):
             days = [(base.weekday() + 2) % 7]
 
         saturday = base - timedelta(days=(base.weekday() + 2) % 7)
-        out = [saturday + timedelta(days=7 * w + d) for w in range(weeks) for d in days]
+        out = [saturday + timedelta(days=7 * (w * interval) + d)
+               for w in range(weeks) for d in days]
         return sorted(d for d in out if d >= base)
 
     def create(self, validated):
