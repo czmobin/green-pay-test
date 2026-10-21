@@ -186,7 +186,7 @@ SIMPLE_JWT = {
 
 # --- ورود با کد یک‌بارمصرف (کاوه‌نگار) ---
 KAVENEGAR_API_KEY = os.environ.get('KAVENEGAR_API_KEY', '')
-KAVENEGAR_OTP_TEMPLATE = os.environ.get('KAVENEGAR_OTP_TEMPLATE', 'contractOtpLogin')
+KAVENEGAR_OTP_TEMPLATE = os.environ.get('KAVENEGAR_OTP_TEMPLATE', 'calendarOtpConfirm')
 
 # --- Outlook / Microsoft Graph ---
 # دسترسی app-only (client credentials): کاربران با کد یک‌بارمصرف وارد می‌شوند و
