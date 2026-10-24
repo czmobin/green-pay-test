@@ -217,6 +217,10 @@ export type CreatedMeeting = Meeting & {
   /** پیامک خبررسانی: ساخت جلسه، و در ویرایش فقط وقتی زمان یا محل عوض شده */
   smsSent?: number;
   smsFailed?: number;
+  /** نوبت‌های یک سلسله که این تصمیم رویشان اعمال شد */
+  occurrences?: string[];
+  /** پاسخِ `reject`: ویرایش رد شد و جلسه به زمان و محل پیشین برگشت (لغو نشد) */
+  reverted?: boolean;
 };
 
 export interface NewMinute {

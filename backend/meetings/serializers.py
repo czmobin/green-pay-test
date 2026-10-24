@@ -191,13 +191,31 @@ class MeetingSerializer(serializers.ModelSerializer):
     outlookSynced = serializers.BooleanField(source='outlook_synced', read_only=True)
     outlookReadonly = serializers.BooleanField(source='outlook_readonly', read_only=True)
     fileName = serializers.SerializerMethodField()
+    #: اگر این انتظارِ تایید بابتِ **ویرایش** باشد، زمان و محلِ پیشین — تا صفحهٔ
+    #: تایید بتواند «از این، به این» را نشان بدهد. برای جلسهٔ تازه `null` است.
+    pendingEdit = serializers.SerializerMethodField()
 
     class Meta:
         model = Meeting
         fields = ['id', 'title', 'category', 'type', 'status', 'priority', 'date', 'start', 'end',
                   'room', 'organizer', 'parts', 'guests', 'partStatus', 'meetLink',
                   'agenda', 'cancelReason', 'cancelledAt', 'cancelledBy',
-                  'outlookSynced', 'outlookReadonly', 'series', 'fileName']
+                  'outlookSynced', 'outlookReadonly', 'series', 'fileName', 'pendingEdit']
+
+    def get_pendingEdit(self, obj):
+        was = obj.pending_revert
+        if not was:
+            return None
+        from django.utils.dateparse import parse_datetime
+        begins, ends = parse_datetime(was.get('start') or ''), parse_datetime(was.get('end') or '')
+        if not begins or not ends:
+            return None
+        return {
+            'date': to_iso_date(begins),
+            'start': to_float_hour(begins),
+            'end': to_float_hour(ends),
+            'room': was.get('room') or None,
+        }
 
     def get_fileName(self, obj):
         att = obj.attachments.first()

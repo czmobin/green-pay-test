@@ -296,7 +296,8 @@ def notify_cancelled(meeting) -> tuple[int, int]:
     return ok, bad
 
 
-def notify_approval_result(meeting, *, approved: bool, reason: str = '') -> tuple[int, int]:
+def notify_approval_result(meeting, *, approved: bool, reason: str = '',
+                           reverted: bool = False) -> tuple[int, int]:
     """نتیجهٔ تایید/رد رزرو را فقط به سازندهٔ جلسه پیامک می‌کند.
 
     شرکت‌کنندگان تا لحظهٔ تایید هیچ خبری از این جلسه نگرفته‌اند؛ رد هم برایشان
@@ -323,6 +324,9 @@ def notify_approval_result(meeting, *, approved: bool, reason: str = '') -> tupl
                  f'{when}', f'محل: {where}']
         if reason:
             lines.append(f'دلیل: {reason}')
+        if reverted:
+            # وگرنه سازنده فکر می‌کند جلسه لغو شده؛ حال آنکه فقط تغییرش رد شده.
+            lines.append('جلسه به زمان و محل پیشین برگشت.')
         lines.append('گرین‌پی')
         tag = 'greenpay-meeting-rejected'
     text = '\n'.join(lines)
@@ -331,12 +335,49 @@ def notify_approval_result(meeting, *, approved: bool, reason: str = '') -> tupl
     return 0, 1
 
 
-def _safe_notify_approval_result(meeting, *, approved: bool, reason: str = '') -> tuple[int, int]:
+def _safe_notify_approval_result(meeting, *, approved: bool, reason: str = '',
+                                 reverted: bool = False) -> tuple[int, int]:
     try:
-        return notify_approval_result(meeting, approved=approved, reason=reason)
+        return notify_approval_result(meeting, approved=approved, reason=reason,
+                                      reverted=reverted)
     except Exception:                                       # noqa: BLE001
         logger.exception('پیامک نتیجهٔ تایید فرستاده نشد')
         return 0, 0
+
+
+def _revert_diff(meeting, was: dict) -> list[str]:
+    """عکسِ پیش‌از‌ویرایش را با وضعِ فعلی می‌سنجد و می‌گوید چه عوض شده.
+
+    خروجی همان قالبِ `what` در `notify_changed` است («زمان»/«محل»). مقایسهٔ
+    محل روی رشته انجام می‌شود چون در عکس، UUID به‌شکل رشته ذخیره شده.
+    """
+    what = []
+    if (was.get('start') != meeting.start.isoformat()
+            or was.get('end') != meeting.end.isoformat()):
+        what.append('زمان')
+    now_room = str(meeting.location_id) if meeting.location_id else None
+    if (was.get('room') or None) != now_room:
+        what.append('محل')
+    return what
+
+
+def _apply_revert(meeting, was: dict) -> bool:
+    """زمان و محلِ جلسه را به عکسِ پیش‌از‌ویرایش برمی‌گرداند.
+
+    فقط همین سه چیز برمی‌گردند — عنوان و اولویت و شرکت‌کننده‌ها دروازهٔ تایید
+    ندارند و ویرایششان پذیرفته است؛ آن‌ها سرِ جای تازه‌شان می‌مانند.
+    """
+    from django.utils.dateparse import parse_datetime
+
+    begins, ends = parse_datetime(was.get('start') or ''), parse_datetime(was.get('end') or '')
+    if not begins or not ends:
+        # عکسِ خراب: جلسه را به زمانِ نامعلوم نمی‌بریم، فقط انتظار را تمام
+        # می‌کنیم. بی این نگهبان، یک رکوردِ ناقص جلسه را به `None` می‌برد.
+        logger.error('عکسِ پیش‌از‌ویرایشِ جلسهٔ %s خوانده نشد: %r', meeting.pk, was)
+        return False
+    meeting.start, meeting.end = begins, ends
+    meeting.location_id = was.get('room') or None
+    return True
 
 
 def reminder_state(meeting, user):
@@ -761,21 +802,56 @@ class MeetingViewSet(viewsets.ModelViewSet):
                               'response': MeetingParticipant.Response.PENDING})
 
         meeting.refresh_from_db()
-        meeting.mark_dirty()
 
         # مقایسه بعد از refresh انجام می‌شود، نه بلافاصله بعد از save: مقدارِ
         # آمده از درخواست رشته است («۳») و کلید ذخیره‌شده عدد (۳)؛ مقایسهٔ خام
         # همیشه «عوض شده» می‌داد و هر ویرایشِ ساده — حتی اصلاح عنوان — برای همه
         # پیامکِ «محل جلسه تغییر کرد» می‌فرستاد.
+        time_moved = meeting.start != was_start or meeting.end != was_end
+        room_moved = meeting.location_id != was_room
         changed = []
-        if meeting.start != was_start or meeting.end != was_end:
+        if time_moved:
             changed.append('زمان')
-        if meeting.location_id != was_room:
+        if room_moved:
             changed.append('محل')
+
+        # دروازهٔ تایید فقط سرِ ساخت نیست — ویرایش هم از آن می‌گذرد.
+        #
+        # دو حالت جلسهٔ تاییدشده را دوباره به انتظار می‌برد:
+        #   • محلش به محلی عوض شود که تایید لازم دارد (رزروِ تازه‌ای است)؛
+        #   • زمان یا تاریخش عوض شود در حالی که محلش تایید لازم دارد (همان
+        #     رزرو، در بازهٔ دیگری — یعنی تصمیمِ تاییدکننده دربارهٔ بازهٔ قبلی
+        #     بود، نه این یکی).
+        # عنوان و اولویت و شرکت‌کننده‌ها دروازه ندارند: رزروِ محل را جابه‌جا
+        # نمی‌کنند.
+        #
+        # ترتیب حیاتی است: وضعیت **پیش از** `mark_dirty` عوض می‌شود، وگرنه
+        # نگهبانِ `PENDING` داخل `mark_dirty` دیر می‌رسد و دعوت‌نامهٔ Outlook
+        # برای تغییری می‌رود که هنوز تایید نشده.
+        regated = (
+            meeting.status == Meeting.Status.CONFIRMED
+            and (time_moved or room_moved)
+            and meeting.location_id is not None
+            and meeting.location.needs_approval
+            # تاییدکننده نیازی به تاییدِ خودش ندارد — همان قاعدهٔ مسیرِ ساخت.
+            and not can_approve_meeting(request.user)
+        )
+        if regated:
+            meeting.status = Meeting.Status.PENDING
+            meeting.pending_revert = {
+                'room': str(was_room) if was_room else None,
+                'start': was_start.isoformat(),
+                'end': was_end.isoformat(),
+            }
+            meeting.save(update_fields=['status', 'pending_revert', 'updated_at'])
+
+        meeting.mark_dirty()
 
         # `PENDING` هم مثل `CANCELLED` پیامکِ تغییر نمی‌گیرد: شرکت‌کننده هنوز
         # هیچ پیامکِ ایجادی نگرفته، و «زمان جلسه عوض شد» برای جلسه‌ای که از
-        # وجودش بی‌خبر است بی‌معنا و گیج‌کننده است.
+        # وجودش بی‌خبر است بی‌معنا و گیج‌کننده است. برای جلسهٔ تازه‌به‌انتظار‌رفته
+        # هم همین سکوت درست است: خبرِ تغییر سرِ تایید می‌رود، نه حالا که ممکن
+        # است رد شود و زمان به جای اول برگردد.
         sms_ok = sms_bad = 0
         quiet = (Meeting.Status.CANCELLED, Meeting.Status.PENDING)
         if changed and meeting.status not in quiet:
@@ -851,7 +927,11 @@ class MeetingViewSet(viewsets.ModelViewSet):
         meeting.cancel_reason = (request.data or {}).get('reason', '').strip()[:2000]
         meeting.cancelled_at = timezone.now()
         meeting.cancelled_by = request.user
-        meeting.save(update_fields=['status', 'cancel_reason', 'cancelled_at', 'cancelled_by'])
+        # اگر ویرایشی در انتظار تایید بود، با لغوِ جلسه بی‌معنا می‌شود؛ عکسِ
+        # بازگردانی باید پاک شود وگرنه جلسه در فهرستِ «در انتظار» می‌ماند.
+        meeting.pending_revert = None
+        meeting.save(update_fields=['status', 'cancel_reason', 'cancelled_at',
+                                    'cancelled_by', 'pending_revert'])
         # لغو باید به Outlook هم برود — «Canceled:» برای همهٔ شرکت‌کنندگان.
         meeting.mark_dirty()
 
@@ -870,10 +950,15 @@ class MeetingViewSet(viewsets.ModelViewSet):
         تاییدِ نوبت‌به‌نوبت یعنی ادمین باید چهار بار همان تصمیم را بگیرد، و
         بدتر: سلسله می‌توانست نیمی تاییدشده و نیمی در انتظار بماند.
         """
-        if not meeting.series:
+        # جلسه‌ای که بابتِ **ویرایش** به انتظار رفته، تک‌نوبتی تایید می‌شود:
+        # ویرایش روی یک نوبت انجام شده و خواهرهایش سرِ جای خودشان‌اند. اگر
+        # یک‌جا تایید می‌شد، تغییرِ نوبتِ دیگری هم بی‌آنکه دیده شود تایید
+        # می‌شد — و عکسِ بازگردانی‌اش هم بی‌خبر پاک می‌ماند.
+        if meeting.pending_revert or not meeting.series:
             return [meeting]
         return list(Meeting.objects
-                    .filter(series=meeting.series, status=Meeting.Status.PENDING)
+                    .filter(series=meeting.series, status=Meeting.Status.PENDING,
+                            pending_revert__isnull=True)
                     .order_by('start'))
 
     @action(detail=True, methods=['post'])
@@ -883,6 +968,10 @@ class MeetingViewSet(viewsets.ModelViewSet):
         ترتیبِ کارها مهم است: اول وضعیت عوض می‌شود، بعد `mark_dirty` (که تا
         وضعیت `PENDING` بود عمداً کاری نمی‌کرد)، و آخر پیامک. از یک سلسله هم
         فقط نزدیک‌ترین نوبت پیامک می‌گیرد، مثل خودِ ساخت.
+
+        دو جور انتظار این‌جا تایید می‌شود و متنِ پیامکشان یکی نیست: جلسهٔ تازه
+        پیامکِ **ایجاد** می‌گیرد، و جلسه‌ای که بابتِ ویرایش به انتظار رفته بود
+        پیامکِ **تغییر** — شرکت‌کننده‌اش این جلسه را از قبل می‌شناسد.
         """
         meeting = self.get_object()
         if not can_approve_meeting(request.user):
@@ -891,15 +980,33 @@ class MeetingViewSet(viewsets.ModelViewSet):
             raise ValidationError({'detail': 'این جلسه در انتظار تایید نیست.'})
 
         rows = self._series_of(meeting)
+        # جلسه‌ای که بابتِ ویرایش به انتظار رفته بود، شرکت‌کنندگانش از قبل خبر
+        # دارند؛ پیامکِ «جلسه ایجاد شد» برایشان غلط است. چه چیزی عوض شده را از
+        # همان عکسِ پیش‌از‌ویرایش درمی‌آوریم.
+        reverts = {row.pk: row.pending_revert for row in rows}
         for row in rows:
             row.status = Meeting.Status.CONFIRMED
-            row.save(update_fields=['status', 'updated_at'])
+            row.pending_revert = None
+            row.save(update_fields=['status', 'pending_revert', 'updated_at'])
             row.mark_dirty()
 
         nearest = rows[0]
-        # اول به سازنده خبر تایید، بعد پیامکِ ایجادِ معوقه به شرکت‌کنندگان.
+        # اول به سازنده خبر تایید، بعد پیامکِ معوقه به شرکت‌کنندگان.
         a_ok, a_bad = _safe_notify_approval_result(nearest, approved=True)
-        c_ok, c_bad = _safe_notify_created(nearest, nearest.organizer, len(rows))
+        was = reverts.get(nearest.pk)
+        if was:
+            what = _revert_diff(nearest, was)
+            c_ok, c_bad = 0, 0
+            if what:
+                try:
+                    # سازنده کنار گذاشته می‌شود، نه تاییدکننده — همان کاری که
+                    # `notify_created` پایین‌تر می‌کند. سازنده خودش خبرِ «تایید
+                    # شد» را گرفته و دو پیامک برای یک اتفاق لازم ندارد.
+                    c_ok, c_bad = notify_changed(nearest, nearest.organizer, what)
+                except Exception:                           # noqa: BLE001
+                    logger.exception('پیامک تغییر جلسه فرستاده نشد')
+        else:
+            c_ok, c_bad = _safe_notify_created(nearest, nearest.organizer, len(rows))
         meeting.refresh_from_db()
         data = MeetingSerializer(meeting).data
         data['smsSent'], data['smsFailed'] = a_ok + c_ok, a_bad + c_bad
@@ -921,6 +1028,37 @@ class MeetingViewSet(viewsets.ModelViewSet):
 
         reason = (request.data or {}).get('reason', '').strip()[:2000]
         rows = self._series_of(meeting)
+        nearest = rows[0]
+
+        # ردِ یک **ویرایش** جلسه را لغو نمی‌کند.
+        #
+        # این جلسه قبلاً تایید شده بود و در تقویمِ همه نشسته؛ کسی خواسته زمان یا
+        # محلش را عوض کند و تاییدکننده نپذیرفته. پس چیزی که رد شده همان تغییر
+        # است، نه جلسه: زمان و محل به حالِ قبل برمی‌گردند و جلسه تاییدشده
+        # می‌ماند. لغوِ آن، یک جلسهٔ سالم را بابتِ یک درخواستِ نپذیرفته از بین
+        # می‌برد — و شرکت‌کننده‌ها خبرِ لغوی می‌گرفتند که هیچ‌کس نخواسته بود.
+        if nearest.pending_revert:
+            reverted = _apply_revert(nearest, nearest.pending_revert)
+            # پیامکِ «رد شد» **پیش از** بازگردانی متن می‌گیرد تا سازنده ببیند
+            # کدام زمان و محل رد شده، نه همان جایی که جلسه از اول بود.
+            sms_ok, sms_bad = _safe_notify_approval_result(
+                nearest, approved=False,
+                reason=reason or 'رزرو این محل تایید نشد.', reverted=reverted)
+            nearest.status = Meeting.Status.CONFIRMED
+            nearest.pending_revert = None
+            nearest.save(update_fields=['status', 'pending_revert', 'start', 'end',
+                                        'location', 'updated_at'])
+            # عنوان یا شرکت‌کننده‌ها ممکن است در همان ویرایش عوض شده باشند و در
+            # پنجرهٔ انتظار به Outlook نرسیده باشند؛ حالا که جلسه تاییدشده است
+            # باید برود.
+            nearest.mark_dirty()
+            meeting.refresh_from_db()
+            data = MeetingSerializer(meeting).data
+            data['smsSent'], data['smsFailed'] = sms_ok, sms_bad
+            data['occurrences'] = [str(nearest.pk)]
+            data['reverted'] = reverted
+            return Response(data)
+
         for row in rows:
             row.status = Meeting.Status.CANCELLED
             row.cancel_reason = reason or 'رزرو این محل تایید نشد.'
@@ -930,7 +1068,6 @@ class MeetingViewSet(viewsets.ModelViewSet):
                                     'cancelled_by', 'updated_at'])
             row.reminders.filter(sent_at__isnull=True).update(enabled=False)
 
-        nearest = rows[0]
         sms_ok, sms_bad = _safe_notify_approval_result(
             nearest, approved=False, reason=nearest.cancel_reason)
         meeting.refresh_from_db()

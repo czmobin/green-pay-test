@@ -532,9 +532,10 @@ export default function Providers({ children }: { children: React.ReactNode }) {
   const rejectMeeting = useCallback(async (id: string, reason: string) => {
     const done = await guarded(async () => api.rejectMeeting(id, reason));
     if (!done) return;
-    toast(done.smsSent
-      ? `جلسه رد شد — ${toFa(done.smsSent)} پیامک به سازنده رفت`
-      : 'جلسه رد شد', 'ok');
+    // ردِ ویرایش جلسه را لغو نمی‌کند، زمان و محلش را برمی‌گرداند — و توست باید
+    // همین را بگوید، وگرنه تاییدکننده فکر می‌کند جلسه‌ای را از بین برده.
+    const head = done.reverted ? 'تغییر رد شد؛ جلسه به حال قبل برگشت' : 'جلسه رد شد';
+    toast(done.smsSent ? `${head} — ${toFa(done.smsSent)} پیامک به سازنده رفت` : head, 'ok');
     await reload({ silent: true });
   }, [guarded, toast, reload]);
 
@@ -798,6 +799,10 @@ export default function Providers({ children }: { children: React.ReactNode }) {
       .sort((a, b) => a.date.localeCompare(b.date) || a.start - b.start);
     const seen = new Set<string>();
     return rows.filter((m) => {
+      // ویرایشِ یک نوبت تک‌نوبتی تایید می‌شود، پس کارتِ خودش را لازم دارد؛
+      // اگر زیر سلسله جمع می‌شد، با وجودِ یک خواهرِ در انتظارِ دیگر از صفحه
+      // غیب می‌شد و هیچ‌وقت تایید نمی‌شد.
+      if (m.pendingEdit) return true;
       if (!m.series) return true;
       if (seen.has(m.series)) return false;
       seen.add(m.series);

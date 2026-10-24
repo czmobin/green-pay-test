@@ -62,6 +62,10 @@ export default function ApprovalsPage() {
           جلسات و رزرو محل دیده نمی‌شود و پیامکی برای شرکت‌کنندگان نمی‌رود.
           پس از تایید یا رد، به سازنده پیامک می‌رود.
         </p>
+        <p>
+          جابه‌جایی زمان یا محلِ جلسه‌ای که از قبل تایید شده هم همین‌جا می‌آید.
+          رد کردنش جلسه را لغو نمی‌کند — زمان و محلش به حال قبل برمی‌گردد.
+        </p>
       </div>
 
       {rows.length === 0 ? (
@@ -76,9 +80,13 @@ export default function ApprovalsPage() {
             const organizer = store.people[m.organizer];
             // سلسلهٔ تکرار: تاییدِ یک نوبت کلِ سلسله را تایید می‌کند، پس
             // باید معلوم باشد پشتِ این دکمه چند جلسه است.
-            const siblings = m.series
-              ? store.meetings.filter((x) => x.series === m.series && x.status === 'pending').length
+            // ویرایش تک‌نوبتی تایید می‌شود، پس شمارشِ سلسله برایش بی‌معناست.
+            const siblings = m.series && !m.pendingEdit
+              ? store.meetings.filter((x) => x.series === m.series
+                  && x.status === 'pending' && !x.pendingEdit).length
               : 1;
+            const was = m.pendingEdit;
+            const wasRoom = was?.room ? store.rooms[was.room] : null;
             return (
               <li className="ap-card" key={m.id}>
                 <div className="ap-main">
@@ -88,6 +96,15 @@ export default function ApprovalsPage() {
                     {room && <span><IconRoom size={14} />{room.name}</span>}
                     {organizer && <span><IconUser size={14} />{organizer.name}</span>}
                   </div>
+                  {was && (
+                    <div className="ap-was">
+                      <span className="pill p-pending">درخواست تغییر</span>
+                      <span>
+                        پیشین: {faDateLabel(was.date)} · {fmtTime(was.start)}–{fmtTime(was.end)}
+                        {wasRoom ? ` · ${wasRoom.name}` : ''}
+                      </span>
+                    </div>
+                  )}
                   {siblings > 1 && (
                     <span className="pill p-pending">
                       سلسلهٔ {toFa(siblings)} جلسه‌ای — تایید همهٔ نوبت‌ها
@@ -102,7 +119,9 @@ export default function ApprovalsPage() {
                       onChange={(e) => setReason(e.target.value)} />
                     <div className="ap-actions">
                       <button className="btn btn-danger" disabled={busy === m.id}
-                        onClick={() => reject(m.id)}>تایید رد</button>
+                        onClick={() => reject(m.id)}>
+                        {was ? 'رد تغییر و بازگردانی' : 'تایید رد'}
+                      </button>
                       <button className="btn btn-ghost"
                         onClick={() => { setRejecting(''); setReason(''); }}>انصراف</button>
                     </div>

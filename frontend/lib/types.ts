@@ -119,6 +119,12 @@ export interface Meeting {
   outlookSynced?: boolean;
   /** برگزارکننده‌اش بیرون از سازمان است — در اپ فقط خوانده می‌شود */
   outlookReadonly?: boolean;
+  /**
+   * این جلسه بابتِ **ویرایشِ** زمان یا محل در انتظار تایید است، و این زمان و
+   * محلِ پیشینِ آن است — چیزی که با رد شدنِ ویرایش به آن برمی‌گردد.
+   * برای جلسهٔ تازه‌ساخته‌شدهٔ در انتظار، `null` است.
+   */
+  pendingEdit?: { date: string; start: number; end: number; room: string | null } | null;
 }
 
 export type MinuteType = 'note' | 'decision' | 'reminder' | 'call' | 'letter' | 'file';

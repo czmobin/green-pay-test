@@ -60,6 +60,14 @@ export default function EditMeetingModal(
   }
   function onStart(v: number) { setStart(v); if (end <= v) setEnd(Math.min(v + 1, 23.75)); }
 
+  // قاعدهٔ سرور در `views._edit`، آینه‌شده برای هشدار: جلسهٔ تاییدشده‌ای که
+  // زمان یا محلش عوض شود و محلِ تازه تایید لازم داشته باشد، به انتظار برمی‌گردد.
+  // تاییدکننده‌ها از این دروازه رد نمی‌شوند، پس هشدار هم نمی‌بینند.
+  const moved = date !== meeting.date || start !== meeting.start || end !== meeting.end
+    || (type === 'online' ? '' : room) !== meeting.room;
+  const regate = meeting.status === 'confirmed' && moved && type !== 'online'
+    && !!room && !!store.rooms[room]?.needsApproval && !store.canApproveMeetings;
+
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (!title.trim()) { store.toast('عنوان جلسه را وارد کنید', 'info'); return; }
@@ -72,6 +80,14 @@ export default function EditMeetingModal(
     });
     setSaving(false);
     if (!updated) return;
+    // جابه‌جایی زمان یا محل در محلی که تایید لازم دارد، جلسه را به انتظار
+    // می‌برد. بی این توست، کاربر فرم را بسته می‌دید و جلسه از تقویمش غیب
+    // می‌شد بی‌آنکه بداند چرا.
+    if (updated.status === 'pending') {
+      store.toast('تغییر ثبت شد و برای تایید رزرو محل فرستاده شد', 'info');
+      dismiss();
+      return;
+    }
     // بک‌اند فقط وقتی زمان یا محل عوض شده باشد پیامک می‌فرستد؛ همان را می‌گوییم
     // تا ویرایش‌کننده بداند خبر به شرکت‌کنندگان رسیده است.
     const sent = updated.smsSent ?? 0;
@@ -127,6 +143,17 @@ export default function EditMeetingModal(
               </select>
             </div>
           </div>
+
+          {/* هشدارِ پیش از ثبت، نه بعدش: جلسهٔ در انتظار از تقویم و فهرست
+              بیرون می‌رود، و ویرایش‌کننده باید بداند جابه‌جایی زمان یا محل
+              همین را می‌کند — وگرنه جلسه‌اش بی‌توضیح غیب می‌شود. */}
+          {regate && (
+            <p className="form-warn">
+              رزرو «{store.rooms[room]?.name}» تایید لازم دارد. با ذخیرهٔ این
+              تغییر، جلسه تا تاییدِ ادمین یا مدیرعامل در انتظار می‌ماند و در
+              تقویم دیده نمی‌شود. اگر تایید نشود، به زمان و محل فعلی برمی‌گردد.
+            </p>
+          )}
 
           <div className="field">
             <label>اولویت جلسه</label>

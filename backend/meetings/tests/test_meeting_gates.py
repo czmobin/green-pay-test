@@ -363,3 +363,388 @@ class PendingRemindersTests(GateTestBase):
             send.return_value = mock.Mock(sent=True)
             call_command('send_reminders', verbosity=0)
         send.assert_not_called()
+
+
+class EditRegateTests(GateTestBase):
+    """ویرایشی که جلسهٔ تاییدشده را دوباره به انتظار تایید می‌برد.
+
+    دروازهٔ تایید تا امروز فقط سرِ **ساخت** بود. یعنی راهِ دور زدنش یک `PATCH`
+    بود: جلسه را در اتاق آزاد بساز، تایید بگیر (یا نگیر، چون لازم نبود)، بعد
+    محلش را به دفتر مدیرعامل عوض کن. همین‌طور جابه‌جایی ساعتِ جلسه‌ای که در
+    محلِ تاییدی است — تاییدکننده آن ساعت را ندیده بود که تاییدش کرده باشد.
+
+    نکتهٔ ظریفِ این تست‌ها `test_rejecting_an_edit_reverts_instead_of_cancelling`
+    است: این جلسه قبلاً تاییدشده بوده و در تقویمِ همه نشسته. رد شدنِ یک ویرایش
+    نباید جلسه را از بین ببرد.
+    """
+
+    def confirmed(self, room=None, **over):
+        """یک جلسهٔ تاییدشده در محلِ آزاد (یا هر محلی که داده شود)."""
+        res = self.create_as(self.member, room=str((room or self.free_room).pk), **over)
+        self.assertEqual(res.status_code, 201, msg=res.data)
+        meeting = Meeting.objects.order_by('start').first()
+        # محلِ تاییدی سرِ ساخت در انتظار می‌ماند؛ این تست‌ها از جلسهٔ **تاییدشده**
+        # شروع می‌کنند، پس بی‌صدا تاییدش می‌کنیم (مسیرِ `approve` موضوعِ این‌ها
+        # نیست و پیامک و Outlook را هم درگیر می‌کرد).
+        if meeting.status == Meeting.Status.PENDING:
+            Meeting.objects.filter(pk=meeting.pk).update(status=Meeting.Status.CONFIRMED)
+            meeting.refresh_from_db()
+        return meeting
+
+    def patch(self, user, meeting, **body):
+        return self.as_(user).patch(
+            reverse('meeting-detail', args=[meeting.pk]), body, format='json')
+
+    def quiet_patch(self, user, meeting, **body):
+        """ویرایش با پیامک‌های خفه‌شده — برای تستی که موضوعش پیامک نیست."""
+        with mock.patch('meetings.views.notify_changed', return_value=(0, 0)):
+            return self.patch(user, meeting, **body)
+
+    # ---------- مورد ۱: محل به محلی که تایید لازم دارد عوض شود ----------
+
+    def test_moving_into_a_gated_room_needs_approval_again(self):
+        meeting = self.confirmed()
+        res = self.quiet_patch(self.member, meeting, room=str(self.gated_room.pk))
+
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.data['status'], Meeting.Status.PENDING)
+        meeting.refresh_from_db()
+        self.assertEqual(meeting.status, Meeting.Status.PENDING)
+        self.assertEqual(meeting.location_id, self.gated_room.pk)
+
+    def test_the_previous_room_and_time_are_kept_for_the_revert(self):
+        meeting = self.confirmed()
+        was_start, was_end = meeting.start, meeting.end
+        self.quiet_patch(self.member, meeting, room=str(self.gated_room.pk))
+
+        meeting.refresh_from_db()
+        self.assertEqual(meeting.pending_revert['room'], str(self.free_room.pk))
+        self.assertEqual(meeting.pending_revert['start'], was_start.isoformat())
+        self.assertEqual(meeting.pending_revert['end'], was_end.isoformat())
+
+    def test_moving_out_of_a_gated_room_does_not_need_approval(self):
+        """دروازه مالِ محلِ **تازه** است: رفتن به اتاق آزاد تایید نمی‌خواهد."""
+        meeting = self.confirmed(room=self.gated_room)
+        self.quiet_patch(self.member, meeting, room=str(self.free_room.pk))
+
+        meeting.refresh_from_db()
+        self.assertEqual(meeting.status, Meeting.Status.CONFIRMED)
+        self.assertIsNone(meeting.pending_revert)
+
+    # ---------- مورد ۲: زمان یا تاریخِ جلسه‌ای در محلِ تاییدی عوض شود ----------
+
+    def test_moving_the_hour_inside_a_gated_room_needs_approval_again(self):
+        meeting = self.confirmed(room=self.gated_room)
+        res = self.quiet_patch(self.member, meeting, start=14, end=15)
+
+        self.assertEqual(res.data['status'], Meeting.Status.PENDING)
+        meeting.refresh_from_db()
+        self.assertEqual(meeting.status, Meeting.Status.PENDING)
+        self.assertEqual(timezone.localtime(meeting.start).hour, 14)
+
+    def test_moving_the_day_inside_a_gated_room_needs_approval_again(self):
+        meeting = self.confirmed(room=self.gated_room)
+        later = (timezone.localdate() + timedelta(days=9)).isoformat()
+        self.quiet_patch(self.member, meeting, date=later)
+
+        meeting.refresh_from_db()
+        self.assertEqual(meeting.status, Meeting.Status.PENDING)
+        self.assertEqual(timezone.localdate(meeting.start).isoformat(), later)
+
+    def test_moving_the_hour_inside_a_free_room_stays_confirmed(self):
+        meeting = self.confirmed()
+        self.quiet_patch(self.member, meeting, start=14, end=15)
+
+        meeting.refresh_from_db()
+        self.assertEqual(meeting.status, Meeting.Status.CONFIRMED)
+        self.assertIsNone(meeting.pending_revert)
+
+    # ---------- چه چیزی دروازه ندارد ----------
+
+    def test_editing_only_the_title_in_a_gated_room_stays_confirmed(self):
+        """عنوان رزروِ محل را جابه‌جا نمی‌کند، پس تاییدِ تازه لازم ندارد."""
+        meeting = self.confirmed(room=self.gated_room)
+        self.quiet_patch(self.member, meeting, title='عنوانِ تازه')
+
+        meeting.refresh_from_db()
+        self.assertEqual(meeting.status, Meeting.Status.CONFIRMED)
+        self.assertEqual(meeting.title, 'عنوانِ تازه')
+
+    def test_editing_participants_in_a_gated_room_stays_confirmed(self):
+        meeting = self.confirmed(room=self.gated_room)
+        self.quiet_patch(self.member, meeting,
+                         parts=[str(self.member.pk), str(self.executive.pk)])
+
+        meeting.refresh_from_db()
+        self.assertEqual(meeting.status, Meeting.Status.CONFIRMED)
+
+    def test_an_approver_moving_it_does_not_need_approval(self):
+        """همان قاعدهٔ مسیرِ ساخت: تاییدکننده جلسهٔ خودش را تایید نمی‌کند."""
+        meeting = self.confirmed()
+        for user in (self.admin, self.ceo):
+            Meeting.objects.filter(pk=meeting.pk).update(
+                status=Meeting.Status.CONFIRMED, location=self.free_room, pending_revert=None)
+            meeting.refresh_from_db()
+            self.quiet_patch(user, meeting, room=str(self.gated_room.pk))
+            meeting.refresh_from_db()
+            self.assertEqual(meeting.status, Meeting.Status.CONFIRMED, msg=user.username)
+
+    def test_an_executive_moving_it_still_needs_approval(self):
+        """مدیر اجرایی تاییدکننده نیست — `can_approve_meeting` تنگ‌تر از `is_manager`."""
+        meeting = self.confirmed()
+        self.quiet_patch(self.executive, meeting, room=str(self.gated_room.pk))
+
+        meeting.refresh_from_db()
+        self.assertEqual(meeting.status, Meeting.Status.PENDING)
+
+    # ---------- در پنجرهٔ انتظار هیچ خبری بیرون نمی‌رود ----------
+
+    def test_no_change_sms_goes_out_while_it_waits(self):
+        """«زمان جلسه عوض شد» پیش از تایید، خبرِ چیزی است که ممکن است پس بخورد."""
+        meeting = self.confirmed()
+        with mock.patch('meetings.views.notify_changed') as sms:
+            res = self.patch(self.member, meeting, room=str(self.gated_room.pk))
+
+        sms.assert_not_called()
+        self.assertEqual(res.data['smsSent'], 0)
+
+    def test_the_regated_edit_stays_out_of_outlook(self):
+        """بدترین نشتی: دعوت‌نامهٔ Exchange برای تغییری که تایید نشده."""
+        meeting = self.confirmed()
+        Meeting.objects.filter(pk=meeting.pk).update(outlook_dirty=False)
+        with mock.patch('meetings.graph.enabled', return_value=True):
+            self.quiet_patch(self.member, meeting, room=str(self.gated_room.pk))
+
+        meeting.refresh_from_db()
+        self.assertFalse(meeting.outlook_dirty)
+
+    def test_an_ordinary_edit_still_reaches_outlook(self):
+        meeting = self.confirmed()
+        Meeting.objects.filter(pk=meeting.pk).update(outlook_dirty=False)
+        with mock.patch('meetings.graph.enabled', return_value=True):
+            self.quiet_patch(self.member, meeting, start=14, end=15)
+
+        meeting.refresh_from_db()
+        self.assertTrue(meeting.outlook_dirty)
+
+    # ---------- تایید کردنِ یک ویرایش ----------
+
+    def regated(self, **body):
+        meeting = self.confirmed()
+        self.quiet_patch(self.member, meeting, **(body or {'room': str(self.gated_room.pk)}))
+        meeting.refresh_from_db()
+        self.assertEqual(meeting.status, Meeting.Status.PENDING)
+        return meeting
+
+    def test_approving_an_edit_sends_the_change_sms_not_the_creation_one(self):
+        """شرکت‌کننده‌ها این جلسه را می‌شناسند؛ «جلسه ایجاد شد» برایشان غلط است."""
+        meeting = self.regated()
+        with mock.patch('meetings.views.notify_approval_result', return_value=(1, 0)), \
+             mock.patch('meetings.views.notify_created') as created, \
+             mock.patch('meetings.views.notify_changed', return_value=(2, 0)) as changed:
+            res = self.as_(self.admin).post(reverse('meeting-approve', args=[meeting.pk]))
+
+        self.assertEqual(res.status_code, 200)
+        created.assert_not_called()
+        changed.assert_called_once()
+        self.assertEqual(changed.call_args.args[2], ['محل'])
+        self.assertEqual(res.data['smsSent'], 3)
+
+    def test_the_change_sms_names_the_time_when_the_hour_moved(self):
+        meeting = self.regated(room=str(self.gated_room.pk))
+        with mock.patch('meetings.views.notify_approval_result', return_value=(0, 0)), \
+             mock.patch('meetings.views.notify_created', return_value=(0, 0)):
+            self.as_(self.admin).post(reverse('meeting-approve', args=[meeting.pk]))
+        meeting.refresh_from_db()
+
+        self.quiet_patch(self.member, meeting, start=16, end=17)
+        meeting.refresh_from_db()
+        with mock.patch('meetings.views.notify_approval_result', return_value=(0, 0)), \
+             mock.patch('meetings.views.notify_changed', return_value=(0, 0)) as changed:
+            self.as_(self.admin).post(reverse('meeting-approve', args=[meeting.pk]))
+
+        self.assertEqual(changed.call_args.args[2], ['زمان'])
+
+    def test_approving_clears_the_snapshot_and_confirms(self):
+        meeting = self.regated()
+        with mock.patch('meetings.views.notify_approval_result', return_value=(0, 0)), \
+             mock.patch('meetings.views.notify_changed', return_value=(0, 0)):
+            self.as_(self.admin).post(reverse('meeting-approve', args=[meeting.pk]))
+
+        meeting.refresh_from_db()
+        self.assertEqual(meeting.status, Meeting.Status.CONFIRMED)
+        self.assertIsNone(meeting.pending_revert)
+        self.assertEqual(meeting.location_id, self.gated_room.pk)
+
+    def test_approving_an_edit_releases_it_to_outlook(self):
+        meeting = self.regated()
+        with mock.patch('meetings.graph.enabled', return_value=True), \
+             mock.patch('meetings.views.notify_approval_result', return_value=(0, 0)), \
+             mock.patch('meetings.views.notify_changed', return_value=(0, 0)):
+            self.as_(self.admin).post(reverse('meeting-approve', args=[meeting.pk]))
+
+        meeting.refresh_from_db()
+        self.assertTrue(meeting.outlook_dirty)
+
+    # ---------- رد کردنِ یک ویرایش ----------
+
+    def test_rejecting_an_edit_reverts_instead_of_cancelling(self):
+        """جلسهٔ تاییدشده بابتِ یک ویرایشِ نپذیرفته از بین نمی‌رود."""
+        meeting = self.confirmed()
+        was_start, was_end = meeting.start, meeting.end
+        self.quiet_patch(self.member, meeting, room=str(self.gated_room.pk), start=18, end=19)
+
+        with mock.patch('meetings.views.notify_approval_result', return_value=(1, 0)):
+            res = self.as_(self.admin).post(
+                reverse('meeting-reject', args=[meeting.pk]), {'reason': 'نه'}, format='json')
+
+        self.assertEqual(res.status_code, 200)
+        self.assertTrue(res.data['reverted'])
+        meeting.refresh_from_db()
+        self.assertEqual(meeting.status, Meeting.Status.CONFIRMED)
+        self.assertEqual(meeting.location_id, self.free_room.pk)
+        self.assertEqual(meeting.start, was_start)
+        self.assertEqual(meeting.end, was_end)
+        self.assertIsNone(meeting.pending_revert)
+        self.assertIsNone(meeting.cancelled_at)
+
+    def test_rejecting_an_edit_keeps_the_ungated_part_of_it(self):
+        """عنوان دروازه نداشت، پس رد شدنِ جابه‌جایی آن را هم پس نمی‌گیرد."""
+        meeting = self.confirmed()
+        self.quiet_patch(self.member, meeting,
+                         room=str(self.gated_room.pk), title='عنوانِ تازه')
+
+        with mock.patch('meetings.views.notify_approval_result', return_value=(0, 0)):
+            self.as_(self.admin).post(reverse('meeting-reject', args=[meeting.pk]))
+
+        meeting.refresh_from_db()
+        self.assertEqual(meeting.title, 'عنوانِ تازه')
+        self.assertEqual(meeting.location_id, self.free_room.pk)
+
+    def test_rejecting_an_edit_tells_the_creator_it_went_back(self):
+        meeting = self.regated()
+        with mock.patch('meetings.views.notify_approval_result', return_value=(1, 0)) as decision:
+            self.as_(self.admin).post(reverse('meeting-reject', args=[meeting.pk]))
+
+        decision.assert_called_once()
+        self.assertFalse(decision.call_args.kwargs['approved'])
+        self.assertTrue(decision.call_args.kwargs['reverted'])
+
+    def test_rejecting_an_edit_sends_no_cancellation_sms(self):
+        """جلسه لغو نشده؛ شرکت‌کننده نباید خبرِ لغو بگیرد."""
+        meeting = self.regated()
+        with mock.patch('meetings.views.notify_cancelled') as cancel_sms, \
+             mock.patch('meetings.views.notify_changed') as change_sms, \
+             mock.patch('meetings.views.notify_approval_result', return_value=(0, 0)):
+            self.as_(self.admin).post(reverse('meeting-reject', args=[meeting.pk]))
+
+        cancel_sms.assert_not_called()
+        change_sms.assert_not_called()
+
+    def test_rejecting_a_newly_created_pending_still_cancels(self):
+        """رفتارِ قبلی دست‌نخورده: جلسهٔ تازه‌ای که رد شود، لغو می‌شود."""
+        self.create_as(self.member, room=str(self.gated_room.pk))
+        meeting = Meeting.objects.get()
+        with mock.patch('meetings.views.notify_approval_result', return_value=(0, 0)):
+            res = self.as_(self.admin).post(reverse('meeting-reject', args=[meeting.pk]))
+
+        self.assertFalse(res.data.get('reverted', False))
+        meeting.refresh_from_db()
+        self.assertEqual(meeting.status, Meeting.Status.CANCELLED)
+
+    def test_a_broken_snapshot_does_not_move_the_meeting_to_nowhere(self):
+        """اگر عکس خوانده نشود، انتظار تمام می‌شود ولی زمان دست نمی‌خورد."""
+        meeting = self.regated()
+        Meeting.objects.filter(pk=meeting.pk).update(pending_revert={'room': None})
+        meeting.refresh_from_db()
+        was_start = meeting.start
+
+        with mock.patch('meetings.views.notify_approval_result', return_value=(0, 0)):
+            res = self.as_(self.admin).post(reverse('meeting-reject', args=[meeting.pk]))
+
+        self.assertEqual(res.status_code, 200)
+        self.assertFalse(res.data['reverted'])
+        meeting.refresh_from_db()
+        self.assertEqual(meeting.status, Meeting.Status.CONFIRMED)
+        self.assertEqual(meeting.start, was_start)
+        self.assertIsNone(meeting.pending_revert)
+
+    # ---------- سلسلهٔ تکرار ----------
+
+    def test_a_regated_occurrence_is_approved_on_its_own(self):
+        """ویرایش روی یک نوبت بود؛ تاییدش نباید خواهرهایش را هم تایید کند."""
+        self.create_as(self.member, room=str(self.free_room.pk),
+                       repeatWeekdays=[0, 3], repeatWeeks=2)
+        rows = list(Meeting.objects.order_by('start'))
+        self.assertGreater(len(rows), 1)
+        target = rows[0]
+        self.quiet_patch(self.member, target, room=str(self.gated_room.pk))
+        target.refresh_from_db()
+        self.assertEqual(target.status, Meeting.Status.PENDING)
+
+        with mock.patch('meetings.views.notify_approval_result', return_value=(0, 0)), \
+             mock.patch('meetings.views.notify_changed', return_value=(0, 0)):
+            res = self.as_(self.admin).post(reverse('meeting-approve', args=[target.pk]))
+
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.data['occurrences'], [str(target.pk)])
+        # خواهرها دست‌نخورده و در محلِ آزادِ خودشان
+        for row in rows[1:]:
+            row.refresh_from_db()
+            self.assertEqual(row.location_id, self.free_room.pk)
+
+    def test_approving_a_fresh_series_skips_occurrences_waiting_on_an_edit(self):
+        """نوبتی که ویرایشش در انتظار است، در تاییدِ یک‌جای سلسله نمی‌افتد."""
+        self.create_as(self.member, room=str(self.gated_room.pk),
+                       repeatWeekdays=[0, 3], repeatWeeks=2)
+        rows = list(Meeting.objects.order_by('start'))
+        self.assertGreater(len(rows), 2)
+        # نوبتِ دوم را تاییدشده و بعد ویرایش‌شده می‌کنیم
+        edited = rows[1]
+        Meeting.objects.filter(pk=edited.pk).update(status=Meeting.Status.CONFIRMED)
+        edited.refresh_from_db()
+        self.quiet_patch(self.member, edited, start=20, end=21)
+        edited.refresh_from_db()
+        self.assertIsNotNone(edited.pending_revert)
+
+        with mock.patch('meetings.views.notify_approval_result', return_value=(0, 0)), \
+             mock.patch('meetings.views.notify_created', return_value=(0, 0)):
+            res = self.as_(self.admin).post(reverse('meeting-approve', args=[rows[0].pk]))
+
+        self.assertEqual(res.status_code, 200)
+        self.assertNotIn(str(edited.pk), res.data['occurrences'])
+        edited.refresh_from_db()
+        self.assertEqual(edited.status, Meeting.Status.PENDING)
+        self.assertIsNotNone(edited.pending_revert)
+
+    # ---------- لغو، و آنچه رابط می‌بیند ----------
+
+    def test_cancelling_clears_a_waiting_edit(self):
+        """وگرنه جلسهٔ لغوشده در فهرستِ «در انتظار تایید» می‌ماند."""
+        meeting = self.regated()
+        with mock.patch('meetings.views.notify_cancelled', return_value=(0, 0)):
+            res = self.as_(self.admin).post(
+                reverse('meeting-cancel', args=[meeting.pk]), {'reason': 'لازم نشد'},
+                format='json')
+
+        self.assertEqual(res.status_code, 200)
+        meeting.refresh_from_db()
+        self.assertEqual(meeting.status, Meeting.Status.CANCELLED)
+        self.assertIsNone(meeting.pending_revert)
+
+    def test_the_api_says_which_pending_meetings_are_edits(self):
+        """صفحهٔ تایید باید «درخواست تغییر» را از «جلسهٔ تازه» تشخیص بدهد."""
+        meeting = self.regated()
+        res = self.as_(self.admin).get(reverse('meeting-detail', args=[meeting.pk]))
+        self.assertEqual(res.status_code, 200)
+        was = res.data['pendingEdit']
+        self.assertIsNotNone(was)
+        self.assertEqual(was['room'], str(self.free_room.pk))
+        self.assertEqual(was['start'], 10.0)
+        self.assertEqual(was['end'], 11.0)
+
+    def test_a_freshly_created_pending_meeting_has_no_pending_edit(self):
+        self.create_as(self.member, room=str(self.gated_room.pk))
+        meeting = Meeting.objects.get()
+        res = self.as_(self.admin).get(reverse('meeting-detail', args=[meeting.pk]))
+        self.assertIsNone(res.data['pendingEdit'])

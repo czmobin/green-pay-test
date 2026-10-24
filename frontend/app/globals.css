@@ -1086,6 +1086,13 @@ select.field-in option{direction:rtl;text-align:right}
 .pre-notes li button:hover{color:var(--danger)}
 /* ردیفِ جمعِ مدت: کادر ندارد تا با بندها اشتباه نشود. */
 .pre-notes li.pn-total{background:none;border:0;padding:2px 10px;font-weight:800}
+
+/* یادداشتِ هشدار درونِ فرم — برای چیزی که با ذخیره شدن اتفاق می‌افتد و
+   کاربر باید پیش از زدنِ دکمه بداند. توکن‌های `--warn` را می‌گیرد، پس در
+   حالت تیره هم خودش را درست می‌کند. */
+.form-warn{margin:0;padding:10px 12px;border-radius:12px;font-size:12px;line-height:1.85;
+  background:var(--warn-soft);border:1px solid color-mix(in srgb,var(--warn) 42%,transparent);
+  color:color-mix(in srgb,var(--warn) 78%,var(--ink))}
 .pn-add{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .pn-add .field-in{flex:1;min-width:120px}
 .pn-add .ag-dur-wrap{flex:0 0 auto}
@@ -1104,6 +1111,12 @@ select.field-in option{direction:rtl;text-align:right}
 .ap-actions{display:flex;gap:8px;flex:0 0 auto}
 .ap-reject{display:flex;flex-direction:column;gap:8px;flex:1 1 100%}
 @media (min-width:600px){.ap-reject{flex-direction:row;align-items:center}}
+/* زمان و محلِ پیشینِ یک «درخواست تغییر» — با خط‌خوردگی، چون چیزی است که
+   جلسه از آن می‌آید نه چیزی که به آن می‌رود. */
+.ap-was{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;font-size:12px;
+  color:var(--ink-soft)}
+.ap-was > span:last-child{text-decoration:line-through;text-decoration-thickness:1px;
+  text-decoration-color:color-mix(in srgb,var(--ink-soft) 55%,transparent)}
 
 
 .cal-toolbar{display:flex;align-items:center;gap:12px;margin-bottom:12px;flex-wrap:wrap}
