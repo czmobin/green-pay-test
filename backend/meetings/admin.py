@@ -73,15 +73,18 @@ class LocationAdmin(admin.ModelAdmin):
     list_display = ('name', 'organization', 'capacity', 'has_map', 'needs_approval')
     list_filter = ('organization', 'is_online', 'needs_approval')
     search_fields = ('name', 'address')
+    filter_horizontal = ('approvers',)
     # `needs_approval` باید در `fieldsets` هم باشد، نه فقط در `list_display`:
     # این کلاس fieldsets صریح دارد و هر فیلدی که در آن نباشد در فرمِ ویرایش
     # **رندر نمی‌شود** — یعنی ستونش در فهرست دیده می‌شود ولی تیکش را نمی‌شود زد.
     fieldsets = (
         (None, {'fields': ('name', 'organization', 'capacity', 'is_online')}),
         ('تایید رزرو', {
-            'fields': ('needs_approval',),
+            'fields': ('needs_approval', 'approvers'),
             'description': 'با روشن‌کردن این گزینه، هر جلسه‌ای که این محل را بگیرد در '
-                           'وضعیت «در انتظار» می‌ماند تا ادمین یا مدیرعامل تاییدش کند. '
+                           'وضعیت «در انتظار» می‌ماند تا یکی از ادمین‌های انتخاب‌شده '
+                           'تاییدش کند. فقط همان ادمین‌ها صفحه‌ی «در انتظار تایید» را '
+                           'برای این محل می‌بینند. مدیرعامل به این صفحه دسترسی ندارد. '
                            'تا تایید نشود هیچ پیامکی برای شرکت‌کنندگان نمی‌رود و جلسه '
                            'به تقویم Outlook هم فرستاده نمی‌شود.',
         }),
@@ -91,6 +94,13 @@ class LocationAdmin(admin.ModelAdmin):
                            'دکمهٔ مسیریابی در صفحهٔ جلسه فعال می‌شود.',
         }),
     )
+
+    def formfield_for_manytomany(self, db_field, request, **kwargs):
+        # فقط ادمین‌ها در ویجت انتخاب ظاهر شوند — مدیرعامل و بقیه نه.
+        if db_field.name == 'approvers':
+            kwargs['queryset'] = User.objects.filter(role=User.Role.ADMIN).order_by(
+                'first_name', 'username')
+        return super().formfield_for_manytomany(db_field, request, **kwargs)
 
     @admin.display(boolean=True, description='روی نقشه')
     def has_map(self, obj):

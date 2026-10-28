@@ -794,8 +794,15 @@ export default function Providers({ children }: { children: React.ReactNode }) {
    * کلِ سلسله را تایید می‌کند، پس چهار کارتِ یکسان فقط شلوغی است.
    */
   const pendingMeetings = useMemo(() => {
+    // فقط محل‌هایی که کاربر فعلی در `approverIds`شان است — ادمینِ دیگر و
+    // مدیرعامل این فهرست را خالی می‌بینند (و `canApproveMeetings` هم برایشان
+    // خاموش است).
     const rows = meetings
-      .filter((m) => m.status === 'pending')
+      .filter((m) => {
+        if (m.status !== 'pending') return false;
+        const ids = rooms[m.room]?.approverIds ?? [];
+        return !!currentUser && ids.includes(currentUser);
+      })
       .sort((a, b) => a.date.localeCompare(b.date) || a.start - b.start);
     const seen = new Set<string>();
     return rows.filter((m) => {
@@ -808,7 +815,7 @@ export default function Providers({ children }: { children: React.ReactNode }) {
       seen.add(m.series);
       return true;
     });
-  }, [meetings]);
+  }, [meetings, rooms, currentUser]);
 
   const visibleMeetings = useMemo(() => {
     // تا تایید نشده در تقویم و فهرست جلسات دیده نشود؛ صفحهٔ تاییدها از

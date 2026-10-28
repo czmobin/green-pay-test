@@ -77,8 +77,10 @@ export interface Room {
   lat?: number | null;       // مختصات برای مسیریابی
   lng?: number | null;
   hasMap?: boolean;
-  /** رزروِ این محل باید تایید ادمین یا مدیرعامل بگیرد. */
+  /** رزروِ این محل باید تایید ادمینِ تعیین‌شده بگیرد. */
   needsApproval?: boolean;
+  /** شناسهٔ ادمین‌هایی که این محل را در صفحه‌ی تایید می‌بینند. */
+  approverIds?: string[];
 }
 
 export interface AgendaItem {

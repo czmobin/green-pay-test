@@ -105,11 +105,21 @@ class Location(models.Model):
         Organization, on_delete=models.CASCADE, related_name='locations', verbose_name='سازمان',
     )
     is_online = models.BooleanField('آنلاین', default=False)
-    # جلسه‌ای که این محل را بگیرد، تا ادمین یا مدیرعامل تاییدش نکند در وضعیت
-    # «در انتظار» می‌ماند و هیچ پیامک و دعوت‌نامه‌ای برایش بیرون نمی‌رود.
+    # جلسه‌ای که این محل را بگیرد، تا یکی از ادمین‌های تعیین‌شده تاییدش نکند
+    # در وضعیت «در انتظار» می‌ماند و هیچ پیامک و دعوت‌نامه‌ای برایش بیرون نمی‌رود.
+    # مدیرعامل عمداً در این حلقه نیست — تایید فقط از ادمین‌های `approvers`.
     needs_approval = models.BooleanField(
-        'نیاز به تایید مدیرعامل یا ادمین', default=False,
+        'نیاز به تایید ادمین', default=False,
         help_text='برای محل‌هایی مثل دفتر مدیرعامل که رزروشان باید تایید شود.',
+    )
+    # فقط همین ادمین‌ها صفحه‌ی «در انتظار تایید» را برای این محل می‌بینند
+    # و می‌توانند تایید/رد کنند. خالی = هیچ‌کس (حتی ادمین دیگر) نمی‌تواند.
+    approvers = models.ManyToManyField(
+        'User', blank=True, related_name='approvable_locations',
+        verbose_name='ادمین‌های تاییدکننده',
+        help_text='فقط ادمین‌هایی که این‌جا انتخاب شوند، رزروِ این محل را '
+                  'در صفحه‌ی تایید می‌بینند و می‌توانند تایید یا رد کنند.',
+        limit_choices_to={'role': 'admin'},
     )
     address = models.TextField('نشانی کامل', blank=True)
     lat = models.FloatField('عرض جغرافیایی', null=True, blank=True)

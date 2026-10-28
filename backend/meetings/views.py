@@ -429,16 +429,36 @@ def _by_id(serializer_data):
     return {row['id']: row for row in serializer_data}
 
 
-def can_approve_meeting(user) -> bool:
-    """تایید رزروِ محل‌های حساس — فقط ادمین و مدیرعامل.
+def can_approve_location(user, location) -> bool:
+    """آیا این کاربر برای این محل تاییدکننده است؟
 
-    عمداً `is_manager` نیست: آن یکی مدیر اجرایی را هم شامل می‌شود و خواستهٔ
-    کارفرما «ادمین یا مدیرعامل» بود. اگر روزی این دو یکی شدند، همین یک تابع
-    عوض می‌شود.
+    فقط ادمین، و فقط اگر در `location.approvers` باشد. مدیرعامل عمداً
+    کنار است — حتی اگر به‌اشتباه در M2M باشد، `is_admin` ردش می‌کند.
     """
     if user is None or not getattr(user, 'is_authenticated', False):
         return False
-    return is_admin(user) or getattr(user, 'role', None) == User.Role.CEO
+    if location is None or not getattr(location, 'needs_approval', False):
+        return False
+    if not is_admin(user):
+        return False
+    return location.approvers.filter(pk=user.pk).exists()
+
+
+def can_approve_meeting(user, meeting=None) -> bool:
+    """تایید رزروِ محل‌های حساس — فقط ادمینِ تعیین‌شده برای آن محل.
+
+    بدون `meeting`: آیا اصلاً برای حداقل یک محل تاییدکننده است؟ (ناوبری و
+    bootstrap). با `meeting`: آیا همان محلِ جلسه را تایید می‌کند؟
+
+    مدیرعامل هرگز True نمی‌گیرد.
+    """
+    if user is None or not getattr(user, 'is_authenticated', False):
+        return False
+    if not is_admin(user):
+        return False
+    if meeting is not None:
+        return can_approve_location(user, getattr(meeting, 'location', None))
+    return Location.objects.filter(needs_approval=True, approvers=user).exists()
 
 
 def ceo_meeting_ids():
@@ -665,7 +685,9 @@ def bootstrap(request):
             Organization.objects.select_related('kind'), many=True).data),
         'orgKinds': _by_id(OrganizationKindSerializer(OrganizationKind.objects.all(), many=True).data),
         'categories': _by_id(CategorySerializer(Category.objects.all(), many=True).data),
-        'rooms': _by_id(LocationSerializer(Location.objects.select_related('organization'), many=True).data),
+        'rooms': _by_id(LocationSerializer(
+            Location.objects.select_related('organization').prefetch_related('approvers'),
+            many=True).data),
         'people': _by_id(PersonSerializer(people, many=True).data),
         'guests': _by_id(GuestSerializer(guests, many=True).data),
         'meetings': MeetingSerializer(meetings_queryset(request.user), many=True).data,
@@ -833,8 +855,8 @@ class MeetingViewSet(viewsets.ModelViewSet):
             and (time_moved or room_moved)
             and meeting.location_id is not None
             and meeting.location.needs_approval
-            # تاییدکننده نیازی به تاییدِ خودش ندارد — همان قاعدهٔ مسیرِ ساخت.
-            and not can_approve_meeting(request.user)
+            # تاییدکنندهٔ همین محل نیازی به تاییدِ خودش ندارد — همان قاعدهٔ ساخت.
+            and not can_approve_location(request.user, meeting.location)
         )
         if regated:
             meeting.status = Meeting.Status.PENDING
@@ -963,7 +985,7 @@ class MeetingViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'])
     def approve(self, request, pk=None):
-        """تایید جلسه‌ای که محلش نیاز به تایید داشت — فقط ادمین یا مدیرعامل.
+        """تایید جلسه‌ای که محلش نیاز به تایید داشت — فقط ادمینِ همان محل.
 
         ترتیبِ کارها مهم است: اول وضعیت عوض می‌شود، بعد `mark_dirty` (که تا
         وضعیت `PENDING` بود عمداً کاری نمی‌کرد)، و آخر پیامک. از یک سلسله هم
@@ -974,8 +996,8 @@ class MeetingViewSet(viewsets.ModelViewSet):
         پیامکِ **تغییر** — شرکت‌کننده‌اش این جلسه را از قبل می‌شناسد.
         """
         meeting = self.get_object()
-        if not can_approve_meeting(request.user):
-            raise PermissionDenied('تایید جلسه فقط از عهدهٔ ادمین یا مدیرعامل برمی‌آید.')
+        if not can_approve_meeting(request.user, meeting):
+            raise PermissionDenied('تایید این جلسه فقط از عهدهٔ ادمینِ تعیین‌شده برای محلش برمی‌آید.')
         if meeting.status != Meeting.Status.PENDING:
             raise ValidationError({'detail': 'این جلسه در انتظار تایید نیست.'})
 
@@ -1015,14 +1037,14 @@ class MeetingViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'])
     def reject(self, request, pk=None):
-        """رد جلسهٔ در انتظار تایید — فقط ادمین یا مدیرعامل.
+        """رد جلسهٔ در انتظار تایید — فقط ادمینِ همان محل.
 
         شرکت‌کنندگان هیچ‌وقت خبرِ ایجاد نگرفته بودند، پس پیامکِ لغو برایشان
         نمی‌رود. فقط سازنده از نتیجهٔ رد باخبر می‌شود.
         """
         meeting = self.get_object()
-        if not can_approve_meeting(request.user):
-            raise PermissionDenied('رد جلسه فقط از عهدهٔ ادمین یا مدیرعامل برمی‌آید.')
+        if not can_approve_meeting(request.user, meeting):
+            raise PermissionDenied('رد این جلسه فقط از عهدهٔ ادمینِ تعیین‌شده برای محلش برمی‌آید.')
         if meeting.status != Meeting.Status.PENDING:
             raise ValidationError({'detail': 'این جلسه در انتظار تایید نیست.'})
 
