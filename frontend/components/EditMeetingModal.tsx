@@ -65,8 +65,10 @@ export default function EditMeetingModal(
   // تاییدکننده‌ها از این دروازه رد نمی‌شوند، پس هشدار هم نمی‌بینند.
   const moved = date !== meeting.date || start !== meeting.start || end !== meeting.end
     || (type === 'online' ? '' : room) !== meeting.room;
+  const canApproveThisRoom = !!store.currentUser
+    && (store.rooms[room]?.approverIds ?? []).includes(store.currentUser);
   const regate = meeting.status === 'confirmed' && moved && type !== 'online'
-    && !!room && !!store.rooms[room]?.needsApproval && !store.canApproveMeetings;
+    && !!room && !!store.rooms[room]?.needsApproval && !canApproveThisRoom;
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();

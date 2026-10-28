@@ -74,11 +74,18 @@ class LocationSerializer(serializers.ModelSerializer):
     #: رزروِ این محل باید تایید شود؟ رابط با همین، پیش از ثبت به کاربر می‌گوید
     #: جلسه در انتظار تایید می‌ماند.
     needsApproval = serializers.BooleanField(source='needs_approval', read_only=True)
+    #: شناسهٔ ادمین‌هایی که این محل را تایید می‌کنند — فرانت با همین، صفحه‌ی
+    #: «در انتظار تایید» را فقط برای همان‌ها پر می‌کند.
+    approverIds = serializers.SerializerMethodField()
 
     class Meta:
         model = Location
         fields = ['id', 'name', 'cap', 'orgId', 'is_online', 'address', 'lat', 'lng',
-                  'hasMap', 'needsApproval']
+                  'hasMap', 'needsApproval', 'approverIds']
+
+    def get_approverIds(self, obj) -> list:
+        # prefetch_related('approvers') در bootstrap؛ values_list بدون آن هم درست است.
+        return [str(pk) for pk in obj.approvers.values_list('pk', flat=True)]
 
 
 class PersonSerializer(serializers.ModelSerializer):
@@ -387,14 +394,14 @@ class MeetingCreateSerializer(serializers.Serializer):
     def _one(self, validated, day, series):
         # واردکردنِ تأخیری، مثل `get_fields` پایین‌تر: `views` خودش این فایل را
         # وارد می‌کند و واردکردنِ سطح‌بالا حلقه می‌سازد.
-        from .views import can_approve_meeting
+        from .views import can_approve_location
 
         room = validated.get('room')
-        # محل‌هایی مثل دفتر مدیرعامل تا تایید ادمین یا مدیرعامل در انتظار
-        # می‌مانند. سازنده‌ای که خودش اجازهٔ تایید دارد، نیازی به تاییدِ خودش
-        # ندارد — وگرنه مدیرعامل باید جلسهٔ خودش را تایید کند.
+        # محل‌هایی مثل دفتر مدیرعامل تا تایید ادمینِ تعیین‌شده در انتظار
+        # می‌مانند. سازنده‌ای که خودش برای همین محل تاییدکننده است، نیازی به
+        # تاییدِ خودش ندارد.
         creator = self.context.get('creator')
-        needs = bool(room and room.needs_approval) and not can_approve_meeting(creator)
+        needs = bool(room and room.needs_approval) and not can_approve_location(creator, room)
         meeting = Meeting.objects.create(
             title=validated['title'],
             category=validated['category'],

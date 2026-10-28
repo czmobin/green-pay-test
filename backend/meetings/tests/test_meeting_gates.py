@@ -44,6 +44,9 @@ class GateTestBase(APITestCase):
         self.free_room = Location.objects.create(name='اتاق طبقه ۳', organization=self.org)
         self.gated_room = Location.objects.create(
             name='دفتر مدیرعامل', organization=self.org, needs_approval=True)
+        # بدون تاییدکنندهٔ تعیین‌شده هیچ‌کس نمی‌تواند تایید کند؛ ادمینِ پایه
+        # را برای محلِ آزمون می‌گذاریم تا بقیهٔ تست‌های دروازه سالم بمانند.
+        self.gated_room.approvers.add(self.admin)
 
     def as_(self, user):
         self.client.force_authenticate(user=user)
@@ -97,12 +100,16 @@ class ApprovalGateTests(GateTestBase):
         self.assertEqual(Meeting.objects.get().status, Meeting.Status.PENDING)
 
     def test_an_approver_does_not_need_to_approve_their_own(self):
-        """وگرنه مدیرعامل باید جلسهٔ دفتر خودش را تایید کند."""
-        for user in (self.admin, self.ceo):
-            Meeting.objects.all().delete()
-            self.create_as(user, room=str(self.gated_room.pk), organizer=str(user.pk))
-            self.assertEqual(Meeting.objects.get().status,
-                             Meeting.Status.CONFIRMED, msg=user.username)
+        """ادمینِ تعیین‌شده برای محل، جلسهٔ خودش را بی‌درنگ تاییدشده می‌سازد."""
+        self.create_as(self.admin, room=str(self.gated_room.pk),
+                       organizer=str(self.admin.pk))
+        self.assertEqual(Meeting.objects.get().status, Meeting.Status.CONFIRMED)
+
+    def test_ceo_still_needs_approval_for_gated_room(self):
+        """مدیرعامل تاییدکننده نیست — حتی برای دفتر «مدیرعامل»."""
+        self.create_as(self.ceo, room=str(self.gated_room.pk),
+                       organizer=str(self.ceo.pk))
+        self.assertEqual(Meeting.objects.get().status, Meeting.Status.PENDING)
 
     def test_an_executive_still_needs_approval(self):
         """`is_manager` شامل مدیر اجرایی است؛ قاعدهٔ تایید نباید باشد."""
@@ -163,17 +170,58 @@ class ApproveRejectTests(GateTestBase):
         res = self.as_(self.executive).post(reverse('meeting-approve', args=[meeting.pk]))
         self.assertEqual(res.status_code, 403)
 
-    def test_admin_and_ceo_can_approve(self):
-        for user in (self.admin, self.ceo):
-            Meeting.objects.all().delete()
-            meeting = self.pending()
-            with mock.patch('meetings.views.notify_approval_result', return_value=(0, 0)), \
-                 mock.patch('meetings.views.notify_created', return_value=(1, 0)) as sms:
-                res = self.as_(user).post(reverse('meeting-approve', args=[meeting.pk]))
-            self.assertEqual(res.status_code, 200, msg=user.username)
-            meeting.refresh_from_db()
-            self.assertEqual(meeting.status, Meeting.Status.CONFIRMED)
-            self.assertEqual(sms.call_count, 1)
+    def test_assigned_admin_can_approve(self):
+        meeting = self.pending()
+        with mock.patch('meetings.views.notify_approval_result', return_value=(0, 0)), \
+             mock.patch('meetings.views.notify_created', return_value=(1, 0)) as sms:
+            res = self.as_(self.admin).post(reverse('meeting-approve', args=[meeting.pk]))
+        self.assertEqual(res.status_code, 200)
+        meeting.refresh_from_db()
+        self.assertEqual(meeting.status, Meeting.Status.CONFIRMED)
+        self.assertEqual(sms.call_count, 1)
+
+    def test_ceo_cannot_approve(self):
+        """مدیرعامل نه صفحهٔ تایید دارد نه API تایید."""
+        meeting = self.pending()
+        res = self.as_(self.ceo).post(reverse('meeting-approve', args=[meeting.pk]))
+        self.assertEqual(res.status_code, 403)
+        meeting.refresh_from_db()
+        self.assertEqual(meeting.status, Meeting.Status.PENDING)
+
+    def test_unassigned_admin_cannot_approve(self):
+        other_admin = make_user('otherboss', role=User.Role.ADMIN, phone='09120000099')
+        meeting = self.pending()
+        res = self.as_(other_admin).post(reverse('meeting-approve', args=[meeting.pk]))
+        self.assertEqual(res.status_code, 403)
+        meeting.refresh_from_db()
+        self.assertEqual(meeting.status, Meeting.Status.PENDING)
+
+    def test_unassigned_admin_cannot_reject(self):
+        other_admin = make_user('otherboss2', role=User.Role.ADMIN, phone='09120000098')
+        meeting = self.pending()
+        res = self.as_(other_admin).post(
+            reverse('meeting-reject', args=[meeting.pk]), {'reason': 'no'}, format='json')
+        self.assertEqual(res.status_code, 403)
+        meeting.refresh_from_db()
+        self.assertEqual(meeting.status, Meeting.Status.PENDING)
+
+    def test_ceo_bootstrap_hides_approval_capability(self):
+        res = self.as_(self.ceo).get(reverse('bootstrap'))
+        self.assertEqual(res.status_code, 200)
+        self.assertFalse(res.data['canApproveMeetings'])
+
+    def test_assigned_admin_bootstrap_shows_approval_capability(self):
+        res = self.as_(self.admin).get(reverse('bootstrap'))
+        self.assertEqual(res.status_code, 200)
+        self.assertTrue(res.data['canApproveMeetings'])
+        room = res.data['rooms'][str(self.gated_room.pk)]
+        self.assertIn(str(self.admin.pk), room['approverIds'])
+
+    def test_unassigned_admin_bootstrap_hides_approval_when_no_venues(self):
+        other_admin = make_user('lonelyboss', role=User.Role.ADMIN, phone='09120000097')
+        res = self.as_(other_admin).get(reverse('bootstrap'))
+        self.assertEqual(res.status_code, 200)
+        self.assertFalse(res.data['canApproveMeetings'])
 
     def test_approving_sends_the_creation_sms_that_was_held_back(self):
         meeting = self.pending()
@@ -479,15 +527,20 @@ class EditRegateTests(GateTestBase):
         self.assertEqual(meeting.status, Meeting.Status.CONFIRMED)
 
     def test_an_approver_moving_it_does_not_need_approval(self):
-        """همان قاعدهٔ مسیرِ ساخت: تاییدکننده جلسهٔ خودش را تایید نمی‌کند."""
+        """همان قاعدهٔ مسیرِ ساخت: تاییدکنندهٔ محل جلسهٔ خودش را تایید نمی‌کند."""
         meeting = self.confirmed()
-        for user in (self.admin, self.ceo):
-            Meeting.objects.filter(pk=meeting.pk).update(
-                status=Meeting.Status.CONFIRMED, location=self.free_room, pending_revert=None)
-            meeting.refresh_from_db()
-            self.quiet_patch(user, meeting, room=str(self.gated_room.pk))
-            meeting.refresh_from_db()
-            self.assertEqual(meeting.status, Meeting.Status.CONFIRMED, msg=user.username)
+        Meeting.objects.filter(pk=meeting.pk).update(
+            status=Meeting.Status.CONFIRMED, location=self.free_room, pending_revert=None)
+        meeting.refresh_from_db()
+        self.quiet_patch(self.admin, meeting, room=str(self.gated_room.pk))
+        meeting.refresh_from_db()
+        self.assertEqual(meeting.status, Meeting.Status.CONFIRMED)
+
+    def test_ceo_moving_into_gated_room_still_needs_approval(self):
+        meeting = self.confirmed()
+        self.quiet_patch(self.ceo, meeting, room=str(self.gated_room.pk))
+        meeting.refresh_from_db()
+        self.assertEqual(meeting.status, Meeting.Status.PENDING)
 
     def test_an_executive_moving_it_still_needs_approval(self):
         """مدیر اجرایی تاییدکننده نیست — `can_approve_meeting` تنگ‌تر از `is_manager`."""
