@@ -70,3 +70,50 @@ class UploadLimitTests(APITestCase):
         }, format='multipart')
         self.assertEqual(res.status_code, 201, res.data)
         self.assertEqual(res.data['fileName'], 'letter.pdf')
+        self.assertEqual(res.data['fileUrl'], f'/entries/{res.data["id"]}/attachment/')
+
+    def test_meeting_attachment_downloads(self):
+        upload = SimpleUploadedFile('note.pdf', b'%PDF-1.4 body', content_type='application/pdf')
+        self.client.post(reverse('meeting-attach', args=[self.meeting.pk]),
+                         {'file': upload}, format='multipart')
+        res = self.client.get(reverse('meeting-attachment', args=[self.meeting.pk]))
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(b''.join(res.streaming_content), b'%PDF-1.4 body')
+        self.assertIn('pdf', (res.get('Content-Type') or '').lower())
+
+    def test_agenda_attachment_downloads(self):
+        upload = SimpleUploadedFile('agenda.docx', b'PKDATA', content_type='application/octet-stream')
+        created = self.client.post(reverse('agenda-list'), {
+            'meeting': str(self.meeting.pk), 'title': 'بند', 'dur': 10, 'file': upload,
+        }, format='multipart')
+        self.assertEqual(created.status_code, 201, created.data)
+        self.assertEqual(created.data['fileUrl'], f'/agenda/{created.data["id"]}/attachment/')
+        res = self.client.get(reverse('agenda-attachment', args=[created.data['id']]))
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(b''.join(res.streaming_content), b'PKDATA')
+
+    def test_minute_attachment_downloads(self):
+        upload = SimpleUploadedFile('letter.pdf', b'%PDF-x', content_type='application/pdf')
+        created = self.client.post(reverse('entry-list'), {
+            'meeting': str(self.meeting.pk), 'type': 'file', 'text': '',
+            'file': upload, 'fileName': 'letter.pdf',
+        }, format='multipart')
+        res = self.client.get(reverse('entry-attachment', args=[created.data['id']]))
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(b''.join(res.streaming_content), b'%PDF-x')
+
+    def test_stranger_cannot_download_meeting_attachment(self):
+        upload = SimpleUploadedFile('secret.pdf', b'%PDF-secret', content_type='application/pdf')
+        self.client.post(reverse('meeting-attach', args=[self.meeting.pk]),
+                         {'file': upload}, format='multipart')
+        stranger = make_user('stranger', phone='09123333333')
+        self.client.force_authenticate(user=stranger)
+        res = self.client.get(reverse('meeting-attachment', args=[self.meeting.pk]))
+        self.assertEqual(res.status_code, 404)
+
+    def test_attach_response_includes_file_url(self):
+        upload = SimpleUploadedFile('note.pdf', b'%PDF', content_type='application/pdf')
+        res = self.client.post(reverse('meeting-attach', args=[self.meeting.pk]),
+                               {'file': upload}, format='multipart')
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.data['fileUrl'], f'/meetings/{self.meeting.pk}/attachment/')

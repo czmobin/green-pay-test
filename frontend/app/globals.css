@@ -413,8 +413,10 @@ button.kpi:active{transform:scale(.985)}
 .file-btn:hover{border-color:var(--brand);color:var(--brand)}
 .file-btn .fn{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .file-chip{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:700;color:var(--info);
-  background:var(--info-soft);padding:3px 9px;border-radius:8px;max-width:100%;overflow:hidden}
+  background:var(--info-soft);padding:3px 9px;border-radius:8px;max-width:100%;overflow:hidden;border:0;font:inherit}
 .file-chip:hover{filter:brightness(.97)}
+.file-chip-link{cursor:pointer;text-decoration:underline;text-underline-offset:2px}
+.file-chip-link:disabled{opacity:.65;cursor:wait}
 
 .composer{padding:13px 14px;border-bottom:1px solid var(--line);background:var(--panel-2)}
 .type-picker{display:flex;gap:7px;overflow-x:auto;padding-bottom:9px;margin-bottom:10px}

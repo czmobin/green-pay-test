@@ -7,6 +7,7 @@ import DatePicker from './DatePicker';
 import DueBadge from './DueBadge';
 import TimePicker from './TimePicker';
 import type { AgendaItem, Meeting, Minute, MinuteType } from '@/lib/types';
+import FileChip from './FileChip';
 import { minuteIcon, IconDoc, IconPlus, IconTrash, IconCheck, IconClock, IconCall, IconPaperclip, IconEdit, IconList } from './Icons';
 
 /** انواعی که کاربر می‌تواند ثبت کند — بقیه فقط در دادهٔ قدیمی دیده می‌شوند */
@@ -291,9 +292,8 @@ function MinuteRow({ m, mid, agenda, canWrite }: {
         {!(hasFile && m.text === m.fileName) && <div className="mtext">{m.text}</div>}
         <div className="mextra">
           {hasFile && m.fileName && (
-            <button className="file-chip" onClick={() => store.toast('دانلود پیوست (دمو)', 'ok')}>
-              <IconPaperclip size={12} />{m.fileName}
-            </button>
+            <FileChip fileName={m.fileName} fileUrl={m.fileUrl}
+              onError={(msg) => store.toast(msg, 'info')} />
           )}
           {m.done && <span className="done-tag">انجام شد</span>}
           {m.type === 'reminder' && remindLabel(m) && <span><IconClock size={12} />{remindLabel(m)}</span>}

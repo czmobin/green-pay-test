@@ -90,6 +90,8 @@ export interface AgendaItem {
   order?: number;
   /** نام فایل پیوست (سقف ۱۰ مگابایت) */
   fileName?: string | null;
+  /** مسیر نسبی API برای بازکردن/دانلود پیوست (با JWT) */
+  fileUrl?: string | null;
 }
 
 export interface Meeting {
@@ -117,6 +119,8 @@ export interface Meeting {
   agenda: AgendaItem[];
   /** نام فایل پیوست خودِ جلسه (سقف ۱۰ مگابایت) */
   fileName?: string | null;
+  /** مسیر نسبی API برای بازکردن/دانلود پیوست جلسه */
+  fileUrl?: string | null;
   /** با Outlook همگام است — ویرایش فقط دستِ سازنده و ادمین */
   outlookSynced?: boolean;
   /** برگزارکننده‌اش بیرون از سازمان است — در اپ فقط خوانده می‌شود */
@@ -138,6 +142,8 @@ export interface Minute {
   createdAt: number;
   participant?: string; // person id — صورت‌جلسهٔ کدام شرکت‌کننده؛ undefined = عمومی
   fileName?: string; // برای نامه/فایل
+  /** مسیر نسبی API برای بازکردن/دانلود پیوست صورت‌جلسه */
+  fileUrl?: string | null;
   done?: boolean;
   doneAt?: number | null;
   // reminder
