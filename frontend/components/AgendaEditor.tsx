@@ -4,6 +4,7 @@ import { useStore } from './store';
 import { toFa } from '@/lib/data';
 import { uploadSizeError } from '@/lib/uploads';
 import type { Meeting } from '@/lib/types';
+import FileChip from './FileChip';
 import { IconPlus, IconTrash, IconCheck, IconX, IconEdit, IconPaperclip } from './Icons';
 
 /**
@@ -81,9 +82,8 @@ export default function AgendaEditor({ meeting }: { meeting: Meeting }) {
                   <span>{a.title}</span>
                   <span className="dur num">{toFa(a.dur)} دقیقه</span>
                   {a.fileName && (
-                    <span className="file-chip" title={a.fileName}>
-                      <IconPaperclip size={12} />{a.fileName}
-                    </span>
+                    <FileChip fileName={a.fileName} fileUrl={a.fileUrl}
+                      onError={(msg) => store.toast(msg, 'info')} />
                   )}
                   {editable && (
                     <span className="ag-tools">

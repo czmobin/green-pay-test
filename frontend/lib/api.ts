@@ -159,6 +159,47 @@ async function request<T>(path: string, init?: RequestInit, retry = true, isForm
   return res.status === 204 ? (undefined as T) : res.json();
 }
 
+/**
+ * بازکردن/دانلود پیوست با JWT — `<a href>` هدر Authorization نمی‌فرستد،
+ * پس فایل را با fetch می‌گیریم و در تب تازه (یا دانلود) نشان می‌دهیم.
+ */
+export async function openAttachment(path: string, fileName?: string | null): Promise<void> {
+  const auth = loadToken();
+  const url = path.startsWith('http') ? path : `${BASE}${path.startsWith('/') ? path : `/${path}`}`;
+  let res = await fetch(url, {
+    headers: auth ? { Authorization: `Bearer ${auth}` } : {},
+    cache: 'no-store',
+  });
+  if (res.status === 401 && await tryRefresh()) {
+    const again = loadToken();
+    res = await fetch(url, {
+      headers: again ? { Authorization: `Bearer ${again}` } : {},
+      cache: 'no-store',
+    });
+  }
+  if (res.status === 401 || res.status === 403) {
+    setTokens(null, null);
+    throw new UnauthorizedError();
+  }
+  if (!res.ok) {
+    throw new Error(res.status === 404 ? 'فایل پیدا نشد.' : `دانلود ناموفق (${res.status})`);
+  }
+  const blob = await res.blob();
+  const objectUrl = URL.createObjectURL(blob);
+  // تب تازه برای PDF/تصویر؛ اگر مرورگر باز نکند، لینکِ دانلود پشتیبان است.
+  const opened = window.open(objectUrl, '_blank', 'noopener,noreferrer');
+  if (!opened) {
+    const a = document.createElement('a');
+    a.href = objectUrl;
+    a.download = fileName || 'file';
+    a.rel = 'noopener';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  }
+  window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
+}
+
 const post = <T,>(path: string, body?: unknown) =>
   request<T>(path, { method: 'POST', body: JSON.stringify(body ?? {}) });
 

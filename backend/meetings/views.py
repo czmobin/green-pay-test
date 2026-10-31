@@ -1123,6 +1123,14 @@ class MeetingViewSet(viewsets.ModelViewSet):
         meeting.mark_dirty()
         return Response(MeetingSerializer(meeting).data)
 
+    @action(detail=True, methods=['get'], url_path='attachment', url_name='attachment')
+    def download_attachment(self, request, pk=None):
+        """دانلود/بازکردن پیوست جلسه — همان دامنهٔ دیدِ خودِ جلسه."""
+        from .uploads import attachment_response
+
+        meeting = self.get_object()
+        return attachment_response(meeting.attachments.first())
+
     @action(detail=True, methods=['get', 'post'], url_path='reminder')
     def reminder(self, request, pk=None):
         """یادآور پیامکی همین کاربر برای همین جلسه — خواندن و تنظیم."""
@@ -1268,11 +1276,35 @@ class MinuteEntryViewSet(viewsets.ModelViewSet):
         entry.save(update_fields=['is_done', 'done_at'])
         return Response(MinuteEntrySerializer(entry).data)
 
+    @action(detail=True, methods=['get'], url_path='attachment', url_name='attachment')
+    def download_attachment(self, request, pk=None):
+        """دانلود/بازکردن پیوست آیتم صورت‌جلسه — همان دامنهٔ دیدِ entries."""
+        from .uploads import attachment_response
+
+        entry = self.get_object()
+        return attachment_response(entry.attachments.first())
+
 
 class AgendaItemViewSet(viewsets.ModelViewSet):
     """دستور جلسه — ایجاد/ویرایش/حذف فقط توسط سازندهٔ جلسه، مدیرعامل یا ادمین."""
     queryset = AgendaItem.objects.select_related('meeting').prefetch_related('attachments').order_by('order')
     serializer_class = AgendaItemSerializer
+
+    def get_queryset(self):
+        # همان دامنهٔ دیدِ جلسات: بندِ جلسه‌ای که کاربر نمی‌بیند، پیوستش را هم نمی‌گیرد.
+        return (AgendaItem.objects
+                .select_related('meeting')
+                .prefetch_related('attachments')
+                .filter(meeting__in=meetings_queryset(self.request.user))
+                .order_by('order'))
+
+    @action(detail=True, methods=['get'], url_path='attachment', url_name='attachment')
+    def download_attachment(self, request, pk=None):
+        """دانلود/بازکردن پیوست بند دستور جلسه."""
+        from .uploads import attachment_response
+
+        item = self.get_object()
+        return attachment_response(item.attachments.first())
 
     def perform_create(self, serializer):
         from .models import Attachment

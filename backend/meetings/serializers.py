@@ -159,20 +159,39 @@ class GuestSerializer(serializers.ModelSerializer):
         return obj.organization.name if obj.organization_id else ''
 
 
+def _attachment_label(att) -> str | None:
+    if not att:
+        return None
+    if att.name:
+        return att.name
+    if att.file:
+        return att.file.name.rsplit('/', 1)[-1]
+    return None
+
+
+def _attachment_has_file(att) -> bool:
+    return bool(att and att.file and att.file.name)
+
+
 class AgendaItemSerializer(serializers.ModelSerializer):
     id = serializers.CharField(source='pk', read_only=True)
     dur = serializers.IntegerField(source='duration_minutes')
     meeting = serializers.PrimaryKeyRelatedField(queryset=Meeting.objects.all(), write_only=True, required=False)
     fileName = serializers.SerializerMethodField()
+    #: مسیر نسبی API برای دانلود/بازکردن — فرانت با JWT می‌گیرد.
+    fileUrl = serializers.SerializerMethodField()
 
     class Meta:
         model = AgendaItem
-        fields = ['id', 'meeting', 'order', 'title', 'dur', 'fileName']
+        fields = ['id', 'meeting', 'order', 'title', 'dur', 'fileName', 'fileUrl']
         extra_kwargs = {'order': {'required': False}}
 
     def get_fileName(self, obj):
+        return _attachment_label(obj.attachments.first())
+
+    def get_fileUrl(self, obj):
         att = obj.attachments.first()
-        return (att.name or (att.file.name.rsplit('/', 1)[-1] if att.file else '')) if att else None
+        return f'/agenda/{obj.pk}/attachment/' if _attachment_has_file(att) else None
 
 
 class MeetingSerializer(serializers.ModelSerializer):
@@ -198,6 +217,7 @@ class MeetingSerializer(serializers.ModelSerializer):
     outlookSynced = serializers.BooleanField(source='outlook_synced', read_only=True)
     outlookReadonly = serializers.BooleanField(source='outlook_readonly', read_only=True)
     fileName = serializers.SerializerMethodField()
+    fileUrl = serializers.SerializerMethodField()
     #: اگر این انتظارِ تایید بابتِ **ویرایش** باشد، زمان و محلِ پیشین — تا صفحهٔ
     #: تایید بتواند «از این، به این» را نشان بدهد. برای جلسهٔ تازه `null` است.
     pendingEdit = serializers.SerializerMethodField()
@@ -207,7 +227,8 @@ class MeetingSerializer(serializers.ModelSerializer):
         fields = ['id', 'title', 'category', 'type', 'status', 'priority', 'date', 'start', 'end',
                   'room', 'organizer', 'parts', 'guests', 'partStatus', 'meetLink',
                   'agenda', 'cancelReason', 'cancelledAt', 'cancelledBy',
-                  'outlookSynced', 'outlookReadonly', 'series', 'fileName', 'pendingEdit']
+                  'outlookSynced', 'outlookReadonly', 'series', 'fileName', 'fileUrl',
+                  'pendingEdit']
 
     def get_pendingEdit(self, obj):
         was = obj.pending_revert
@@ -225,8 +246,11 @@ class MeetingSerializer(serializers.ModelSerializer):
         }
 
     def get_fileName(self, obj):
+        return _attachment_label(obj.attachments.first())
+
+    def get_fileUrl(self, obj):
         att = obj.attachments.first()
-        return (att.name or (att.file.name.rsplit('/', 1)[-1] if att.file else '')) if att else None
+        return f'/meetings/{obj.pk}/attachment/' if _attachment_has_file(att) else None
 
     def get_cancelledAt(self, obj):
         return int(obj.cancelled_at.timestamp() * 1000) if obj.cancelled_at else None
@@ -268,6 +292,7 @@ class MinuteEntrySerializer(serializers.ModelSerializer):
     who = serializers.CharField(source='call_with', required=False, allow_blank=True)
     phone = serializers.CharField(source='call_phone', required=False, allow_blank=True)
     fileName = serializers.SerializerMethodField()
+    fileUrl = serializers.SerializerMethodField()
     doneAt = serializers.SerializerMethodField()
     agendaItem = serializers.CharField(source='agenda_item_id', read_only=True)
     editedAt = serializers.SerializerMethodField()
@@ -280,7 +305,8 @@ class MinuteEntrySerializer(serializers.ModelSerializer):
         model = MinuteEntry
         fields = ['id', 'meeting', 'type', 'text', 'createdAt', 'participant',
                   'done', 'doneAt', 'when', 'remindDate', 'remindHour',
-                  'who', 'phone', 'fileName', 'agendaItem', 'editedAt', 'createdBy']
+                  'who', 'phone', 'fileName', 'fileUrl', 'agendaItem', 'editedAt',
+                  'createdBy']
 
     def get_doneAt(self, obj):
         return int(obj.done_at.timestamp() * 1000) if obj.done_at else None
@@ -305,8 +331,11 @@ class MinuteEntrySerializer(serializers.ModelSerializer):
         return str(obj.minutes.meeting_id)
 
     def get_fileName(self, obj):
+        return _attachment_label(obj.attachments.first())
+
+    def get_fileUrl(self, obj):
         att = obj.attachments.first()
-        return att.name if att else None
+        return f'/entries/{obj.pk}/attachment/' if _attachment_has_file(att) else None
 
 
 # ---------------------------------------------------------------- ورودی‌ها

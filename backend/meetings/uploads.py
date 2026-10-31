@@ -3,7 +3,11 @@
 سقفِ مشترک ۱۰ مگابایت است. درون‌ریزیِ افراد از اکسل سقفِ جداگانه‌ای دارد
 (۴ مگابایت) چون آن یکی فهرست است نه پیوستِ جلسه.
 """
+import mimetypes
+from pathlib import Path
+
 from django.conf import settings
+from django.http import FileResponse, Http404
 from rest_framework.exceptions import ValidationError
 
 MAX_UPLOAD_BYTES = getattr(settings, 'MAX_UPLOAD_BYTES', 10 * 1024 * 1024)
@@ -24,3 +28,23 @@ def assert_upload_size(upload, *, limit: int | None = None) -> None:
         else:
             label = f'{cap // (1024 * 1024)} مگابایت'
         raise ValidationError({'file': f'حجم فایل نباید از {label} بیشتر باشد.'})
+
+
+def attachment_response(attachment) -> FileResponse:
+    """پاسخِ دانلود/بازکردن یک ردیف Attachment — یا ۴۰۴ اگر فایلی نباشد.
+
+    `inline` تا PDF و تصویر در مرورگر باز شوند؛ بقیه معمولاً دانلود می‌شوند.
+    """
+    if not attachment or not getattr(attachment, 'file', None):
+        raise Http404('پیوستی برای دانلود نیست.')
+    stored = attachment.file
+    if not stored.name:
+        raise Http404('پیوستی برای دانلود نیست.')
+    name = (attachment.name or Path(stored.name).name or 'file').strip() or 'file'
+    content_type = mimetypes.guess_type(name)[0] or 'application/octet-stream'
+    return FileResponse(
+        stored.open('rb'),
+        as_attachment=False,
+        filename=name,
+        content_type=content_type,
+    )

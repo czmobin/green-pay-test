@@ -8,6 +8,7 @@ import EditMeetingModal from '@/components/EditMeetingModal';
 import ReminderCard from '@/components/ReminderCard';
 import CancelMeetingDialog from '@/components/CancelMeetingDialog';
 import LocationDialog from '@/components/LocationDialog';
+import FileChip from '@/components/FileChip';
 import { useReveal } from '@/components/useReveal';
 import { statusLabels, fmtTime, initials, toFa, priorityLabels, priorityColor, faDate, faWeekdayOf, isUrl, meetPlatform, meetingColor } from '@/lib/data';
 import { uploadSizeError } from '@/lib/uploads';
@@ -98,7 +99,8 @@ export default function MeetingDetail() {
         {(m.fileName || store.canEdit(m)) && m.status !== 'cancelled' && (
           <div className="meet-file" style={{ marginTop: 8, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
             {m.fileName && (
-              <span className="file-chip"><IconPaperclip size={12} />{m.fileName}</span>
+              <FileChip fileName={m.fileName} fileUrl={m.fileUrl}
+                onError={(msg) => store.toast(msg, 'info')} />
             )}
             {store.canEdit(m) && (
               <label className="file-btn" style={{ padding: '6px 10px', fontSize: 12 }}>
