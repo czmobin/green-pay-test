@@ -313,11 +313,15 @@ function layoutPrintDay(items: Meeting[], first: number, last: number): PrintClu
   return out;
 }
 
+/** بازهٔ ثابت چاپ هفتگی: ۷ صبح تا ۸ شب (ساعت ۲۰). برش روی جلسه‌ها ممنوع. */
+const PRINT_START = 7, PRINT_END = 20;
+
 /**
  * نمای تقویمیِ چاپ — شبکهٔ ساعت × روز، با بلوکِ هم‌اندازهٔ زمانِ واقعی.
  *
- * بازهٔ ساعت‌ها از خودِ جلسه‌ها درمی‌آید نه از ۶ تا ۲۴ ثابت: هفته‌ای که همهٔ
- * جلسه‌هایش بعدازظهر است، نباید نصف برگه را خالی چاپ کند.
+ * بازهٔ ساعت‌ها همیشه ۷ تا ۲۰ است، حتی اگر اولین جلسهٔ هفته ساعت ۱۱ باشد یا
+ * جلسه‌ای بیرون این بازه بیفتد — تا شکل هفته روی کاغذ قابل‌مقایسه بماند.
+ * جلسه‌های بیرون بازه در لبهٔ شبکه برش می‌خورند (`layoutPrintDay`).
  *
  * پیش‌تر هر جلسه فقط در خانهٔ **ساعت شروعش** می‌نشست، پس جلسهٔ ۱۴ تا ۱۶ روی
  * کاغذ به‌اندازهٔ یک خانه دیده می‌شد — برچسبش درست بود ولی ارتفاعش دروغ
@@ -335,9 +339,9 @@ function WeekPrintGrid({ days, meetingsOn }: { days: JDate[]; meetingsOn: (j: JD
   const all = days.flatMap((j) => meetingsOn(j));
   if (!all.length) return null;
 
-  const first = Math.max(START, Math.floor(Math.min(...all.map((m) => m.start))));
-  const last = Math.min(END, Math.ceil(Math.max(...all.map((m) => m.end))));
-  const span = Math.max(1, last - first);
+  const first = PRINT_START;
+  const last = PRINT_END;
+  const span = last - first;
   const hours = Array.from({ length: span }, (_, i) => first + i);
 
   return (
