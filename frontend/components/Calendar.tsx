@@ -14,6 +14,9 @@ import {
   jMonths, jWeekdays, jWeekdaysShort, jMonthLength, faWeekday, jToDate, dateToJ, addDays, sameJ,
   toGregorian, type JDate,
 } from '@/lib/jalali';
+import {
+  PRINT_START, PRINT_END, layoutPrintEvents, printHourHeightMm,
+} from '@/lib/printLayout';
 import { IconChevron, IconBack, IconX, IconPrint } from './Icons';
 
 type View = 'day' | 'week' | 'month' | 'year';
@@ -259,77 +262,15 @@ function WeekPrint({ days, meetingsOn }: { days: JDate[]; meetingsOn: (j: JDate)
   );
 }
 
-type PrintCard = { m: Meeting; solo: boolean; dur: number };
-type PrintCluster = { top: number; cards: PrintCard[] };
-
-/**
- * چیدنِ جلسه‌های یک روز برای چاپ — خوشه به خوشه.
- *
- * هر خوشهٔ هم‌پوشان یک جعبهٔ لنگرانداخته روی **زمان شروع واقعی‌اش** است، و
- * کارت‌های داخلش پشت سر هم و تمام‌عرض می‌آیند:
- *
- *   • کارت تنها ارتفاعش را از **مدتش** می‌گیرد — جلسهٔ ۱۴ تا ۱۶ دقیقاً دو
- *     ردیف ساعت.
- *   • کارتِ داخل خوشه ارتفاعش را از **محتوایش** می‌گیرد.
- *
- * چرا این تفاوت: پیش‌تر هم‌پوشان‌ها کنار هم و نصف‌عرض می‌نشستند، پس جلسهٔ
- * سه‌ساعته دو ردیف فضای خالی داشت و جلسهٔ نیم‌ساعته‌ی کنارش در ستونی باریک
- * عنوانش وسط کلمه بریده می‌شد — و فضای خالیِ آن یکی به دردش نمی‌خورد چون در
- * ستون دیگری بود. حالا هیچ کارتی فضای بی‌استفاده نگه نمی‌دارد و هر کدام
- * تمام عرض ستون را دارد.
- *
- * لنگرِ هر خوشه جداست و انباشته نمی‌شود: اگر موقعیتِ خوشه از روی کارت قبلی
- * حساب می‌شد، فشرده‌شدنِ یک خوشه همهٔ ساعت‌های بعدِ آن روز را بالا می‌کشید.
- */
-function layoutPrintDay(items: Meeting[], first: number, last: number): PrintCluster[] {
-  const sorted = [...items].sort((a, b) => a.start - b.start || b.end - a.end);
-  const clip = (h: number) => Math.max(first, Math.min(h, last));
-
-  const out: PrintCluster[] = [];
-  let cur: Meeting[] = [];
-  let curEnd = -Infinity;
-
-  const flush = () => {
-    if (!cur.length) return;
-    const top = clip(cur[0].start) - first;
-    out.push({
-      top,
-      cards: cur.map((m) => ({
-        m,
-        solo: cur.length === 1,
-        dur: clip(m.end) - clip(m.start),
-      })),
-    });
-    cur = [];
-    curEnd = -Infinity;
-  };
-
-  for (const m of sorted) {
-    if (cur.length && m.start >= curEnd) flush();
-    cur.push(m);
-    curEnd = Math.max(curEnd, m.end);
-  }
-  flush();
-  return out;
-}
-
-/** بازهٔ ثابت چاپ هفتگی: ۷ صبح تا ۱۰ شب (ساعت ۲۲). برش روی جلسه‌ها ممنوع. */
-const PRINT_START = 7, PRINT_END = 22;
-
 /**
  * نمای تقویمیِ چاپ — شبکهٔ ساعت × روز، با بلوکِ هم‌اندازهٔ زمانِ واقعی.
  *
- * بازهٔ ساعت‌ها همیشه ۷ تا ۲۲ است، حتی اگر اولین جلسهٔ هفته ساعت ۱۱ باشد یا
- * جلسه‌ای بیرون این بازه بیفتد — تا شکل هفته روی کاغذ قابل‌مقایسه بماند.
- * جلسه‌های بیرون بازه در لبهٔ شبکه برش می‌خورند (`layoutPrintDay`).
+ * بازهٔ ساعت‌ها همیشه ۷ تا ۲۲ است. هر جلسه جداگانه روی ساعت شروعش می‌نشیند
+ * (۱۷:۳۰ → ردیف ۱۷:۳۰)، حتی اگر با جلسهٔ دیگری هم‌پوشانی داشته باشد —
+ * پشتهٔ خوشه‌ایِ قبلی جلسهٔ عصر را به صبح جابه‌جا می‌کرد.
  *
- * پیش‌تر هر جلسه فقط در خانهٔ **ساعت شروعش** می‌نشست، پس جلسهٔ ۱۴ تا ۱۶ روی
- * کاغذ به‌اندازهٔ یک خانه دیده می‌شد — برچسبش درست بود ولی ارتفاعش دروغ
- * می‌گفت. حالا ارتفاع کارت از مدت واقعی می‌آید؛ چیدمانش را
- * `layoutPrintDay` تعیین می‌کند.
- *
- * ارتفاع هر ساعت را CSS از روی `--span` حساب می‌کند تا شبکه همیشه در یک
- * برگهٔ افقی جا شود؛ هفتهٔ شلوغ فشرده‌تر چاپ می‌شود، نه بریده.
+ * `--ph` را JS به میلی‌متر می‌دهد تا top/height با ارتفاع ردیف‌ها یکی باشد
+ * و به calc روی min()ی CSS وابسته نباشد.
  */
 function WeekPrintGrid({ days, meetingsOn }: { days: JDate[]; meetingsOn: (j: JDate) => Meeting[] }) {
   const store = useStore();
@@ -342,6 +283,7 @@ function WeekPrintGrid({ days, meetingsOn }: { days: JDate[]; meetingsOn: (j: JD
   const first = PRINT_START;
   const last = PRINT_END;
   const span = last - first;
+  const phMm = printHourHeightMm(first, last);
   const hours = Array.from({ length: span }, (_, i) => first + i);
 
   return (
@@ -351,9 +293,10 @@ function WeekPrintGrid({ days, meetingsOn }: { days: JDate[]; meetingsOn: (j: JD
         <span className="num">{weekRange(days)}</span>
       </div>
 
-      {/* فقط تعداد ساعت‌ها را می‌دهیم؛ ارتفاع هر ردیف را CSS از بودجهٔ برگه
-          درمی‌آورد، پس جا شدن در یک صفحه یک ثابتِ CSS است نه حدسِ JS. */}
-      <div className="pwg" style={{ ['--span' as string]: span }}>
+      <div className="pwg" style={{
+        ['--span' as string]: String(span),
+        ['--ph' as string]: `${phMm}mm`,
+      }}>
         <div className="pwg-row pwg-head">
           <div className="pwg-corner">ساعت</div>
           {days.map((j, i) => (
@@ -368,32 +311,31 @@ function WeekPrintGrid({ days, meetingsOn }: { days: JDate[]; meetingsOn: (j: JD
           <div className="pwg-hours">
             {hours.map((h) => <div className="pwg-h num" key={h}>{toFa(h)}:۰۰</div>)}
           </div>
-          {days.map((j, di) => (
-            <div className="pwg-col" key={di}>
-              {/* خط‌های ساعت پس‌زمینه‌اند و ارتفاع ستون را می‌سازند */}
-              {hours.map((h) => <div className="pwg-slot" key={h} />)}
-              {/* هر خوشه روی زمان شروع خودش لنگر می‌اندازد؛ کارت‌های داخلش
-                  در جریان عادی پشت سر هم می‌آیند. */}
-              {layoutPrintDay(meetingsOn(j), first, last).map((cl) => (
-                <div className="pwg-cluster" key={cl.cards[0].m.id}
-                  style={{ top: `calc(var(--ph) * ${cl.top.toFixed(3)})` }}>
-                  {cl.cards.map(({ m, solo, dur }) => (
+          {days.map((j, di) => {
+            const items = meetingsOn(j);
+            const layouts = layoutPrintEvents(items, first, last);
+            return (
+              <div className="pwg-col" key={di}>
+                {hours.map((h) => <div className="pwg-slot" key={h} />)}
+                {layouts.map((lay) => {
+                  const m = items.find((x) => x.id === lay.id);
+                  if (!m) return null;
+                  return (
                     <div className="pwg-ev" key={m.id}
-                      style={solo
-                        ? { minHeight: `calc(var(--ph) * ${dur.toFixed(3)} - .8mm)` }
-                        : undefined}>
+                      style={{
+                        top: `${phMm * lay.top}mm`,
+                        height: `${Math.max(phMm * lay.dur - 0.8, 3)}mm`,
+                      }}>
                       <b>{m.title}</b>
-                      {/* زمان و محل روی یک خط: کارت نیم‌ساعته جای سه خط ندارد
-                          و خط سوم بریده می‌شد */}
                       <span className="pwg-meta">
                         <i className="num">{fmtTime(m.start)}–{fmtTime(m.end)}</i> · {where(m)}
                       </span>
                     </div>
-                  ))}
-                </div>
-              ))}
-            </div>
-          ))}
+                  );
+                })}
+              </div>
+            );
+          })}
         </div>
       </div>
     </section>

@@ -1911,13 +1911,8 @@ select.field-in option{direction:rtl;text-align:right}
      واقعی کشیده می‌شود، پس جلسهٔ ۱۴ تا ۱۶ دقیقاً دو ردیف ساعت را می‌گیرد.
      minmax(0,1fr) و نه 1fr: کف min-content باعث می‌شود عنوانِ بلندِ یک جلسه
      ستون را پهن کند و هفت ستون از برگه بیرون بزند. */
-  /* بودجهٔ ارتفاع ردیف‌های ساعت: برگهٔ A4 افقی ۲۱۰ میلی‌متر است، منهای
-     حاشیه‌ها (۲۴)، سرصفحهٔ چاپ (~۱۱)، ردیف روزها (~۱۲) و کمی احتیاط.
-     چون --ph از همین بودجه تقسیم بر تعداد ساعت‌ها می‌آید، مجموع ردیف‌ها
-     هیچ‌وقت از بودجه رد نمی‌شود — جا شدن در یک صفحه اینجا یک ثابت است،
-     نه چیزی که با شلوغیِ هفته بشکند. سقف ۱۸ میلی‌متر برای وقتی است که
-     هفته فقط چند ساعت جلسه دارد و ردیف‌ها نباید غول‌پیکر شوند. */
-  .pwg{break-inside:avoid;--pw-budget:150mm;--ph:min(18mm,calc(var(--pw-budget) / var(--span)))}
+  /* --ph را JS روی .pwg می‌گذارد (میلی‌متر)؛ این فقط پشتیبان است. */
+  .pwg{break-inside:avoid;--pw-budget:150mm;--ph:10mm}
   .pwg-row{display:grid;grid-template-columns:13mm repeat(7,minmax(0,1fr))}
 
   .pwg-head .pwg-corner,.pwg-dh{border:.6pt solid #888;padding:2pt 1pt;text-align:center;
@@ -1931,25 +1926,19 @@ select.field-in option{direction:rtl;text-align:right}
   .pwg-hours{border-inline-end:0}
   .pwg-col{border-inline-start:0}
 
-  /* خط ساعت‌ها؛ ارتفاعشان همان واحدی است که بلوک‌ها با آن حساب می‌شوند */
+  /* خط ساعت‌ها؛ ارتفاعشان همان --phای است که top/height بلوک‌ها با آن‌اند */
   .pwg-h,.pwg-slot{height:var(--ph);box-sizing:border-box;border-top:.4pt solid #bbb}
   .pwg-hours .pwg-h:first-child,.pwg-col .pwg-slot:first-child{border-top:0}
   .pwg-h{font-size:7.5pt;font-weight:700;text-align:center;line-height:1;padding-top:.6mm;
     background:#f4f4f4;-webkit-print-color-adjust:exact;print-color-adjust:exact}
 
-  /* هر خوشه یک جعبهٔ لنگرانداخته روی زمان شروعش است؛ کارت‌های داخلش در
-     جریان عادی‌اند تا کارتی که محتوایش بیشتر جا می‌خواهد بعدی را هل بدهد،
-     نه اینکه رویش بیفتد. overflow:hidden روی ستون است تا سرریزِ یک روز
-     شلوغ به روز بعد نزند. */
-  .pwg-cluster{position:absolute;inset-inline:.4mm}
-  .pwg-ev{overflow:hidden;box-sizing:border-box;margin-bottom:.8mm;
+  /* هر جلسه مطلقاً روی ساعت شروعش — نه پشتهٔ خوشه. هم‌پوشان‌ها روی هم می‌افتند
+     (مثل نمای صفحه)؛ جابه‌جایی به ساعتِ اشتباه ممنوع است. */
+  .pwg-ev{position:absolute;inset-inline:.4mm;overflow:hidden;box-sizing:border-box;
     border:.5pt solid #333;border-radius:1.2mm;padding:.4mm .8mm;
-    font-size:7pt;line-height:1.25;background:#fff}
-  /* کارت تنها ارتفاعش را از مدتش می‌گیرد (min-height در JS ست می‌شود)؛
-     کارتِ داخل خوشهٔ هم‌پوشان از محتوایش، تا فضای خالی برای بقیه بماند. */
+    font-size:7pt;line-height:1.25;background:#fff;
+    -webkit-print-color-adjust:exact;print-color-adjust:exact}
   .pwg-ev b{display:block;font-weight:700;overflow-wrap:anywhere}
-  /* می‌پیچد نه اینکه با «…» بریده شود: ستونِ باریکِ جلسه‌های هم‌پوشان جای یک
-     خط ندارد، ولی چون بلندند جای دو خط دارند. ساعت خودش نمی‌شکند. */
   .pwg-meta{display:block;color:#333}
   .pwg-meta i{font-style:normal;font-weight:700;white-space:nowrap}
 
